@@ -9,6 +9,7 @@ setup(
     author='Blue Brain Project, EPFL',
     license='GPL-3.0',
     packages=['bluerecording'],
+    python_requires='>=3.9,<3.12',
     install_requires=[
     'bluepysnap>=1.0.0',
     'libsonata>=0.1.28',
@@ -28,11 +29,9 @@ setup(
     'ipympl',
     'neo',
     'xarray',
-    'allensdk @ git+https://github.com/joseph-tharayil/AllenSDK',
     'cinplaAnalysis @ git+https://github.com/joseph-tharayil/CINPLA_Allen_V1_analysis',
     'pytz',
     'python-dateutil'
-    ],
-    pip_options=['--only-binary=matplotlib'],
+    ]
    )
 
