@@ -17,7 +17,7 @@ setup(
     'scipy',
     'numpy',
     'pandas',
-    'morphio<3.3.7',
+    'morphio',
     'notebook',
     'ipython',
     'matplotlib',

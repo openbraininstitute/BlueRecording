@@ -1,33 +1,20 @@
-#!/bin/bash -l
-#SBATCH --job-name="EEG_1_CoordsV"
-#SBATCH --partition=prod
-#SBATCH --nodes=1
-#SBATCH -C clx
-#SBATCH --cpus-per-task=2
-#SBATCH --time=24:00:00
-##SBATCH --mail-type=ALL
-#SBATCH --account=proj85
-#SBATCH --no-requeue
-#SBATCH --output=EEG_1_CoordsV.out
-##SBATCH --error=EEG_1_CoordsV.err
-#SBATCH --exclusive
-#SBATCH --mem=0
-# SPDX-License-Identifier: GPL-3.0-or-later
-
-spack env activate bluerecording-dev
-source ~/bluerecording-dev/bin/activate
+#!/usr/bin/env bash
+set -euo pipefail
 
 NEURONS_PER_FILE=1000
-
 FILES_PER_FOLDER=50
 
-for i in {0..0}
-do
+# Number of folders you want to pre-create
+NUM_FOLDERS=1
 
-    folder="positions/$(($i/$CHUNK_SIZE))"
-    mkdir -p $folder 2>/dev/null
-
+for ((i=0; i<NUM_FOLDERS; i++)); do
+    folder="positions/$i"
+    mkdir -p "$folder"
 done
 
-srun -n 1 python ../../../scripts/run_get_positions.py "../simulation/simulation_config.json" "positions" $NEURONS_PER_FILE $FILES_PER_FOLDER
+python ../../../scripts/run_get_positions.py \
+    "../simulation/simulation_config.json" \
+    "positions" \
+    "$NEURONS_PER_FILE" \
+    "$FILES_PER_FOLDER"
 

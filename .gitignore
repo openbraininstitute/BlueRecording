@@ -31,9 +31,12 @@ bluerecording.egg-info
 *.nrrd
 neurodamus/
 positions/
+*.pkl
+venv/
 pkls/
 pkls_big/
 htmlcov/
 **/EEG.h5
 **/ECoG.h5
 **/LFP.h5
+*.DS_Store
