@@ -24,6 +24,8 @@ If you want the developer version with tests and editable source files:
 source setup.sh --dev
 ```
 
+If you want to skip the system packages installation append `--no-system` to the previous lines.
+
 This is required only once to set up your python virtual environment. In future sessions you can just:
 
 ```bash
