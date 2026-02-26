@@ -3,6 +3,8 @@
 
 INSTALL_MODE="normal"
 
+set -e
+
 # -------------------------
 # Parse arguments
 # -------------------------
