@@ -1,29 +1,45 @@
-- uses: actions/checkout@v4
+name: CI
 
-- uses: actions/setup-python@v5
-  with:
-    python-version: "3.11"
+# Trigger on push to any branch and on pull requests
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
 
-- name: Install MPI + HDF5
-  run: |
-    sudo apt update
-    sudo apt install -y \
-        openmpi-bin \
-        libopenmpi-dev \
-        libhdf5-openmpi-dev \
-        python3-dev \
-        python3-venv
+jobs:
+  test:
+    runs-on: ubuntu-latest
 
-- name: Cache venv
-  uses: actions/cache@v4
-  with:
-    path: venv
-    key: venv-${{ runner.os }}-py311-${{ hashFiles('setup.sh', 'pyproject.toml') }}
+    steps:
+      - uses: actions/checkout@v4
 
-- name: Run setup.sh
-  run: ./setup.sh --dev --no-system
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-- name: Run MPI tests
-  run: |
-    source venv/bin/activate
-    mpirun -n 2 pytest -v tests/unit --with-mpi
+      - name: Install MPI + HDF5
+        run: |
+          sudo apt update
+          sudo apt install -y \
+              openmpi-bin \
+              libopenmpi-dev \
+              libhdf5-openmpi-dev \
+              python3-dev \
+              python3-venv
+
+      - name: Cache venv
+        uses: actions/cache@v4
+        with:
+          path: venv
+          key: venv-${{ runner.os }}-py311-${{ hashFiles('setup.sh', 'pyproject.toml') }}
+
+      - name: Run setup.sh
+        run: ./setup.sh --dev --no-system
+
+      - name: Run MPI tests
+        run: |
+          source venv/bin/activate
+          mpirun -n 2 pytest -v tests/unit --with-mpi
