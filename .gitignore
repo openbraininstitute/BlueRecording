@@ -37,3 +37,4 @@ htmlcov/
 **/EEG.h5
 **/ECoG.h5
 **/LFP.h5
+*removeme*

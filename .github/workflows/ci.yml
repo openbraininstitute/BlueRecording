@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MPI + HDF5 (system)
+        run: |
+          sudo apt update
+          sudo apt install -y \
+              openmpi-bin \
+              libopenmpi-dev \
+              libhdf5-openmpi-dev \
+              python3-dev \
+              python3-venv
+
+      - name: Run setup.sh
+        run: |
+          chmod +x setup.sh
+          ./setup.sh --dev
+
+      - name: Activate venv and run MPI tests
+        run: |
+          source venv/bin/activate
+          mpirun -n 2 pytest -v tests/unit --with-mpi
