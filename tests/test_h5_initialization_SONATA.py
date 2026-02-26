@@ -1,12 +1,12 @@
-# # SPDX-License-Identifier: GPL-3.0-or-later
-# import pytest
-# import pandas as pd
-# import bluepysnap as bp
-# import numpy as np
-# from morphio import PointLevel, SectionType
-# from morphio import Morphology
-# import h5py
-# from bluerecording.writeH5_prelim import *
+# SPDX-License-Identifier: GPL-3.0-or-later
+import pytest
+import pandas as pd
+import bluepysnap as bp
+import numpy as np
+from morphio import PointLevel, SectionType
+from morphio import Morphology
+import h5py
+from bluerecording.writeH5_prelim import *
 
 
 # def test_makeElectrodeDict(electrodes):
@@ -16,26 +16,26 @@
 
 #     np.testing.assert_equal(makeElectrodeDict(csv)['name'], expected['name'])
 
-# def test_ElectrodeFileStructure(write_ElectrodeFileStructure, electrodes, gids,population_name):
+def test_ElectrodeFileStructure(write_ElectrodeFileStructure, electrodes, gids,population_name):
     
-#     '''
-#     Tests that electrode names and positions are written correctly
-#     '''
+    '''
+    Tests that electrode names and positions are written correctly
+    '''
 
-#     outputfile, h5 = write_ElectrodeFileStructure # write_ElectrodeFileStructure is a fixture that initializes ElectrodeFileStructure from writeH5_prelim.py with the appropriate parameters
+    outputfile, h5 = write_ElectrodeFileStructure # write_ElectrodeFileStructure is a fixture that initializes ElectrodeFileStructure from writeH5_prelim.py with the appropriate parameters
 
-#     newFile = h5py.File(outputfile,'r')
+    newFile = h5py.File(outputfile,'r')
 
-#     for key, value in electrodes['name'].items():
+    for key, value in electrodes['name'].items():
         
-#         if key == 'position':
-#             np.testing.assert_equal(newFile['electrodes/name/'+key][:], value)
-#         else: 
-#             np.testing.assert_equal(newFile['electrodes/name/'+key][()].decode(), value)
+        if key == 'position':
+            np.testing.assert_equal(newFile['electrodes/name/'+key][:], value)
+        else: 
+            np.testing.assert_equal(newFile['electrodes/name/'+key][()].decode(), value)
             
-#     np.testing.assert_equal(newFile[population_name+'/node_ids'][:],gids)
+    np.testing.assert_equal(newFile[population_name+'/node_ids'][:],gids)
     
-#     np.testing.assert_equal(newFile[population_name+'/node_ids'].attrs['circuit'], 'test')
+    np.testing.assert_equal(newFile[population_name+'/node_ids'].attrs['circuit'], 'test')
 
 
 # def test_ElectrodeFileStructure_objective(write_ElectrodeFileStructure_objective, electrodes_objective, gids, population_name):
