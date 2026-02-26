@@ -67,7 +67,11 @@ else
     export MPICC=$(which mpicc)
 
     export HDF5_MPI=ON
-    export HDF5_DIR=$(dirname "$(dirname "$(which h5cc)")")
+    if [[ "$OS" == "Linux" ]]; then
+        export HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/openmpi
+    else
+        export HDF5_DIR=$(dirname "$(dirname "$(which h5cc)")")
+    fi
 
     echo "=== Installing Python dependencies (MPI-enabled) ==="
     pip install --upgrade pip setuptools wheel cython numpy
