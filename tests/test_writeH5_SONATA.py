@@ -85,6 +85,9 @@
 #     Creates h5 file, without any weights
 #     '''
 
+#     '''
+#     Creates h5 file, without any weights
+#     '''
 
 #     h5file = h5py.File(path_to_weights_file,'w')
 
@@ -119,6 +122,9 @@
 #         nranks = 2
 #         iteration, iterationSize = get_indices(rank, nranks, neuronsPerFile, numPositionFiles)
 
+#     with pytest.raises(AssertionError):
+#         nranks = 2
+#         iteration, iterationSize = get_indices(rank, nranks, neuronsPerFile, numPositionFiles)
 
 # def test_getSegmentMidpts(positions,gids):
 
@@ -135,9 +141,11 @@
 
 #     outputPos = getSegmentMidpts(positions,gids)
 
+#     outputPos = getSegmentMidpts(positions,gids)
 
 #     pd.testing.assert_frame_equal(outputPos,expectedPositions)
 
+#     pd.testing.assert_frame_equal(outputPos,expectedPositions)
 
 # def test_add_coeffs(writeNeuron,gids,population_name,data):
 
@@ -444,6 +452,7 @@
 
 # def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective):
 
+# def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective):
 
 #     electrodeType = 'ObjectiveCSD_Disk'
 #     objective_csd_array_indices = None

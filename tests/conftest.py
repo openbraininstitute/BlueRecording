@@ -29,21 +29,23 @@ def path_to_potentialfield_file(tmpdir_factory):
 @pytest.fixture(scope="session")
 def path_to_simconfig_with_atlas():
 
-    PARENT_DIR = Path(__file__).parent
+# @pytest.fixture(scope='session')
+# def path_to_simconfig_with_atlas():
 
     simconfig_path = "data/simulation_config.json"
 
-    return str(PARENT_DIR / simconfig_path)
+#     simconfig_path = 'data/simulation_config.json'
 
 
 @pytest.fixture(scope="session")
 def path_to_example_folder():
 
-    PARENT_DIR = Path(__file__).parent.parent
+# @pytest.fixture(scope='session')
+# def path_to_example_folder():
 
     example_path = "examples/compare-to-reference-solutions/data/simulation/"
 
-    return PARENT_DIR / example_path
+#     example_path = 'examples/compare-to-reference-solutions/data/simulation/'
 
 
 @pytest.fixture(scope="session")
@@ -51,7 +53,7 @@ def path_to_simconfig_with_output(path_to_example_folder):
 
     simconfig_path = "simulation_config.json"
 
-    return str(path_to_example_folder / simconfig_path)
+#     simconfig_path = 'simulation_config.json'
 
 
 @pytest.fixture(scope="session")
@@ -61,15 +63,16 @@ def expected_path_to_morph(path_to_example_folder):
 
     morph_file = "dend-rat_P16_S1_RH3_20140129_axon-C060110A5_-_Scale_x1.000_y0.975_z1.000_-_Clone_0.asc"
 
-    return str(path_to_example_folder / morph_path / morph_file)
+#     morph_file = 'dend-rat_P16_S1_RH3_20140129_axon-C060110A5_-_Scale_x1.000_y0.975_z1.000_-_Clone_0.asc'
 
 
 @pytest.fixture(scope="session")
 def expected_circuit_path(path_to_example_folder):
 
-    circuit_path = "configuration/circuit_config.json"
+# @pytest.fixture(scope='session')
+# def expected_circuit_path(path_to_example_folder):
 
-    return str(path_to_example_folder / circuit_path)
+#     circuit_path = "configuration/circuit_config.json"
 
 
 @pytest.fixture(scope="module")
@@ -109,13 +112,13 @@ def data():
         ],
     ]
 
-    columnIdx = list(zip(*columns))
+#     columns = [[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2],[0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10,0,1,1,1,1,1]]
 
     columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx, names=["id", "section"])
 
     data = pd.DataFrame(data=np.zeros([1, len(columns[0])]), columns=columnMultiIndex)
 
-    return data
+#     data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
 
 
 @pytest.fixture(scope="module")
@@ -155,13 +158,13 @@ def data_backwards():
         ],
     ]
 
-    columnIdx = list(zip(*columns))
+#     columns = [[2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10]]
 
     columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx, names=["id", "section"])
 
     data = pd.DataFrame(data=np.zeros([1, len(columns[0])]), columns=columnMultiIndex)
 
-    return data
+#     data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
 
 
 @pytest.fixture(scope="module")
@@ -173,7 +176,8 @@ def secCounts(data):
     sectionIds = data.columns.to_frame()  # Data frame containing gids and section ids
     sectionIds.index = range(len(sectionIds))
 
-    return sectionIds
+#     sectionIds = data.columns.to_frame() # Data frame containing gids and section ids
+#     sectionIds.index = range(len(sectionIds))
 
 
 @pytest.fixture(scope="module")
@@ -188,7 +192,7 @@ def electrodes():
         }
     }
 
-    return electrodes
+#     electrodes = {'name':{'position':np.array([1,2,3]),'type':'Reciprocity','region':'Outside','layer':'Outside'}}
 
 
 @pytest.fixture(scope="module")
@@ -203,7 +207,7 @@ def electrodes_objective():
         }
     }
 
-    return electrodes
+#     electrodes = {'name':{'position':np.array([1,2,3]),'type':{'type':'ObjectiveCSD_Disk','radius':500,'thickness':10},'region':'Outside','layer':'Outside'}}
 
 
 @pytest.fixture(scope="module")
@@ -212,14 +216,12 @@ def gids():
     return [1, 2]
 
 
-@pytest.fixture(scope="module")
-def population_name():
+#     return [1,2]
 
     return "testPopulation"
 
 
-@pytest.fixture(scope="module")
-def somaPos():
+#     return 'testPopulation'
 
     return np.array([0, 0, 0])
 
@@ -238,9 +240,9 @@ def write_ElectrodeFileStructure(
         h5file, gids, electrodes, population_name, circuit="test"
     )  # Initializes fields in h5 file
 
-    h5file.close()
+#     h5 = ElectrodeFileStructure(h5file, gids, electrodes, population_name, circuit='test') # Initializes fields in h5 file
 
-    return path_to_weights_file, h5
+#     h5file.close()
 
 
 @pytest.fixture(scope="module")
@@ -257,23 +259,24 @@ def write_ElectrodeFileStructure_objective(
         h5file, gids, electrodes_objective, population_name, circuit="test"
     )  # Initializes fields in h5 file
 
-    h5file.close()
+#     h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective, population_name, circuit='test') # Initializes fields in h5 file
 
-    return path_to_weights_file, h5
+#     h5file.close()
 
 
 @pytest.fixture(scope="module")
 def writeNeuron(write_ElectrodeFileStructure, secCounts, electrodes, population_name):
 
-    path, h5 = write_ElectrodeFileStructure
+# @pytest.fixture(scope="module")
+# def writeNeuron(write_ElectrodeFileStructure, secCounts, electrodes, population_name):
 
     h5file = h5py.File(path, "r+")
 
-    write_all_neuron(secCounts, population_name, h5, h5file, electrodes)
+#     h5file = h5py.File(path,'r+')
 
-    h5file.close()
+#     write_all_neuron(secCounts, population_name, h5, h5file, electrodes)
 
-    return path, h5
+#     h5file.close()
 
 
 @pytest.fixture(scope="module")
@@ -292,9 +295,10 @@ def morphology_trivial(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[1,0,0,.3]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -326,9 +330,10 @@ def morphology_short(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -363,9 +368,10 @@ def morphology_short_dendFirst(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -397,9 +403,10 @@ def morphology(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -434,9 +441,10 @@ def morphology_dendFirst(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -466,9 +474,10 @@ def morphology_farAxon(path_to_morphology_file):
     )
     file.create_dataset("points", data=pointsData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -500,9 +509,8 @@ def write_potentialField(path_to_potentialfield_file):
     xd, yd, zd, rd = np.meshgrid(xaxis, yaxis, zaxis, realImag, indexing="ij")
     comp0 = field0.create_dataset("comp0", data=zd)
 
-    file.close()
 
-    return path_to_potentialfield_file
+#     file.close()
 
 
 @pytest.fixture(scope="module")
@@ -544,6 +552,7 @@ def write_EField(path_to_potentialfield_file):
     comp1 = field0.create_dataset("comp1", data=yd)
     comp2 = field0.create_dataset("comp2", data=zd)
 
-    file.close()
 
-    return path_to_potentialfield_file
+#     file.close()
+
+#     return path_to_potentialfield_file

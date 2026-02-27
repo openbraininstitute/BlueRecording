@@ -39,4 +39,5 @@ htmlcov/
 **/EEG.h5
 **/ECoG.h5
 **/LFP.h5
-*.DS_Store
+*removeme*
+*DS_Store
