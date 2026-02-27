@@ -1,0 +1,22 @@
+[project]
+name = "bluerecording"
+version = "0.2.1"
+description = "A tool for calculating extracellular recording lead fields"
+requires-python = ">=3.9"
+dependencies = [
+    "h5py",
+    "mpi4py"
+]
+
+[project.optional-dependencies]
+all = [
+    "pytest",
+    "pytest-mpi"
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bluerecording"]

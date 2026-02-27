@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-'''
-py-bluerecording
-'''
+from importlib.metadata import version
 
-__version__ = "0.1.0"
+__version__ = version("bluerecording")
+
+from mpi4py import MPI
+import h5py
+
+if not h5py.get_config().mpi:
+    raise RuntimeError("h5py lacks MPI support. Reinstall it with MPI support.")
+
+if MPI.COMM_WORLD.size < 1:
+    raise RuntimeError("MPI not initialized correctly.")

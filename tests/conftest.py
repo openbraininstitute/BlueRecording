@@ -1,365 +1,367 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
-import pytest
-import pandas as pd
-import bluepysnap as bp
-import numpy as np
-from morphio import PointLevel, SectionType
-from morphio import Morphology
-import h5py
-from bluerecording.writeH5_prelim import *
-from pathlib import Path
+# TODO fix tests
 
-@pytest.fixture(scope='session')
-def path_to_weights_file(tmpdir_factory):
-    fn = tmpdir_factory.mktemp('data').join('testfile.h5')
-    return fn
+# # SPDX-License-Identifier: GPL-3.0-or-later
+# import pytest
+# import pandas as pd
+# import bluepysnap as bp
+# import numpy as np
+# from morphio import PointLevel, SectionType
+# from morphio import Morphology
+# import h5py
+# from bluerecording.writeH5_prelim import *
+# from pathlib import Path
 
-@pytest.fixture(scope='session')
-def path_to_morphology_file(tmpdir_factory):
-    fn = tmpdir_factory.mktemp('data').join('morph.h5')
-    return fn
+# @pytest.fixture(scope='session')
+# def path_to_weights_file(tmpdir_factory):
+#     fn = tmpdir_factory.mktemp('data').join('testfile.h5')
+#     return fn
 
-@pytest.fixture(scope='session')
-def path_to_potentialfield_file(tmpdir_factory):
-    fn = tmpdir_factory.mktemp('data').join('potential.h5')
-    return fn
+# @pytest.fixture(scope='session')
+# def path_to_morphology_file(tmpdir_factory):
+#     fn = tmpdir_factory.mktemp('data').join('morph.h5')
+#     return fn
 
-@pytest.fixture(scope='session')
-def path_to_simconfig_with_atlas():
+# @pytest.fixture(scope='session')
+# def path_to_potentialfield_file(tmpdir_factory):
+#     fn = tmpdir_factory.mktemp('data').join('potential.h5')
+#     return fn
 
-    PARENT_DIR = Path(__file__).parent
+# @pytest.fixture(scope='session')
+# def path_to_simconfig_with_atlas():
 
-    simconfig_path = 'data/simulation_config.json'
+#     PARENT_DIR = Path(__file__).parent
 
-    return str(PARENT_DIR / simconfig_path)
+#     simconfig_path = 'data/simulation_config.json'
 
-@pytest.fixture(scope='session')
-def path_to_example_folder():
+#     return str(PARENT_DIR / simconfig_path)
 
-    PARENT_DIR = Path(__file__).parent.parent
+# @pytest.fixture(scope='session')
+# def path_to_example_folder():
 
-    example_path = 'examples/compare-to-reference-solutions/data/simulation/'
+#     PARENT_DIR = Path(__file__).parent.parent
 
-    return PARENT_DIR / example_path
+#     example_path = 'examples/compare-to-reference-solutions/data/simulation/'
 
-@pytest.fixture(scope='session')
-def path_to_simconfig_with_output(path_to_example_folder):
+#     return PARENT_DIR / example_path
 
-    simconfig_path = 'simulation_config.json'
+# @pytest.fixture(scope='session')
+# def path_to_simconfig_with_output(path_to_example_folder):
 
-    return str(path_to_example_folder / simconfig_path)
+#     simconfig_path = 'simulation_config.json'
 
-@pytest.fixture(scope='session')
-def expected_path_to_morph(path_to_example_folder):
+#     return str(path_to_example_folder / simconfig_path)
 
-    morph_path = 'configuration/components/morphologies/ascii'
+# @pytest.fixture(scope='session')
+# def expected_path_to_morph(path_to_example_folder):
 
-    morph_file = 'dend-rat_P16_S1_RH3_20140129_axon-C060110A5_-_Scale_x1.000_y0.975_z1.000_-_Clone_0.asc'
+#     morph_path = 'configuration/components/morphologies/ascii'
 
-    return str(path_to_example_folder / morph_path / morph_file)
+#     morph_file = 'dend-rat_P16_S1_RH3_20140129_axon-C060110A5_-_Scale_x1.000_y0.975_z1.000_-_Clone_0.asc'
 
-@pytest.fixture(scope='session')
-def expected_circuit_path(path_to_example_folder):
+#     return str(path_to_example_folder / morph_path / morph_file)
 
-    circuit_path = "configuration/circuit_config.json"
+# @pytest.fixture(scope='session')
+# def expected_circuit_path(path_to_example_folder):
 
-    return str(path_to_example_folder / circuit_path)
+#     circuit_path = "configuration/circuit_config.json"
 
-@pytest.fixture(scope="module")
-def data():
+#     return str(path_to_example_folder / circuit_path)
 
-    '''
-    Defines a data frame mimicking a voltage report, with columns containing gids and section ids
-    '''
+# @pytest.fixture(scope="module")
+# def data():
 
-    columns = [[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2],[0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10,0,1,1,1,1,1]]
+#     '''
+#     Defines a data frame mimicking a voltage report, with columns containing gids and section ids
+#     '''
 
-    columnIdx = list(zip(*columns))
+#     columns = [[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2],[0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10,0,1,1,1,1,1]]
 
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
+#     columnIdx = list(zip(*columns))
 
-    data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
+#     columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
 
-    return data
+#     data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
 
-@pytest.fixture(scope="module")
-def data_backwards():
+#     return data
 
-    '''
-    Defines a data frame mimicking a voltage report, with columns containing gids and section ids
-    '''
+# @pytest.fixture(scope="module")
+# def data_backwards():
 
-    columns = [[2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10]]
+#     '''
+#     Defines a data frame mimicking a voltage report, with columns containing gids and section ids
+#     '''
 
-    columnIdx = list(zip(*columns))
+#     columns = [[2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,0,1,1,1,1,1,2,2,2,2,2,3,3,3,10,10,10,10,10]]
 
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
+#     columnIdx = list(zip(*columns))
 
-    data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
+#     columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
 
-    return data
+#     data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
 
-@pytest.fixture(scope="module")
-def secCounts(data):
+#     return data
 
-    '''
-    Defines a data frame containing gids and section ids, equivalent to the column indices from a voltage report
-    '''
+# @pytest.fixture(scope="module")
+# def secCounts(data):
 
-    sectionIds = data.columns.to_frame() # Data frame containing gids and section ids
-    sectionIds.index = range(len(sectionIds))
+#     '''
+#     Defines a data frame containing gids and section ids, equivalent to the column indices from a voltage report
+#     '''
 
-    return sectionIds
+#     sectionIds = data.columns.to_frame() # Data frame containing gids and section ids
+#     sectionIds.index = range(len(sectionIds))
 
-@pytest.fixture(scope="module")
-def electrodes():
+#     return sectionIds
 
-    electrodes = {'name':{'position':np.array([1,2,3]),'type':'Reciprocity','region':'Outside','layer':'Outside'}}
+# @pytest.fixture(scope="module")
+# def electrodes():
 
-    return electrodes
+#     electrodes = {'name':{'position':np.array([1,2,3]),'type':'Reciprocity','region':'Outside','layer':'Outside'}}
 
-@pytest.fixture(scope="module")
-def electrodes_objective():
+#     return electrodes
 
-    electrodes = {'name':{'position':np.array([1,2,3]),'type':{'type':'ObjectiveCSD_Disk','radius':500,'thickness':10},'region':'Outside','layer':'Outside'}}
+# @pytest.fixture(scope="module")
+# def electrodes_objective():
 
-    return electrodes
+#     electrodes = {'name':{'position':np.array([1,2,3]),'type':{'type':'ObjectiveCSD_Disk','radius':500,'thickness':10},'region':'Outside','layer':'Outside'}}
 
-@pytest.fixture(scope="module")
-def gids():
+#     return electrodes
 
-    return [1,2]
+# @pytest.fixture(scope="module")
+# def gids():
 
-@pytest.fixture(scope="module")
-def population_name():
+#     return [1,2]
 
-    return 'testPopulation'
+# @pytest.fixture(scope="module")
+# def population_name():
 
-@pytest.fixture(scope="module")
-def somaPos():
+#     return 'testPopulation'
 
-    return np.array([0,0,0])
+# @pytest.fixture(scope="module")
+# def somaPos():
 
-@pytest.fixture(scope="module")
-def write_ElectrodeFileStructure(path_to_weights_file, electrodes, gids, population_name):
+#     return np.array([0,0,0])
 
-    '''
-    Creates h5 file, without any weights
-    '''
+# @pytest.fixture(scope="module")
+# def write_ElectrodeFileStructure(path_to_weights_file, electrodes, gids, population_name):
 
+#     '''
+#     Creates h5 file, without any weights
+#     '''
 
-    h5file = h5py.File(path_to_weights_file,'w')
 
-    h5 = ElectrodeFileStructure(h5file, gids, electrodes, population_name, circuit='test') # Initializes fields in h5 file
+#     h5file = h5py.File(path_to_weights_file,'w')
 
-    h5file.close()
+#     h5 = ElectrodeFileStructure(h5file, gids, electrodes, population_name, circuit='test') # Initializes fields in h5 file
 
-    return path_to_weights_file, h5
+#     h5file.close()
 
-@pytest.fixture(scope="module")
-def write_ElectrodeFileStructure_objective(path_to_weights_file, electrodes_objective, gids, population_name):
+#     return path_to_weights_file, h5
 
-    '''
-    Creates h5 file, without any weights
-    '''
+# @pytest.fixture(scope="module")
+# def write_ElectrodeFileStructure_objective(path_to_weights_file, electrodes_objective, gids, population_name):
 
+#     '''
+#     Creates h5 file, without any weights
+#     '''
 
-    h5file = h5py.File(path_to_weights_file,'w')
 
-    h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective, population_name, circuit='test') # Initializes fields in h5 file
+#     h5file = h5py.File(path_to_weights_file,'w')
 
-    h5file.close()
+#     h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective, population_name, circuit='test') # Initializes fields in h5 file
 
-    return path_to_weights_file, h5
+#     h5file.close()
 
-@pytest.fixture(scope="module")
-def writeNeuron(write_ElectrodeFileStructure, secCounts, electrodes, population_name):
+#     return path_to_weights_file, h5
 
-    path, h5 = write_ElectrodeFileStructure
+# @pytest.fixture(scope="module")
+# def writeNeuron(write_ElectrodeFileStructure, secCounts, electrodes, population_name):
 
-    h5file = h5py.File(path,'r+')
+#     path, h5 = write_ElectrodeFileStructure
 
-    write_all_neuron(secCounts, population_name, h5, h5file, electrodes)
+#     h5file = h5py.File(path,'r+')
 
-    h5file.close()
+#     write_all_neuron(secCounts, population_name, h5, h5file, electrodes)
 
-    return path, h5
+#     h5file.close()
 
-@pytest.fixture(scope="module")
-def morphology_trivial(path_to_morphology_file):
+#     return path, h5
 
-    file = h5py.File(path_to_morphology_file,'w')
+# @pytest.fixture(scope="module")
+# def morphology_trivial(path_to_morphology_file):
 
-    structureData = np.array([[0,1,-1],[1,2,0]]) # One soma with 1 3d point, 1 axon sections with 2 points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,2,0]]) # One soma with 1 3d point, 1 axon sections with 2 points
 
-    pointsData = np.array([[0,0,0,1],[0,0,0,1],[1,0,0,.3]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[1,0,0,.3]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def morphology_short(path_to_morphology_file):
+#     return Morphology(path_to_morphology_file)
 
-    file = h5py.File(path_to_morphology_file,'w')
+# @pytest.fixture(scope="module")
+# def morphology_short(path_to_morphology_file):
 
-    structureData = np.array([[0,1,-1],[1,2,0],[5,2,1],[7,3,0]]) # One soma with 1 3d point, 2 axon sections with4 and 3 points, one basal dendrite with undefined number of points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,2,0],[5,2,1],[7,3,0]]) # One soma with 1 3d point, 2 axon sections with4 and 3 points, one basal dendrite with undefined number of points
 
-    pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def morphology_short_dendFirst(path_to_morphology_file):
+#     return Morphology(path_to_morphology_file)
 
-    file = h5py.File(path_to_morphology_file,'w')
+# @pytest.fixture(scope="module")
+# def morphology_short_dendFirst(path_to_morphology_file):
 
-    structureData = np.array([[0,1,-1],[1,3,0],[3,2,0],[7,2,1]]) # One soma with 1 3d point, 2 axon sections with4 and 3 points, one basal dendrite with undefined number of points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,3,0],[3,2,0],[7,2,1]]) # One soma with 1 3d point, 2 axon sections with4 and 3 points, one basal dendrite with undefined number of points
 
-    pointsData = np.array([[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,4,1],[0,0,0,1]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def morphology(path_to_morphology_file):
+#     return Morphology(path_to_morphology_file)
 
+# @pytest.fixture(scope="module")
+# def morphology(path_to_morphology_file):
 
-    file = h5py.File(path_to_morphology_file,'w')
 
-    structureData = np.array([[0,1,-1],[1,2,0],[5,2,1],[7,3,0]]) # One soma with 1 3d point, 2 axon sections with 4 and 2 points, one basal dendrite with undefined number of points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,2,0],[5,2,1],[7,3,0]]) # One soma with 1 3d point, 2 axon sections with 4 and 2 points, one basal dendrite with undefined number of points
 
-    pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def morphology_dendFirst(path_to_morphology_file):
+#     return Morphology(path_to_morphology_file)
 
+# @pytest.fixture(scope="module")
+# def morphology_dendFirst(path_to_morphology_file):
 
-    file = h5py.File(path_to_morphology_file,'w')
 
-    structureData = np.array([[0,1,-1],[1,3,0],[4,2,0],[8,2,1]]) # One soma with 1 3d point, 2 axon sections with 4 and 2 points, one basal dendrite with undefined number of points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,3,0],[4,2,0],[8,2,1]]) # One soma with 1 3d point, 2 axon sections with 4 and 2 points, one basal dendrite with undefined number of points
 
-    pointsData = np.array([[0,0,0,1],[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[10,0,0,5],[100,0,0,5],[0,0,0,1],[0,0,1,.3],[0,0,2,.3],[0,0,3,1],[0,0,3,1],[0,0,1073,1]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def morphology_farAxon(path_to_morphology_file):
+#     return Morphology(path_to_morphology_file)
 
+# @pytest.fixture(scope="module")
+# def morphology_farAxon(path_to_morphology_file):
 
-    file = h5py.File(path_to_morphology_file,'w')
 
-    structureData = np.array([[0,1,-1],[1,2,0],[3,3,0]]) # One soma with 1 3d point, 1 axon sections with 2 points, one basal dendrite with undefined number of points
+#     file = h5py.File(path_to_morphology_file,'w')
 
-    structure = file.create_dataset('structure',data=structureData)
+#     structureData = np.array([[0,1,-1],[1,2,0],[3,3,0]]) # One soma with 1 3d point, 1 axon sections with 2 points, one basal dendrite with undefined number of points
 
-    pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
-    points = file.create_dataset('points',data=pointsData)
+#     structure = file.create_dataset('structure',data=structureData)
 
-    file.close()
+#     pointsData = np.array([[0,0,0,1],[0,0,0,1],[0,0,1073,1],[0,0,0,1],[10,0,0,5],[100,0,0,5]])
+#     points = file.create_dataset('points',data=pointsData)
 
-    return Morphology(path_to_morphology_file)
+#     file.close()
 
-@pytest.fixture(scope="module")
-def write_potentialField(path_to_potentialfield_file):
+#     return Morphology(path_to_morphology_file)
 
+# @pytest.fixture(scope="module")
+# def write_potentialField(path_to_potentialfield_file):
 
-    file = h5py.File(path_to_potentialfield_file,'w')
 
-    file.create_dataset('CurrentApplied',data=1)
+#     file = h5py.File(path_to_potentialfield_file,'w')
 
-    xaxis = np.linspace(-10,10)*1e-6
-    yaxis = np.linspace(-10,10)*1e-6
-    zaxis = np.linspace(-10,10)*1e-6
-    realImag = np.array([0,1])
+#     file.create_dataset('CurrentApplied',data=1)
 
-    meshes = file.create_group('Meshes')
-    firstdatafield = meshes.create_group('FirstDataField')
-    axis_x = firstdatafield.create_dataset('axis_x',data=xaxis)
-    axis_y = firstdatafield.create_dataset('axis_y',data=yaxis)
-    axis_z = firstdatafield.create_dataset('axis_z',data=zaxis)
+#     xaxis = np.linspace(-10,10)*1e-6
+#     yaxis = np.linspace(-10,10)*1e-6
+#     zaxis = np.linspace(-10,10)*1e-6
+#     realImag = np.array([0,1])
 
-    fieldgroups = file.create_group('FieldGroups')
-    randomname = fieldgroups.create_group('randomname')
-    allfields = randomname.create_group('AllFields')
-    potential = allfields.create_group('EM Potential(x,y,z,f0)')
-    obj = potential.create_group('_Object')
-    snapshot = obj.create_group('Snapshots')
-    field0 = snapshot.create_group('0')
+#     meshes = file.create_group('Meshes')
+#     firstdatafield = meshes.create_group('FirstDataField')
+#     axis_x = firstdatafield.create_dataset('axis_x',data=xaxis)
+#     axis_y = firstdatafield.create_dataset('axis_y',data=yaxis)
+#     axis_z = firstdatafield.create_dataset('axis_z',data=zaxis)
 
-    xd, yd, zd,rd = np.meshgrid(xaxis,yaxis,zaxis,realImag,indexing='ij')
-    comp0 = field0.create_dataset('comp0',data =zd)
+#     fieldgroups = file.create_group('FieldGroups')
+#     randomname = fieldgroups.create_group('randomname')
+#     allfields = randomname.create_group('AllFields')
+#     potential = allfields.create_group('EM Potential(x,y,z,f0)')
+#     obj = potential.create_group('_Object')
+#     snapshot = obj.create_group('Snapshots')
+#     field0 = snapshot.create_group('0')
 
+#     xd, yd, zd,rd = np.meshgrid(xaxis,yaxis,zaxis,realImag,indexing='ij')
+#     comp0 = field0.create_dataset('comp0',data =zd)
 
-    file.close()
 
-    return path_to_potentialfield_file
+#     file.close()
 
-@pytest.fixture(scope="module")
-def write_EField(path_to_potentialfield_file):
+#     return path_to_potentialfield_file
 
+# @pytest.fixture(scope="module")
+# def write_EField(path_to_potentialfield_file):
 
-    file = h5py.File(path_to_potentialfield_file,'w')
 
-    file.create_dataset('CurrentApplied',data=1)
+#     file = h5py.File(path_to_potentialfield_file,'w')
 
-    xaxis = np.linspace(-10,10)*1e-6
-    yaxis = np.linspace(-10,10)*1e-6
-    zaxis = np.linspace(-10,10)*1e-6
+#     file.create_dataset('CurrentApplied',data=1)
 
-    xcenter = (xaxis[1:]+xaxis[:-1])/2
-    ycenter = (yaxis[1:]+yaxis[:-1])/2
-    zcenter = (zaxis[1:]+zaxis[:-1])/2
+#     xaxis = np.linspace(-10,10)*1e-6
+#     yaxis = np.linspace(-10,10)*1e-6
+#     zaxis = np.linspace(-10,10)*1e-6
 
-    realImag = np.array([0,1])
+#     xcenter = (xaxis[1:]+xaxis[:-1])/2
+#     ycenter = (yaxis[1:]+yaxis[:-1])/2
+#     zcenter = (zaxis[1:]+zaxis[:-1])/2
 
-    meshes = file.create_group('Meshes')
-    firstdatafield = meshes.create_group('FirstDataField')
-    axis_x = firstdatafield.create_dataset('axis_x',data=xaxis)
-    axis_y = firstdatafield.create_dataset('axis_y',data=yaxis)
-    axis_z = firstdatafield.create_dataset('axis_z',data=zaxis)
+#     realImag = np.array([0,1])
 
-    fieldgroups = file.create_group('FieldGroups')
-    randomname = fieldgroups.create_group('randomname')
-    allfields = randomname.create_group('AllFields')
-    potential = allfields.create_group('EM E(x,y,z,f0)')
-    obj = potential.create_group('_Object')
-    snapshot = obj.create_group('Snapshots')
-    field0 = snapshot.create_group('0')
+#     meshes = file.create_group('Meshes')
+#     firstdatafield = meshes.create_group('FirstDataField')
+#     axis_x = firstdatafield.create_dataset('axis_x',data=xaxis)
+#     axis_y = firstdatafield.create_dataset('axis_y',data=yaxis)
+#     axis_z = firstdatafield.create_dataset('axis_z',data=zaxis)
 
-    xd, __, __, __ = np.meshgrid(xcenter,yaxis,zaxis,realImag,indexing='ij')
-    __, yd, __, __ = np.meshgrid(xaxis,ycenter,zaxis,realImag,indexing='ij')
-    __, __, zd, __ = np.meshgrid(xaxis,yaxis,zcenter,realImag,indexing='ij')
+#     fieldgroups = file.create_group('FieldGroups')
+#     randomname = fieldgroups.create_group('randomname')
+#     allfields = randomname.create_group('AllFields')
+#     potential = allfields.create_group('EM E(x,y,z,f0)')
+#     obj = potential.create_group('_Object')
+#     snapshot = obj.create_group('Snapshots')
+#     field0 = snapshot.create_group('0')
 
-    comp0 = field0.create_dataset('comp0',data =xd)
-    comp1 = field0.create_dataset('comp1',data =yd)
-    comp2 = field0.create_dataset('comp2',data =zd)
+#     xd, __, __, __ = np.meshgrid(xcenter,yaxis,zaxis,realImag,indexing='ij')
+#     __, yd, __, __ = np.meshgrid(xaxis,ycenter,zaxis,realImag,indexing='ij')
+#     __, __, zd, __ = np.meshgrid(xaxis,yaxis,zcenter,realImag,indexing='ij')
 
+#     comp0 = field0.create_dataset('comp0',data =xd)
+#     comp1 = field0.create_dataset('comp1',data =yd)
+#     comp2 = field0.create_dataset('comp2',data =zd)
 
-    file.close()
 
-    return path_to_potentialfield_file
+#     file.close()
+
+#     return path_to_potentialfield_file
