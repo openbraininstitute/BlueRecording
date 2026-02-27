@@ -7,12 +7,23 @@ SKIP_SYSTEM=0
 set -e
 
 # -------------------------
-# Parse arguments
+# Parse arguments (with --help)
 # -------------------------
 for arg in "$@"; do
     case $arg in
         --dev) INSTALL_MODE="dev" ;;
         --no-system) SKIP_SYSTEM=1 ;;
+        --atlas) DOWNLOAD_ATLAS=1 ;;
+        --help|-h)
+            echo "Usage: source setup.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --dev         Install development version (includes -e pip install)"
+            echo "  --no-system   Skip system package installation"
+            echo "  --atlas       Download and unpack atlas dataset"
+            echo "  --help, -h    Show this help message"
+            return 0 2>/dev/null || exit 0
+            ;;
     esac
 done
 
@@ -94,20 +105,26 @@ fi
 echo "=== Setup complete ==="
 
 # -------------------------
-# Download atlas data for dev mode
+# Download atlas data if requested via --atlas
 # -------------------------
-if [[ "$INSTALL_MODE" == "dev" ]] && [ ! -d "examples/data/atlas" ]; then
-    echo "=== Downloading atlas dataset ==="
-    mkdir -p examples/data
-    curl -L -o examples/data/atlas.zip "https://zenodo.org/record/10927050/files/atlas.zip?download=1"
+if [[ "$DOWNLOAD_ATLAS" == "1" ]]; then
+    ATLAS_DIR="examples/data/atlas"
 
-    echo "=== Unpacking atlas dataset ==="
-    unzip -q examples/data/atlas.zip -d examples/data
+    if [ -d "$ATLAS_DIR" ] && [ "$(ls -A "$ATLAS_DIR")" ]; then
+        echo "=== Skipping atlas download — $ATLAS_DIR already exists and is not empty ==="
+    else
+        echo "=== Downloading atlas dataset (requested via --atlas) ==="
+        mkdir -p examples/data
+        curl -L -o examples/data/atlas.zip "https://zenodo.org/record/10927050/files/atlas.zip?download=1"
 
-    echo "=== Cleaning up ==="
-    rm examples/data/atlas.zip
+        echo "=== Unpacking atlas dataset ==="
+        unzip -q examples/data/atlas.zip -d examples/data
 
-    echo "=== Atlas dataset ready at examples/data/atlas ==="
+        echo "=== Cleaning up ==="
+        rm examples/data/atlas.zip
+
+        echo "=== Atlas dataset ready at $ATLAS_DIR ==="
+    fi
 else
-    echo "=== Skipping atlas download — examples/data/atlas already exists ==="
+    echo "=== Skipping atlas download — --atlas not given ==="
 fi
