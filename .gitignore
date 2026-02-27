@@ -38,3 +38,4 @@ htmlcov/
 **/ECoG.h5
 **/LFP.h5
 *removeme*
+*DS_Store

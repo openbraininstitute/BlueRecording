@@ -92,3 +92,22 @@ else
 fi
 
 echo "=== Setup complete ==="
+
+# -------------------------
+# Download atlas data for dev mode
+# -------------------------
+if [[ "$INSTALL_MODE" == "dev" ]] && [ ! -d "examples/data/atlas" ]; then
+    echo "=== Downloading atlas dataset ==="
+    mkdir -p examples/data
+    curl -L -o examples/data/atlas.zip "https://zenodo.org/record/10927050/files/atlas.zip?download=1"
+
+    echo "=== Unpacking atlas dataset ==="
+    unzip -q examples/data/atlas.zip -d examples/data
+
+    echo "=== Cleaning up ==="
+    rm examples/data/atlas.zip
+
+    echo "=== Atlas dataset ready at examples/data/atlas ==="
+else
+    echo "=== Skipping atlas download — examples/data/atlas already exists ==="
+fi

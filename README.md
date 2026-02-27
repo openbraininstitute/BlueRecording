@@ -71,14 +71,14 @@ spack env activate -p hippocampus
 spack install --add neurodamus-models@develop+coreneuron model=hippocampus
 ```
 
-Neurodamus-models expects that you have modules available on your system for `python/3.11.6`, `intel-oneapi-mkl/2023.2.0`, and `hpe-mpi/2.27.p1.hmpt`. The launch scripts provided in the examples folder assume that these modules are in an archive called `unstable` -->
+Neurodamus-models expects that you have modules available on your system for `python/3.11.6`, `intel-oneapi-mkl/2023.2.0`, and `hpe-mpi/2.27.p1.hmpt`. The launch scripts provided in the examples folder assume that these modules are in an archive called `unstable`
 
 ---
 # Testing
 
-FIrrst, download the folder `atlas.zip` from our Zenodo repository (10.5281/zenodo.10927050) and unzip it into the folder examples/data/atlas.
+First, download `atlas.zip` from [Zenodo](https://doi.org/10.5281/zenodo.10927050) and unzip it into the folder `examples/data/atlas`. If you ran `source setup.sh --dev`, you can skip this step, as the dataset is already downloaded.  
 
-Run the tests (we assume you installed the development version `source setup.sh --dev`):
+To run the tests (assuming you installed the development version with `source setup.sh --dev`):
 
 ```bash
 mpirun -n 2 pytest -v tests/unit --with-mpi
