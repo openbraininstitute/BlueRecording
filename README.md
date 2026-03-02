@@ -81,7 +81,8 @@ First, download `atlas.zip` from [Zenodo](https://doi.org/10.5281/zenodo.1092705
 To run the tests (assuming you installed the development version with `source setup.sh --dev`):
 
 ```bash
-mpirun -n 2 pytest -v tests/unit --with-mpi
+pytest -v tests/unit
+mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
 ```
 
 ### Steps to produce electrode files
