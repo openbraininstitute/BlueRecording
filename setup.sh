@@ -4,8 +4,6 @@
 INSTALL_MODE="normal"
 SKIP_SYSTEM=0
 
-set -e
-
 # -------------------------
 # Parse arguments (with --help)
 # -------------------------
