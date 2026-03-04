@@ -133,6 +133,7 @@ def test_getCircuitPath(path_to_simconfig_with_output,expected_circuit_path):
 
     assert getCircuitPath(path_to_simconfig_with_output)==expected_circuit_path
 
+@pytest.mark.atlas
 def test_atlasInfo(path_to_simconfig_with_atlas):
     
     electrodesOut = np.array([[0,0,0],[0,0,1]])
