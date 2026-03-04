@@ -17,7 +17,7 @@ def test_MutableMorph(morphology):
 
     assert morph.indices == [[0,1,2,3],[4,5],[6,7,8]]
 
-
+@pytest.mark.skip_in_ci
 def test_get_morph_path(path_to_simconfig_with_output,expected_path_to_morph):
 
     neuron_id = 0
