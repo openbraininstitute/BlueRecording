@@ -78,7 +78,7 @@ def get_axon_points(m,center):
 
     targetLength = 1060
 
-    points = np.Inf
+    points = np.inf
 
     currentLen = 0
     runningLen = []
