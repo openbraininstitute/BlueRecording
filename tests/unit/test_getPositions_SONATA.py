@@ -71,7 +71,7 @@ def test_checkAxonsFirst(morphology_short,morphology_short_dendFirst):
 def test_getNewIdx(data):
 
     colIdx = data.columns
-    expectedColumns = [[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2],[0,1,1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,10,10,10,10,10,10,0,1,1,1,1,1,1]]
+    expectedColumns = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,1, 1, 1, 1, 1, 1],[0,1,1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,10,10,10,10,10,10,0,1,1,1,1,1,1]]
 
     expectedIdx = list(zip(*expectedColumns))
 

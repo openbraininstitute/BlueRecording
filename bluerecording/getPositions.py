@@ -397,6 +397,11 @@ def getNewIndex(colIdx):
     Because we are saving the start and end points for each non-somatic segment, we need to add an additional entry to the dataframe column indices for section
     '''
 
+    colIdx = pd.MultiIndex.from_tuples(
+        [(nid - 1, sec) for nid, sec in colIdx],
+        names=colIdx.names
+    )
+
     newIdx = []
 
     for i, col in enumerate(colIdx): # Iterates through column indices of compartment report
