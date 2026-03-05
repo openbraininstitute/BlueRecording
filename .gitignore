@@ -41,3 +41,5 @@ htmlcov/
 **/LFP.h5
 *removeme*
 *DS_Store
+libsonatareport/
+neurodamus-models/

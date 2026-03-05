@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
 
 NEURONS_PER_FILE=1000
 FILES_PER_FOLDER=50
