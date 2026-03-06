@@ -78,7 +78,7 @@ def get_axon_points(m,center):
 
     targetLength = 1060
 
-    points = np.Inf
+    points = np.inf
 
     currentLen = 0
     runningLen = []
@@ -397,6 +397,11 @@ def getNewIndex(colIdx):
     Because we are saving the start and end points for each non-somatic segment, we need to add an additional entry to the dataframe column indices for section
     '''
 
+    colIdx = pd.MultiIndex.from_tuples(
+        [(nid - 1, sec) for nid, sec in colIdx],
+        names=colIdx.names
+    )
+
     newIdx = []
 
     for i, col in enumerate(colIdx): # Iterates through column indices of compartment report
@@ -457,7 +462,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
-        m, center = getMorphology(population,i, path_to_simconfig)
+        m, center = getMorphology(population,i-1, path_to_simconfig)
 
         axonsFirst = checkAxonsFirst(m)
 

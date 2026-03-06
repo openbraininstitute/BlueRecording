@@ -439,8 +439,12 @@ def getNeuronSegmentMidpts(position):
 
 def getSegmentMidpts(positions,node_ids):
 
-    newPos = positions.groupby(level=0,axis=1,group_keys=False).apply(getNeuronSegmentMidpts)
-
+    newPos = (
+    positions.T
+        .groupby(level=0, group_keys=False)
+        .apply(lambda g: getNeuronSegmentMidpts(g.T).T)
+        .T
+    )
 
     return newPos
 
