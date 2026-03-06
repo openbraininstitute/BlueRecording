@@ -76,13 +76,24 @@ Neurodamus-models expects that you have modules available on your system for `py
 ---
 # Testing
 
-First, download `atlas.zip` from [Zenodo](https://doi.org/10.5281/zenodo.10927050) and unzip it into the folder `examples/data/atlas`. If you ran `source setup.sh --dev`, you can skip this step, as the dataset is already downloaded.  
+First, download `atlas.zip` from [Zenodo](https://doi.org/10.5281/zenodo.10927050) and extract it into the `examples/data/atlas` directory. If you ran `source setup.sh --dev`, you can skip this step because the dataset is already downloaded.
 
-To run the tests (assuming you installed the development version with `source setup.sh --dev`):
+To run the MPI tests (assuming you installed the development version with `source setup.sh --dev`):
 
 ```bash
-pytest -v tests/unit
 mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
+```
+
+To run the full test suite, you must first run the simulation located in `examples/compare-to-reference-solutions/data/simulation/`. After doing so, execute:
+
+```bash
+pytest tests/unit
+```
+
+If you have not run the simulation, you will need to skip a small number of tests:
+
+```bash
+pytest -v -m "not skip_in_ci" tests/unit
 ```
 
 ### Steps to produce electrode files
