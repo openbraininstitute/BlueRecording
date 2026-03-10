@@ -4,11 +4,11 @@ version = "0.2.1"
 description = "A tool for calculating extracellular recording lead fields"
 requires-python = ">=3.9"
 dependencies = [
-    "h5py",
-    "mpi4py",
     "pandas",
     "morphio",
-    "bluepysnap","voxcell","scikit-learn"
+    "bluepysnap",
+    "voxcell",
+    "scikit-learn"
 ]
 
 [project.optional-dependencies]
