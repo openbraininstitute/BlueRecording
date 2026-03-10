@@ -462,7 +462,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
-        m, center = getMorphology(population,i-1, path_to_simconfig)
+        m, center = getMorphology(population,i, path_to_simconfig)
 
         axonsFirst = checkAxonsFirst(m)
 

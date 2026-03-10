@@ -99,7 +99,7 @@ if [ $VENV_EXISTS -eq 1 ]; then
     source venv/bin/activate
 else
     echo "=== Creating virtual environment ==="
-    python3 -m venv venv
+    python3.11 -m venv venv
     source venv/bin/activate
 
     pip install --upgrade pip setuptools wheel cython numpy
@@ -160,20 +160,20 @@ if [ $VENV_EXISTS -eq 0 ]; then
     pip install neurodamus
 fi
 
+export NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
+
 # -------------------------
 # Install neurodamus-models
 # -------------------------
 if [ ! -d "neurodamus-models" ]; then
   git clone https://github.com/openbraininstitute/neurodamus-models.git
 
-  DATADIR=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
-
   cmake -B neurodamus-models/build -S neurodamus-models/ \
       -DPython_EXECUTABLE=$(which python) \
       -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
       -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
       -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR \
-      -DNEURODAMUS_CORE_DIR=${DATADIR} \
+      -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
       -DNEURODAMUS_MECHANISMS=neocortex \
       -DNEURODAMUS_NCX_V5=ON
 
@@ -215,15 +215,11 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
 
         echo "=== Atlas dataset ready at $ATLAS_DIR ==="
     fi
-else
-    echo "=== Skipping atlas download — --atlas not given ==="
-fi
 
 
-# -------------------------
-# Download networks data if requested via --data
-# -------------------------
-if [[ "$DOWNLOAD_DATA" == "1" ]]; then
+    # -------------------------
+    # Download networks data if requested via --data
+    # -------------------------
     CONFIG_DIR="examples/circuitTest/data/simulation/configuration"
     NETWORK_DIR="$CONFIG_DIR/networks"
 
@@ -245,11 +241,18 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
 
         echo "=== Networks dataset ready at $NETWORK_DIR ==="
     fi
-fi
 
-# -------------------------
-# Run compare-to-reference-solutions
-# -------------------------
-if [[ "$DOWNLOAD_DATA" == "1" ]]; then
+    # -------------------------
+    # Run compare-to-reference-solutions
+    # -------------------------
+    echo "=== Generate compare-to-reference-solutions data ==="
     neurodamus examples/compare-to-reference-solutions/data/simulation/simulation_config.json
+
+    # -------------------------
+    # Run circuitTest
+    # -------------------------
+    echo "=== Generate circuitTest data ==="
+    neurodamus examples/circuitTest/data/simulation/simulation_config.json
+else
+    echo "=== Skipping data download and generation — --data not given ==="
 fi
