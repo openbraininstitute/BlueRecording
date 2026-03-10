@@ -81,7 +81,7 @@ mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
 pytest -v -m "not skip_in_ci" tests/unit
 ```
 
-If you want to run the full suite of tests you need to collect various files in from [Zenodo](https://doi.org/10.5281/zenodo.10927050). The simplest way is to let setup do the job:
+If you want to run all the tests you need to collect various files from [Zenodo](https://doi.org/10.5281/zenodo.10927050). The simplest way is to let setup do the job:
 
 ```bash
 setup.sh --dev --data
