@@ -5,7 +5,6 @@ import pytest
 from scipy.spatial.transform import Rotation as R
 
 from bluerecording import getPositions
-from bluerecording import utils
 
 def test_MutableMorph(morphology):
 
@@ -18,7 +17,7 @@ def test_get_morph_path(path_to_simconfig_with_output,expected_path_to_morph):
 
     neuron_id = 0
 
-    population = getPositions.getPopulationObject(path_to_simconfig_with_output)
+    _, _, population = getPositions.getSimulationInfo(path_to_simconfig_with_output)
 
     morph_path = getPositions.get_morph_path(population, neuron_id, path_to_simconfig_with_output)
 

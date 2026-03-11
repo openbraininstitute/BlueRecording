@@ -436,8 +436,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
     newidx = MPI.COMM_WORLD.Get_rank()
 
-    report, nodeIds = getSimulationInfo(path_to_simconfig)
-    population = getPopulationObject(path_to_simconfig)
+    report, nodeIds, population = getSimulationInfo(path_to_simconfig)
 
     if len(nodeIds)/neurons_per_file > MPI.COMM_WORLD.Get_size():
         raise AssertionError("Make sure that enough processes have been allocated to write position files")
