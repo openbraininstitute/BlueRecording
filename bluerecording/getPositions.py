@@ -1,20 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import numpy as np
-from morphio import SectionType
-from morphio import Morphology
-import libsonata as lb
-import bluepysnap as bp
-
-import pandas as pd
-import sys
-from scipy.interpolate import interp1d
-from mpi4py import MPI
-import warnings
 import json
-from scipy.spatial.transform import Rotation as R
-from .utils import *
 import os
-import math
+import warnings
+
+import libsonata
+import neurodamus
+import numpy as np
+import pandas as pd
+from morphio import Morphology, SectionType
+from mpi4py import MPI
+from scipy.interpolate import interp1d
+from scipy.spatial.transform import Rotation as R
+
+from .utils import *
 
 warnings.filterwarnings('error', '', RuntimeWarning)
 '''
@@ -393,8 +391,14 @@ def positionMorphology(m, population, i):
 
 
 def getNewIndex(cols):
-    """
-    cols: list or np.array of column tuples, e.g., [(id, section), ...]
+    """Build a new MultiIndex by duplicating certain (id, section) column tuples.
+
+    Rules:
+    - Every column is kept once.
+    - The last column is repeated to represent the end point.
+    - Columns with section != 0 are duplicated if the next column tuple differs.
+
+    Returns a pandas MultiIndex with levels ["id", "section"].
     """
     newIdx = []
 
@@ -433,21 +437,17 @@ def checkAxonsFirst(morphology):
     return axonFirst
 
 
-def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_positions_folder,replace_axons=True):
+def getPositions(path_to_simconfig: str, files_per_folder, path_to_positions_folder,replace_axons=True):
 
     '''
     path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
-    neurons_per_file is the number of neurons in each of the segment positions pickle files.
     files_per_folder is the number of positions pickle files in each subfolder in segment_position_folder. This parameter is used in order to avoid stressing the file system with too many files in a given folder
     '''
 
     newidx = MPI.COMM_WORLD.Get_rank()
 
     _, nodeIds, population = getSimulationInfo(path_to_simconfig)
-
-    if len(nodeIds)/neurons_per_file > MPI.COMM_WORLD.Get_size():
-        raise AssertionError("Make sure that enough processes have been allocated to write position files")
 
     ids, cols = get_discretization(path_to_simconfig=path_to_simconfig)
 
@@ -544,10 +544,18 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
     positionsOut.to_pickle(path_to_positions_folder+'/' + str(int(newidx / files_per_folder)) + '/positions'+str(newidx)+'.pkl')
 
 
-import libsonata
-import neurodamus
 
-def get_discretization(path_to_simconfig: str):
+
+def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
+    """ Load a Neurodamus simulation and return neuron IDs and discretization columns.
+
+    Args:
+        path_to_simconfig: Path to the Neurodamus simulation configuration file.
+
+    Returns:
+        ids: Array of neuron GIDs.
+        cols: Array of (gid, section) tuples representing discretized segments.
+    """
     nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True)
     target = nd.target_manager.get_target('All')
 

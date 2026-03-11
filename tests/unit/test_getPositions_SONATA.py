@@ -317,7 +317,6 @@ def test_circuit_get_positions():
     path_to_simconfig = "examples/circuitTest/data/simulation/simulation_config.json"
     path_to_positions_folder = "examples/circuitTest/data/getPositions/positions"
     getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
-                 neurons_per_file=1000, 
                  files_per_folder=50, path_to_positions_folder=path_to_positions_folder)
 
     ref_path = "examples/circuitTest/data/getPositions/positions0_ref.pkl"
