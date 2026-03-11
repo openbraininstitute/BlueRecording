@@ -391,25 +391,32 @@ def positionMorphology(m, population, i):
 
     return m, center
 
-def getNewIndex(colIdx):
 
-    '''
-    Because we are saving the start and end points for each non-somatic segment, we need to add an additional entry to the dataframe column indices for section
-    '''
-
+def getNewIndex(cols):
+    """
+    cols: list or np.array of column tuples, e.g., [(id, section), ...]
+    """
     newIdx = []
 
-    for i, col in enumerate(colIdx): # Iterates through column indices of compartment report
+    # Ensure cols is a list of tuples
+    cols_list = [tuple(c) for c in cols]
+
+    for i, col in enumerate(cols_list):
         newIdx.append(col)
-        if i == len(colIdx)-1: # For the last compartment, we need to add an index to account for the end point
+
+        # Last column: repeat to account for end point
+        if i == len(cols_list) - 1:
             newIdx.append(col)
-        elif col[-1]!=0: # If the compartment is not a soma
-            if colIdx[i+1]!=col: # and if the segment is not in the middle of the section
+
+        # Non-somatic segments: add extra entry if next col is different
+        elif col[-1] != 0:  # section != 0
+            if cols_list[i + 1] != col:  # now comparing tuples
                 newIdx.append(col)
 
-    newCols = pd.MultiIndex.from_tuples(newIdx, names=colIdx.names)
+    newCols = pd.MultiIndex.from_tuples(newIdx, names=["id", "section"])
 
     return newCols
+
 
 def checkAxonsFirst(morphology):
 
@@ -425,6 +432,7 @@ def checkAxonsFirst(morphology):
 
     return axonFirst
 
+
 def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_positions_folder,replace_axons=True):
 
     '''
@@ -436,23 +444,12 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
     newidx = MPI.COMM_WORLD.Get_rank()
 
-    report, nodeIds, population = getSimulationInfo(path_to_simconfig)
+    _, nodeIds, population = getSimulationInfo(path_to_simconfig)
 
     if len(nodeIds)/neurons_per_file > MPI.COMM_WORLD.Get_size():
         raise AssertionError("Make sure that enough processes have been allocated to write position files")
 
-    try:
-        ids = nodeIds[neurons_per_file*newidx:neurons_per_file*(newidx+1)]
-    except:
-        ids = nodeIds[neurons_per_file*newidx:]
-
-    if len(ids) == 0:
-        return 1
-
-    data = getMinimalReport(report,ids)
-
-    colIdx = data.columns # node_id and Section IDs for each cell
-    cols = np.array(list(data.columns))
+    ids, cols = get_discretization(path_to_simconfig=path_to_simconfig)
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
@@ -474,8 +471,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
             xyz = np.hstack((xyz,somaPos.reshape(3,1)))
 
         try:
-
-            numSomas = len(data[i][0].iloc[0])
+            numSomas = np.sum((cols[:,0] == i) & (cols[:,1] == 0))
         except:
             numSomas = 1
 
@@ -494,7 +490,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
             '''
 
             try:
-                numCompartments = len(data[i][secName].iloc[0].values)
+                numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
             except:
                 numCompartments = 1
 
@@ -541,8 +537,29 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
             xyz = np.hstack((xyz,segPos.T))
 
-    newCols = getNewIndex(colIdx)
+    newCols = getNewIndex(cols)
 
     positionsOut = pd.DataFrame(xyz,columns=newCols)
 
     positionsOut.to_pickle(path_to_positions_folder+'/' + str(int(newidx / files_per_folder)) + '/positions'+str(newidx)+'.pkl')
+
+
+import libsonata
+import neurodamus
+
+def get_discretization(path_to_simconfig: str):
+    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True)
+    target = nd.target_manager.get_target('All')
+
+    assert len(nd.circuits.node_managers.values()) == 1, "the code was not meant to be used with multiple node managers"
+
+    for node_manager in nd.circuits.node_managers.values():
+        ids = node_manager.get_final_gids()
+        points = target.get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+        cols = np.array([
+            (p.gid, s)
+            for p in points
+            for s in sorted(p.sclst_ids)
+        ], dtype=np.int64)
+
+        return ids, cols

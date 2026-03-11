@@ -220,7 +220,7 @@ def initializeH5File(path_to_simconfig,outputfile,electrode_csv):
     type is either EEG or LFP
     '''
 
-    report, nodeIds = getSimulationInfo(path_to_simconfig)
+    report, nodeIds, _ = getSimulationInfo(path_to_simconfig)
 
     population_name = getPopulationName(path_to_simconfig)
 
