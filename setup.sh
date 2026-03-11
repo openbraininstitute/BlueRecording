@@ -68,7 +68,6 @@ export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
 export NEURODAMUS_NEOCORTEX_ROOT="$(pwd)/neurodamus-models/build/install"
 export HOC_LIBRARY_PATH="$NEURODAMUS_NEOCORTEX_ROOT/share/neurodamus_neocortex/hoc"
 export PATH=$(pwd)/nrn/build/install/bin:$PATH
-export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
 export PATH=$NEURODAMUS_NEOCORTEX_ROOT/bin:$PATH
 
 if [[ "$OS" == "Darwin" ]]; then
@@ -136,6 +135,8 @@ if [ ! -d "nrn" ]; then
     cmake --build nrn/build --parallel
     cmake --build nrn/build --target install
 fi
+
+export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
 
 # -------------------------
 # Install h5py, mpi4pi and neurodamus
