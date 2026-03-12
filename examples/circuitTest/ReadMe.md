@@ -11,17 +11,15 @@ We assume that you are running these examples on a Linux system with slurm. If t
 ### Download data
 Download the file networks.zip from 10.5281/zenodo.10927050 and unzip it into the folder *data/simulation/configuration/networks*
 
-### Running 1 time step simulation
+### Calculating Segment Positions
 
-First, in the **data/simulation** subfolder, the compartment report is produced for the network by running the script **launch.sh**. This will create the `report.h5` needed in the following steps.
+As the same neuron is used in both examples, segment positions only need to be calculated once. Just run:
 
-### Load spack and python envs
+```bash
+bluerecording get_positions examples/circuitTest/data/simulation_config.json <positions_folder>
+```
 
-After, load your BlueRecording spack and python environments. The following scripts assume that these are loaded.
-
-### Get the positions
-
-Next, in the the **data/getPositions** subfolder, the segment positions for the cells are extracted by running the script **GetPositions.sh**.
+and the segment positions will apear in `<positions_folder>`.
 
 ### Electrode File
 

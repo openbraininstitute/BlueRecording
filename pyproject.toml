@@ -23,3 +23,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["bluerecording"]
+
+[project.scripts]
+bluerecording = "bluerecording.cli:main"

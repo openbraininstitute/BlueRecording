@@ -1,6 +1,6 @@
 # Convenience functions
 
-This folder contains python scripts `run_get_positions.py`, `run_initialize_h5.py`, and `run_write_weights.py`, which call the functions `bluerecording.getPositions.getPositions()`, `bluerecording.writeH5_prelim.initializeH5File()`, and `bluerecording.writeH5.writeH5File()`, respectively, and bash scripts that demonstrate the command line arguments for these python scripts.
+This folder contains python scripts `run_get_positions.py`, `run_initialize_h5.py`, and `run_write_weights.py`, which call the functions `bluerecording.getPositions.getPositions()`, `bluerecording.writeH5_prelim.initializeH5File()`, and `bluerecording.writeH5.writeH5File()`, respectively, and bash scripts that demonstrate the command line arguments for these python scripts. `run_get_positions.py` has been deprecated in favour of the cli command. Example: `bluerecording get_positions <simulation_config.json> <positions_folder>`.
 
 As `run_get_positions.py` and `run_initialize_h5.py` are straightforward (all command line arguments are mandatory), we will explain the command line arguments for `run_write_weights.h5`:
 

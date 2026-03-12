@@ -221,7 +221,7 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     # -------------------------
     # Download networks data if requested via --data
     # -------------------------
-    CONFIG_DIR="examples/circuitTest/data/simulation/configuration"
+    CONFIG_DIR="examples/circuitTest/data/configuration"
     NETWORK_DIR="$CONFIG_DIR/networks"
 
     if [ -d "$NETWORK_DIR" ] && [ "$(ls -A "$NETWORK_DIR")" ]; then
@@ -247,13 +247,7 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     # Run compare-to-reference-solutions
     # -------------------------
     echo "=== Generate compare-to-reference-solutions data ==="
-    neurodamus examples/compare-to-reference-solutions/data/simulation/simulation_config.json
-
-    # -------------------------
-    # Run circuitTest
-    # -------------------------
-    echo "=== Generate circuitTest data ==="
-    neurodamus examples/circuitTest/data/simulation/simulation_config.json
+    neurodamus examples/compare-to-reference-solutions/data/simulation_config.json
 else
     echo "=== Skipping data download and generation — --data not given ==="
 fi

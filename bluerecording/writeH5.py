@@ -573,7 +573,7 @@ def writeH5File(path_to_simconfig,segment_position_folder,outputfile,neurons_per
     files_per_folder is the number of positions pickle files in each subfolder in segment_position_folder. This is also specified by the user in getPositions()
     '''
 
-    r, allNodeIds, _ = getSimulationInfo(path_to_simconfig)
+    _, allNodeIds, _ = getSimulationInfo(path_to_simconfig)
     population_name = getPopulationName(path_to_simconfig)
 
 

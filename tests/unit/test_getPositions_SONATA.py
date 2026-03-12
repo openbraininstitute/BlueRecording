@@ -313,14 +313,14 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
     np.testing.assert_almost_equal(segPos,expectedSegPos,decimal=2)
 
 @pytest.mark.skip_in_ci
-def test_circuit_get_positions():
-    path_to_simconfig = "examples/circuitTest/data/simulation/simulation_config.json"
-    path_to_positions_folder = "examples/circuitTest/data/getPositions/positions"
-    getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
-                 files_per_folder=50, path_to_positions_folder=path_to_positions_folder)
+def test_circuit_get_positions(tmp_path):
+    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
 
-    ref_path = "examples/circuitTest/data/getPositions/positions0_ref.pkl"
-    new_path = "examples/circuitTest/data/getPositions/positions/0/positions0.pkl"
+    ref_path = "examples/circuitTest/data/positions0_ref.pkl"
+    new_path = str(tmp_path / "positions0.pkl")
+
+    getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
+                 path_to_positions_folder=tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
     df_new = pd.read_pickle(new_path)

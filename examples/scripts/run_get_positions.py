@@ -3,16 +3,11 @@ import sys
 from bluerecording.getPositions import getPositions
 
 if __name__=='__main__':
+    path_to_simconfig = sys.argv[1]  # simulation config
+    path_to_positions_folder = sys.argv[2]  # positions folder
 
-    path_to_simconfig = sys.argv[1] #simulation_config with one-timestep simulation outputting a compartment report
+    replace_axons = True  # default
+    if len(sys.argv) > 3:  # optional third argument
+        replace_axons = sys.argv[3].lower() in ('true', '1', 'yes')
 
-    path_to_positions_folder = sys.argv[2]
-
-    files_per_folder = int(sys.argv[3]) # Number of pickle files to write to each subfolder
-    
-    if len(sys.argv)>5:
-        replace_axons = sys.argv[4]
-    else:
-        replace_axons = True
-
-    getPositions(path_to_simconfig, files_per_folder, path_to_positions_folder,replace_axons)
+    getPositions(path_to_simconfig=path_to_simconfig, path_to_positions_folder=path_to_positions_folder, replace_axons=replace_axons)

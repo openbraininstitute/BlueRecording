@@ -13,7 +13,13 @@ Download the files Infinite_VeryFar_HighRes.h5 and Infinite_Close_HighRes_SmallS
 
 ### Calculating Segment Positions
 
-As the same neuron is used in both examples, segment positions only need to be calculated once. First, in the **data/simulation** subfolder, the compartment report is produced for the single cell by running the script **launch.sh**. Next, in the the **data/getPositions** subfolder, the segment positions for this cell are extracted by running the script **GetPositions.sh**.
+As the same neuron is used in both examples, segment positions only need to be calculated once. Just run:
+
+```bash
+bluerecording get_positions examples/compare-to-reference-solutions/data/simulation_config.json <positions_folder>
+```
+
+and the segment positions will apear in `<positions_folder>`.
 
 ### Extracellular signal calculation
 

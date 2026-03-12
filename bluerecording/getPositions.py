@@ -11,8 +11,12 @@ from morphio import Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
+from pathlib import Path
 
 from .utils import *
+
+rank = MPI.COMM_WORLD.Get_rank()
+
 
 warnings.filterwarnings('error', '', RuntimeWarning)
 '''
@@ -437,19 +441,25 @@ def checkAxonsFirst(morphology):
     return axonFirst
 
 
-def getPositions(path_to_simconfig: str, files_per_folder, path_to_positions_folder,replace_axons=True):
+def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons=True):
 
     '''
     path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
-    files_per_folder is the number of positions pickle files in each subfolder in segment_position_folder. This parameter is used in order to avoid stressing the file system with too many files in a given folder
     '''
 
-    newidx = MPI.COMM_WORLD.Get_rank()
+    # def insp(v):
+    #     print(v)
+    #     print(type(v))
+    #     for i in dir(v):
+    #         if i.startswith('_'):
+    #             continue
+    #         print(f"   {i}")
 
-    _, nodeIds, population = getSimulationInfo(path_to_simconfig)
+    ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
 
-    ids, cols = get_discretization(path_to_simconfig=path_to_simconfig)
+    rSim = bp.Simulation(path_to_simconfig)
+    population = rSim.circuit.nodes[population_name]
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
@@ -541,7 +551,9 @@ def getPositions(path_to_simconfig: str, files_per_folder, path_to_positions_fol
 
     positionsOut = pd.DataFrame(xyz,columns=newCols)
 
-    positionsOut.to_pickle(path_to_positions_folder+'/' + str(int(newidx / files_per_folder)) + '/positions'+str(newidx)+'.pkl')
+    path_to_positions_folder = Path(path_to_positions_folder)
+    path_to_positions_folder.mkdir(parents=True, exist_ok=True)
+    positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
 
 
 
@@ -557,17 +569,15 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
         cols: Array of (gid, section) tuples representing discretized segments.
     """
     nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True)
-    target = nd.target_manager.get_target('All')
-
-    assert len(nd.circuits.node_managers.values()) == 1, "the code was not meant to be used with multiple node managers"
+    assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
 
     for node_manager in nd.circuits.node_managers.values():
         ids = node_manager.get_final_gids()
-        points = target.get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+        points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
         cols = np.array([
             (p.gid, s)
             for p in points
             for s in sorted(p.sclst_ids)
         ], dtype=np.int64)
 
-        return ids, cols
+        return ids, cols, node_manager.population_name
