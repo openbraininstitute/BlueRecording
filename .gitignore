@@ -6,6 +6,7 @@ positions_all_new_big/
 **/*coeffs*.h5
 **/*.SUCCESS
 networks/
+!examples/compare-to-reference-solutions/data/configuration/networks/
 network/
 examples/allen/data/simulation/configuration/components
 bkg_inputs/
