@@ -448,14 +448,6 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
     '''
 
-    # def insp(v):
-    #     print(v)
-    #     print(type(v))
-    #     for i in dir(v):
-    #         if i.startswith('_'):
-    #             continue
-    #         print(f"   {i}")
-
     ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
 
     rSim = bp.Simulation(path_to_simconfig)
