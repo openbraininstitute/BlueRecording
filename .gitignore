@@ -12,6 +12,7 @@ examples/allen/data/simulation/configuration/components
 bkg_inputs/
 atlas/
 reporting/
+!examples/compare-to-reference-solutions/data/reporting/
 reporting_small/
 reporting_big/
 output_sonata/
