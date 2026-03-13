@@ -551,7 +551,7 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
 
 
 def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
-    """ Load a Neurodamus simulation and return neuron IDs and discretization columns.
+    """Load a Neurodamus simulation and return neuron IDs and discretization columns.
 
     Args:
         path_to_simconfig: Path to the Neurodamus simulation configuration file.
@@ -560,12 +560,13 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
         ids: Array of neuron GIDs.
         cols: Array of (gid, section) tuples representing discretized segments.
     """
-    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True)
+    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True,enable_coord_mapping=True)
     assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
 
     for node_manager in nd.circuits.node_managers.values():
         ids = node_manager.get_final_gids()
         points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+
         cols = np.array([
             (p.gid, s)
             for p in points
