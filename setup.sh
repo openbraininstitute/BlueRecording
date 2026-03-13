@@ -3,6 +3,7 @@
 
 INSTALL_MODE="normal"
 SKIP_SYSTEM=0
+DOWNLOAD_DATA=0
 
 # -------------------------
 # Parse arguments (with --help)
