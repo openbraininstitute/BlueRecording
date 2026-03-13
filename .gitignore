@@ -32,6 +32,7 @@ bluerecording.egg-info
 neurodamus/
 positions/
 *.pkl
+!*_ref.pkl
 venv/
 pkls/
 pkls_big/
@@ -43,3 +44,4 @@ htmlcov/
 *DS_Store
 libsonatareport/
 neurodamus-models/
+nrn/
