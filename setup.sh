@@ -23,6 +23,12 @@ for arg in "$@"; do
             echo "  --help, -h    Show this help message"
             return 0 2>/dev/null || exit 0
             ;;
+        *)
+            echo "Error: Unknown option: $arg"
+            echo ""
+            echo "Run 'source setup.sh --help' for usage."
+            return 1 2>/dev/null || exit 1
+            ;;
     esac
 done
 
