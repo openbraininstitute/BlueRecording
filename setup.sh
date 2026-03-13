@@ -3,6 +3,7 @@
 
 INSTALL_MODE="normal"
 SKIP_SYSTEM=0
+DOWNLOAD_DATA=0
 
 # -------------------------
 # Parse arguments (with --help)
@@ -21,6 +22,12 @@ for arg in "$@"; do
             echo "  --data        Download and unpack datasets"
             echo "  --help, -h    Show this help message"
             return 0 2>/dev/null || exit 0
+            ;;
+        *)
+            echo "Error: Unknown option: $arg"
+            echo ""
+            echo "Run 'source setup.sh --help' for usage."
+            return 1 2>/dev/null || exit 1
             ;;
     esac
 done
@@ -41,7 +48,7 @@ if [[ $SKIP_SYSTEM -eq 0 ]]; then
             echo "Homebrew is required but not installed."
             exit 1
         fi
-        brew install openmpi hdf5-mpi python
+        brew install openmpi hdf5-mpi python bison
 
     elif [[ "$OS" == "Linux" ]]; then
         echo "Linux detected"
