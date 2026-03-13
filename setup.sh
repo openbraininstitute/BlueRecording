@@ -48,7 +48,7 @@ if [[ $SKIP_SYSTEM -eq 0 ]]; then
             echo "Homebrew is required but not installed."
             exit 1
         fi
-        brew install openmpi hdf5-mpi python
+        brew install openmpi hdf5-mpi python bison
 
     elif [[ "$OS" == "Linux" ]]; then
         echo "Linux detected"
