@@ -462,12 +462,13 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
 
         somaPos = center[:,np.newaxis]
 
-        if replace_axons:
-            axonPoints, runningLens = get_axon_points(m,center)
+        if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
 
-        sections = np.unique(cols[np.where(cols[:,0]==i),1:].flatten())
+            axonPoints, runningLens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
 
-        if idx ==0:
+        sections = np.unique(cols[np.where(cols[:,0]==i),1:].flatten()) # List of sections for the given neuron
+
+        if idx ==0: # For the first cell, the array of positions xyz is initialized with the soma position
             xyz_ref = somaPos.reshape(3,1)
         else:
             xyz_ref = np.hstack((xyz_ref,somaPos.reshape(3,1)))
@@ -477,39 +478,63 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
         except:
             numSomas = 1
 
-        if numSomas > 1:
+        if numSomas > 1: # If there is more than one somatic segment, we assume that they all have the same position
             for k in np.arange(1,numSomas):
                 xyz_ref = np.hstack((xyz_ref,somaPos.reshape(3,1)))
 
-        morphSectionIdx = 0
+        morphSectionIdx = 0 # Index used if morphology file lists dendrites before axons
 
         for secName in list(sections[1:]):
+
+            '''
+            For each non-somatic segment, we interpolate the start and end point. Having the start and end, rather than the center, allows us to use either the
+            line-source approximation (for LFP) or the reciprocity approach (for EEG). Note that for segments in the middle of a section, the end point is the
+            same as the start point of the next section, so we do not need to save the end point, just the start point
+            '''
 
             try:
                 numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
             except:
                 numCompartments = 1
 
-            if secName < 3 and replace_axons:
+            if secName < 3 and replace_axons: # Section 1 and Section 2 are always axonal sections, if the axon is being replaced
+
                 segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+
             elif axonsFirst:
+
                 secId = secName - 1
-                if secId >= len(m.indices):
+
+                if secId >= len(m.indices): # If the section is not in the morphIO object, then it is the myelinated part of the AIS
+
                     segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-                else:
+
+                else: # Most other sections are dendritic, and are therefore included in the morphIO morphology object
+
                     ptIdx = m.indices[secId]
                     pts = m.points[ptIdx]
+
                     secPts = np.array(pts)
+
                     segPos = interp_points(secPts,numCompartments)
+
             else:
-                if m.sections[morphSectionIdx].type == 3 or m.sections[morphSectionIdx].type == 4:
+
+                if m.sections[morphSectionIdx].type == 3 or m.sections[morphSectionIdx].type == 4: # If dendrite
+
                     ptIdx = m.indices[morphSectionIdx]
                     pts = m.points[ptIdx]
+
                     secPts = np.array(pts)
+
                     segPos = interp_points(secPts,numCompartments)
+
                     morphSectionIdx += 1
-                elif m.sections[morphSectionIdx].type == 2:
+
+                elif m.sections[morphSectionIdx].type == 2: # If axon
+
                     segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+
                 else:
                     raise ValueError('Non-axonal and non-dendritic section found in morphology file')
 
