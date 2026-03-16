@@ -448,106 +448,127 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
     '''
 
-    ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
+    ids, cols, population_name, nd, node_manager = get_discretization(path_to_simconfig=path_to_simconfig)
 
     rSim = bp.Simulation(path_to_simconfig)
     population = rSim.circuit.nodes[population_name]
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
+        # --- OLD PATH (MorphIO reference) ---
         m, center = getMorphology(population,i, path_to_simconfig)
 
         axonsFirst = checkAxonsFirst(m)
 
         somaPos = center[:,np.newaxis]
 
-        if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
+        if replace_axons:
+            axonPoints, runningLens = get_axon_points(m,center)
 
-            axonPoints, runningLens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
+        sections = np.unique(cols[np.where(cols[:,0]==i),1:].flatten())
 
-        sections = np.unique(cols[np.where(cols[:,0]==i),1:].flatten()) # List of sections for the given neuron
-
-        if idx ==0: # For the first cell, the array of positions xyz is initialized with the soma position
-            xyz = somaPos.reshape(3,1)
+        if idx ==0:
+            xyz_ref = somaPos.reshape(3,1)
         else:
-            xyz = np.hstack((xyz,somaPos.reshape(3,1)))
+            xyz_ref = np.hstack((xyz_ref,somaPos.reshape(3,1)))
 
         try:
             numSomas = np.sum((cols[:,0] == i) & (cols[:,1] == 0))
         except:
             numSomas = 1
 
-        if numSomas > 1: # If there is more than one somatic segment, we assume that they all have the same position
+        if numSomas > 1:
             for k in np.arange(1,numSomas):
-                xyz = np.hstack((xyz,somaPos.reshape(3,1)))
+                xyz_ref = np.hstack((xyz_ref,somaPos.reshape(3,1)))
 
-        morphSectionIdx = 0 # Index used if morphology file lists dendrites before axons
+        morphSectionIdx = 0
 
         for secName in list(sections[1:]):
-
-            '''
-            For each non-somatic segment, we interpolate the start and end point. Having the start and end, rather than the center, allows us to use either the
-            line-source approximation (for LFP) or the reciprocity approach (for EEG). Note that for segments in the middle of a section, the end point is the
-            same as the start point of the next section, so we do not need to save the end point, just the start point
-            '''
 
             try:
                 numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
             except:
                 numCompartments = 1
 
-            if secName < 3 and replace_axons: # Section 1 and Section 2 are always axonal sections, if the axon is being replaced
-
+            if secName < 3 and replace_axons:
                 segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
             elif axonsFirst:
-
                 secId = secName - 1
-
-                if secId >= len(m.indices): # If the section is not in the morphIO object, then it is the myelinated part of the AIS
-
+                if secId >= len(m.indices):
                     segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
-                else: # Most other sections are dendritic, and are therefore included in the morphIO morphology object
-
+                else:
                     ptIdx = m.indices[secId]
                     pts = m.points[ptIdx]
-
                     secPts = np.array(pts)
-
                     segPos = interp_points(secPts,numCompartments)
-
             else:
-
-                if m.sections[morphSectionIdx].type == 3 or m.sections[morphSectionIdx].type == 4: # If dendrite
-
+                if m.sections[morphSectionIdx].type == 3 or m.sections[morphSectionIdx].type == 4:
                     ptIdx = m.indices[morphSectionIdx]
                     pts = m.points[ptIdx]
-
                     secPts = np.array(pts)
-
                     segPos = interp_points(secPts,numCompartments)
-
                     morphSectionIdx += 1
-
-                elif m.sections[morphSectionIdx].type == 2: # If axon
-
+                elif m.sections[morphSectionIdx].type == 2:
                     segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
                 else:
                     raise ValueError('Non-axonal and non-dendritic section found in morphology file')
 
-            xyz = np.hstack((xyz,segPos.T))
+            xyz_ref = np.hstack((xyz_ref,segPos.T))
 
+        # --- NEW PATH (neurodamus) ---
+        cell = node_manager.get_cell(i)
+        global_coords = cell.compute_segment_global_coordinates()
+
+        # Soma: use the soma position from neurodamus global coords
+        soma_sec_name = cell.CellRef.soma[0].name()
+        soma_pts = np.array(global_coords[soma_sec_name])  # (nseg+1, 3) boundary points
+        nd_soma_pos = soma_pts.mean(axis=0)  # average of boundary points, same as old somaPos
+
+        if idx == 0:
+            xyz_new = nd_soma_pos.reshape(3, 1)
+        else:
+            xyz_new = np.hstack((xyz_new, nd_soma_pos.reshape(3, 1)))
+
+        if numSomas > 1:
+            for k in np.arange(1, numSomas):
+                xyz_new = np.hstack((xyz_new, nd_soma_pos.reshape(3, 1)))
+
+        for secName in list(sections[1:]):
+
+            try:
+                numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
+            except:
+                numCompartments = 1
+
+            # Get the NEURON section object for this section_id
+            sec = cell.get_sec(secName)
+            sec_name = sec.name()
+            seg_pts = global_coords.get(sec_name, np.array([]))
+
+            if seg_pts.size == 0:
+                # No 3d points (e.g. replaced axon stubs) — use same axon logic as ref path
+                if replace_axons:
+                    segPos = interp_points_axon(axonPoints, runningLens, secName, numCompartments, somaPos)
+                else:
+                    raise ValueError(f'Section {sec_name} has no 3d points and replace_axons=False')
+            else:
+                # neurodamus gives us (nseg+1, 3) boundary points — same shape as interp_points
+                segPos = seg_pts
+
+            xyz_new = np.hstack((xyz_new, segPos.T))
+
+    # --- Write both outputs for comparison ---
     newCols = getNewIndex(cols)
 
-    positionsOut = pd.DataFrame(xyz,columns=newCols)
+    positionsOut_ref = pd.DataFrame(xyz_ref, columns=newCols)
+    positionsOut_new = pd.DataFrame(xyz_new, columns=newCols)
 
     path_to_positions_folder = Path(path_to_positions_folder)
     path_to_positions_folder.mkdir(parents=True, exist_ok=True)
-    positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
+    positionsOut_ref.to_pickle(path_to_positions_folder / f"positions{rank}_ref.pkl")
+    positionsOut_new.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
 
-
+    exit()  # TEMPORARY: stop here so we can compare the two files manually
 
 
 def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
@@ -559,6 +580,9 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
     Returns:
         ids: Array of neuron GIDs.
         cols: Array of (gid, section) tuples representing discretized segments.
+        population_name: Name of the node population.
+        nd: The Neurodamus instance (kept alive so cell objects remain valid).
+        node_manager: The node manager, providing access to cell objects via get_cell(gid).
     """
     nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True,enable_coord_mapping=True)
     assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
@@ -573,4 +597,4 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
             for s in sorted(p.sclst_ids)
         ], dtype=np.int64)
 
-        return ids, cols, node_manager.population_name
+        return ids, cols, node_manager.population_name, nd, node_manager
