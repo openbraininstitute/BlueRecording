@@ -4,11 +4,11 @@ import pandas as pd
 import pytest
 from morphio import SectionType
 
-from bluerecording import getPositions
+from bluerecording import get_positions
 
 def test_MutableMorph(morphology):
 
-    morph = getPositions.MutableMorph(morphology)
+    morph = get_positions.MutableMorph(morphology)
 
     assert morph.indices == [[0,1,2,3],[4,5],[6,7,8]]
 
@@ -17,17 +17,17 @@ def test_get_morph_path(path_to_simconfig_with_output,expected_path_to_morph):
 
     neuron_id = 0
 
-    _, _, population = getPositions.getSimulationInfo(path_to_simconfig_with_output)
+    _, _, population = get_positions.getSimulationInfo(path_to_simconfig_with_output)
 
-    morph_path = getPositions.get_morph_path(population, neuron_id, path_to_simconfig_with_output)
+    morph_path = get_positions.get_morph_path(population, neuron_id, path_to_simconfig_with_output)
 
     assert morph_path==expected_path_to_morph
 
 def test_get_axon_points(morphology, somaPos):
 
-    morphology = getPositions.MutableMorph(morphology)
+    morphology = get_positions.MutableMorph(morphology)
 
-    points, lengths = getPositions.get_axon_points(morphology, somaPos)
+    points, lengths = get_positions.get_axon_points(morphology, somaPos)
     expectedLengths = np.array([0,1,2,3,1073])
 
     expectedPoints = np.array([[0,0,0],[0,0,1],[0,0,2],[0,0,3],[0,0,1073]])
@@ -36,9 +36,9 @@ def test_get_axon_points(morphology, somaPos):
 
 def test_get_axon_points_extrapolate(morphology_short, somaPos):
 
-    morphology_short = getPositions.MutableMorph(morphology_short)
+    morphology_short = get_positions.MutableMorph(morphology_short)
 
-    points, lengths = getPositions.get_axon_points(morphology_short, somaPos)
+    points, lengths = get_positions.get_axon_points(morphology_short, somaPos)
     expectedLengths = np.array([0,1,2,3,4,1060])
 
     expectedPoints = np.array([[0,0,0],[0,0,1],[0,0,2],[0,0,3],[0,0,4],[0,0,1060]])
@@ -65,13 +65,13 @@ def test_getNewIdx(data):
 
     expectedMultiIndex = pd.MultiIndex.from_tuples(expectedIdx,names=['id','section'])
 
-    newIdx = getPositions.getNewIndex(colIdx)
+    newIdx = get_positions.getNewIndex(colIdx)
 
     pd.testing.assert_index_equal(newIdx, expectedMultiIndex)
 
 def test_interpolate_dendrite(data, morphology):
 
-    morphology = getPositions.MutableMorph(morphology)
+    morphology = get_positions.MutableMorph(morphology)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -89,7 +89,7 @@ def test_interpolate_dendrite(data, morphology):
 
     secPts = np.array(pts)
 
-    segPos = getPositions.interp_points(secPts,numCompartments)
+    segPos = get_positions.interp_points(secPts,numCompartments)
 
     expectedSegPos = np.array([[0,0,0],[33.33,0,0],[66.66,0,0],[100,0,0]])
 
@@ -97,7 +97,7 @@ def test_interpolate_dendrite(data, morphology):
 
 def test_interpolate_dendrite_dedFirst(data, morphology_dendFirst):
 
-    morphology = getPositions.MutableMorph(morphology_dendFirst)
+    morphology = get_positions.MutableMorph(morphology_dendFirst)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -119,7 +119,7 @@ def test_interpolate_dendrite_dedFirst(data, morphology_dendFirst):
 
         secPts = np.array(pts)
 
-        segPos = getPositions.interp_points(secPts,numCompartments)
+        segPos = get_positions.interp_points(secPts,numCompartments)
 
     expectedSegPos = np.array([[0,0,0],[33.33,0,0],[66.66,0,0],[100,0,0]])
 
@@ -128,7 +128,7 @@ def test_interpolate_dendrite_dedFirst(data, morphology_dendFirst):
 
 def test_interpolate_AIS(data,morphology, somaPos):
 
-    morphology = getPositions.MutableMorph(morphology)
+    morphology = get_positions.MutableMorph(morphology)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -141,9 +141,9 @@ def test_interpolate_AIS(data,morphology, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology, somaPos)
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,0],[0,0,6],[0,0,12],[0,0,18],[0,0,24],[0,0,30]])
 
@@ -155,7 +155,7 @@ def test_interpolate_AIS_farAxon(data,morphology_farAxon, somaPos):
     Makes sure that edge case in which only the soma itself is less than 30 um away from the soma is properly handled
     '''
 
-    morphology_farAxon = getPositions.MutableMorph(morphology_farAxon)
+    morphology_farAxon = get_positions.MutableMorph(morphology_farAxon)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -168,10 +168,10 @@ def test_interpolate_AIS_farAxon(data,morphology_farAxon, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology_farAxon, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology_farAxon, somaPos)
 
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,0],[0,0,6],[0,0,12],[0,0,18],[0,0,24],[0,0,30]])
 
@@ -183,7 +183,7 @@ def test_interpolate_AIS_short(data,morphology_short, somaPos):
     Tests the case where no point is greater than 30 um away from the soma
     '''
 
-    morphology_short = getPositions.MutableMorph(morphology_short)
+    morphology_short = get_positions.MutableMorph(morphology_short)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -196,10 +196,10 @@ def test_interpolate_AIS_short(data,morphology_short, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology_short, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology_short, somaPos)
 
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,0],[0,0,6],[0,0,12],[0,0,18],[0,0,24],[0,0,30]])
 
@@ -211,7 +211,7 @@ def test_interpolate_AIS_2(data,morphology, somaPos):
     Tests the case where no point is between 30 and 60 um from the soma, but there is one farther than 60 um
     '''
 
-    morphology = getPositions.MutableMorph(morphology)
+    morphology = get_positions.MutableMorph(morphology)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -224,9 +224,9 @@ def test_interpolate_AIS_2(data,morphology, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology, somaPos)
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,30],[0,0,36],[0,0,42],[0,0,48],[0,0,54],[0,0,60]])
 
@@ -238,7 +238,7 @@ def test_interpolate_AIS_2_short(data,morphology_short, somaPos):
     Tests the case where no points greater than 30 um from the soma
     '''
 
-    morphology_short = getPositions.MutableMorph(morphology_short)
+    morphology_short = get_positions.MutableMorph(morphology_short)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -251,9 +251,9 @@ def test_interpolate_AIS_2_short(data,morphology_short, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology_short, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology_short, somaPos)
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,30],[0,0,36],[0,0,42],[0,0,48],[0,0,54],[0,0,60]])
 
@@ -261,7 +261,7 @@ def test_interpolate_AIS_2_short(data,morphology_short, somaPos):
 
 def test_interpolate_myelin(data,morphology, somaPos):
 
-    morphology = getPositions.MutableMorph(morphology)
+    morphology = get_positions.MutableMorph(morphology)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -274,9 +274,9 @@ def test_interpolate_myelin(data,morphology, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology, somaPos)
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,60],[0,0,260],[0,0,460],[0,0,660],[0,0,860],[0,0,1060]])
 
@@ -284,7 +284,7 @@ def test_interpolate_myelin(data,morphology, somaPos):
 
 def test_interpolate_myelin_short(data,morphology_short, somaPos):
 
-    morphology_short = getPositions.MutableMorph(morphology_short)
+    morphology_short = get_positions.MutableMorph(morphology_short)
 
     colIdx = data.columns # GID and Section IDs for each cell
     cols = np.array(list(data.columns))
@@ -297,9 +297,9 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
 
     numCompartments = np.shape(data[i][secName])[-1]
 
-    axonPoints, runningLens = getPositions.get_axon_points(morphology_short, somaPos)
+    axonPoints, runningLens = get_positions.get_axon_points(morphology_short, somaPos)
 
-    segPos = getPositions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    segPos = get_positions.interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
     expectedSegPos = np.array([[0,0,60],[0,0,260],[0,0,460],[0,0,660],[0,0,860],[0,0,1060]])
 
@@ -312,7 +312,7 @@ def test_circuit_get_positions(tmp_path):
     ref_path = "examples/circuitTest/data/positions0_ref.pkl"
     new_path = str(tmp_path / "positions0.pkl")
 
-    getPositions.get_positions(path_to_simconfig=path_to_simconfig, 
+    get_positions.get_positions(path_to_simconfig=path_to_simconfig, 
                  path_to_positions_folder=tmp_path)
 
     df_ref = pd.read_pickle(ref_path)

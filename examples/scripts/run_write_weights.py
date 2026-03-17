@@ -8,7 +8,7 @@ if __name__=='__main__':
 
 
     path_to_simconfig = sys.argv[1] # simulation_config.json with one-timestep compartment report
-    segment_position_folder = sys.argv[2] # Folder with segment positions; output of getPositions.py
+    segment_position_folder = sys.argv[2] # Folder with segment positions; output of get_positions.py
     outputfile = sys.argv[3]
     
     neurons_per_file = int(sys.argv[4])

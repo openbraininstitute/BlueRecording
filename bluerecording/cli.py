@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from . import getPositions
+from . import get_positions
 from . import __version__
 
 def main():
@@ -42,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "get_positions":
-        getPositions.get_positions(
+        get_positions.get_positions(
             path_to_simconfig=args.path_to_simconfig,
             path_to_positions_folder=args.path_to_positions_folder,
             replace_axons=args.replace_axons
