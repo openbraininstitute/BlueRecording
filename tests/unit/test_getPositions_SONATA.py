@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from morphio import SectionType
 
 from bluerecording import getPositions
 
@@ -45,10 +46,15 @@ def test_get_axon_points_extrapolate(morphology_short, somaPos):
 
     np.testing.assert_almost_equal(points,expectedPoints,decimal=2)
 
-def test_checkAxonsFirst(morphology_short,morphology_short_dendFirst):
+def test_morphology_section_ordering(morphology_short, morphology_short_dendFirst):
+    """Verify that test fixtures cover both morphology orderings.
 
-    assert getPositions.checkAxonsFirst(morphology_short)
-    assert not getPositions.checkAxonsFirst(morphology_short_dendFirst)
+    Axon-first (cortical) and dendrite-first (thalamic) match the two code
+    paths in get_cell_positions.
+    """
+
+    assert morphology_short.sections[0].type == SectionType.axon
+    assert morphology_short_dendFirst.sections[0].type in (SectionType.basal_dendrite, SectionType.apical_dendrite)
 
 def test_getNewIdx(data):
 
