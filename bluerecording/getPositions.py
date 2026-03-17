@@ -416,7 +416,17 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
     '''
 
-    ids, cols, nd, node_manager = get_discretization(path_to_simconfig=path_to_simconfig)
+    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True, enable_coord_mapping=True)
+    assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
+    node_manager = next(iter(nd.circuits.node_managers.values()))
+
+    ids = node_manager.get_final_gids()
+    points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+    cols = np.array([
+        (p.gid, s)
+        for p in points
+        for s in sorted(p.sclst_ids)
+    ], dtype=np.int64)
 
     rSim = bp.Simulation(path_to_simconfig)
     population = rSim.circuit.nodes[node_manager.population_name]
@@ -515,31 +525,3 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder = Path(path_to_positions_folder)
     path_to_positions_folder.mkdir(parents=True, exist_ok=True)
     positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
-
-
-
-
-def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
-    """Load a Neurodamus simulation and return neuron IDs and discretization columns.
-
-    Args:
-        path_to_simconfig: Path to the Neurodamus simulation configuration file.
-
-    Returns:
-        ids: Array of neuron GIDs.
-        cols: Array of (gid, section) tuples representing discretized segments.
-    """
-    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True,enable_coord_mapping=True)
-    assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
-
-    for node_manager in nd.circuits.node_managers.values():
-        ids = node_manager.get_final_gids()
-        points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
-
-        cols = np.array([
-            (p.gid, s)
-            for p in points
-            for s in sorted(p.sclst_ids)
-        ], dtype=np.int64)
-
-        return ids, cols, nd, node_manager
