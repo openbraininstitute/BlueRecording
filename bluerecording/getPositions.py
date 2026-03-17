@@ -10,7 +10,6 @@ import pandas as pd
 from morphio import Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
-from scipy.spatial.transform import Rotation as R
 from pathlib import Path
 
 from .utils import *
@@ -53,14 +52,18 @@ def interp_points(coords, ncomps):
     with each segment having equal length
     '''
 
+    # Remove consecutive duplicate points that can arise from float32 rotation precision
+    diffs = np.linalg.norm(np.diff(coords, axis=0), axis=1)
+    mask = np.concatenate(([True], diffs > 0))
+    coords = coords[mask]
+
     xyz = np.array([]).reshape(ncomps + 1, 0)
-    npoints = coords.shape[0]
+
+    distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
+    distances /= distances[-1]
+    distances = np.insert(distances,0,0)
 
     for dim in range(coords.shape[1]):
-
-        distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
-        distances /= distances[-1]
-        distances = np.insert(distances,0,0)
 
         f = interp1d(distances, coords[:, dim], kind='linear')
         ic = f(np.linspace(0, 1, ncomps + 1)).reshape(ncomps + 1, 1)
@@ -343,8 +346,7 @@ def get_morph_path(population, i, path_to_simconfig):
     return fileName
 
 
-def getMorphology(population, i, path_to_simconfig):
-
+def getMorphology(population, i, path_to_simconfig, cell):
 
     finalmorphpath = get_morph_path(population, i, path_to_simconfig)
 
@@ -352,44 +354,10 @@ def getMorphology(population, i, path_to_simconfig):
 
     m = MutableMorph(mImmutable) # Mutable version, so that we can change the positions to orient the cell correctly within the circuit
 
-    m, center = positionMorphology(m, population, i)
+    # Use neurodamus cell's local_to_global_coord_mapping for rotation + translation (float32, matching neurodamus)
+    m.points = cell.local_to_global_coord_mapping(m.points)
 
-    return m, center
-
-def get_transform(population, i):
-
-    center = np.array([population.get(group=[i],properties='x'),population.get(group=[i],properties='y'),population.get(group=[i],properties='z')]) # Gets soma position
-
-    center = center.flatten()
-
-    ### Gets orientation of the cell in the circuit
-    rotW = population.get(group=[i],properties='orientation_w')
-    rotX = population.get(group=[i],properties='orientation_x')
-    rotY = population.get(group=[i],properties='orientation_y')
-    rotZ = population.get(group=[i],properties='orientation_z')
-    ####
-
-    ### Creates rotation quaternion for cell
-    rotQuat = np.array([rotX,rotY,rotZ,rotW])
-    rotQuat /= np.linalg.norm(rotQuat)
-    rotation = R.from_quat(rotQuat.flatten())
-    ###
-
-    return center, rotation
-
-def apply_transform(m, center, rotation):
-
-    m.points = R.apply(rotation,m.points) # Rotates cell
-
-    m.points += center # Translates cell
-
-    return m
-
-def positionMorphology(m, population, i):
-
-    center, rotation = get_transform(population, i)
-
-    m = apply_transform(m, center, rotation)
+    center = cell.local_to_global_matrix[:, 3]  # soma position from transform (float32, matching neurodamus)
 
     return m, center
 
@@ -448,14 +416,15 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
     '''
 
-    ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
+    ids, cols, nd, node_manager = get_discretization(path_to_simconfig=path_to_simconfig)
 
     rSim = bp.Simulation(path_to_simconfig)
-    population = rSim.circuit.nodes[population_name]
+    population = rSim.circuit.nodes[node_manager.population_name]
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
-        m, center = getMorphology(population,i, path_to_simconfig)
+        cell = node_manager.get_cell(i)
+        m, center = getMorphology(population, i, path_to_simconfig, cell)
 
         axonsFirst = checkAxonsFirst(m)
 
@@ -573,4 +542,4 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
             for s in sorted(p.sclst_ids)
         ], dtype=np.int64)
 
-        return ids, cols, node_manager.population_name
+        return ids, cols, nd, node_manager
