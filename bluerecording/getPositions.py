@@ -354,10 +354,13 @@ def getMorphology(population, i, path_to_simconfig, cell):
 
     m = MutableMorph(mImmutable) # Mutable version, so that we can change the positions to orient the cell correctly within the circuit
 
-    # Use neurodamus cell's local_to_global_coord_mapping for rotation + translation (float32, matching neurodamus)
+    # Use neurodamus for rotation + translation of morphology points (float32 precision)
     m.points = cell.local_to_global_coord_mapping(m.points)
 
-    center = cell.local_to_global_matrix[:, 3]  # soma position from transform (float32, matching neurodamus)
+    # Soma position: sonata node x/y/z from the transform matrix translation column (float32).
+    # This is the BlueRecording convention (raw placement position), NOT the neurodamus soma
+    # centroid (mean of NEURON soma section boundary points), which differs by up to ~1.8 µm.
+    center = cell.local_to_global_matrix[:, 3]
 
     return m, center
 
