@@ -397,13 +397,7 @@ def getNewIndex(cols):
     return newCols
 
 
-
-
-
-
-
 def get_cell_positions(m, center, cols, gid, replace_axons):
-
     """Compute the 3D segment boundary positions for a single cell.
 
     Returns a (3, N) array where each column is the x/y/z position of a segment
@@ -471,12 +465,19 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
 
 
 
-def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons=True):
+def get_positions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons: bool = True):
+    """Compute and save segment boundary positions for all cells in the circuit.
 
-    '''
-    path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
-    path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
-    '''
+    Initializes neurodamus to obtain cell morphologies and discretization info,
+    then computes the 3D position of each segment boundary for every cell.
+    Results are saved as a pickle file per MPI rank.
+
+    Args:
+        path_to_simconfig: Path to the SONATA simulation configuration file.
+        path_to_positions_folder: Output directory for the positions pickle files.
+        replace_axons: If True, replace morphological axons with a standardized
+            stub (two 30 µm AIS sections + 1000 µm myelinated section).
+    """
 
     # Initialize neurodamus and get discretization info
     nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True, enable_coord_mapping=True)

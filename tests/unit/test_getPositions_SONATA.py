@@ -312,7 +312,7 @@ def test_circuit_get_positions(tmp_path):
     ref_path = "examples/circuitTest/data/positions0_ref.pkl"
     new_path = str(tmp_path / "positions0.pkl")
 
-    getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
+    getPositions.get_positions(path_to_simconfig=path_to_simconfig, 
                  path_to_positions_folder=tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
