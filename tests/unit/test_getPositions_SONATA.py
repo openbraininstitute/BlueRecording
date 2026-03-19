@@ -312,7 +312,6 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
 
     np.testing.assert_almost_equal(segPos,expectedSegPos,decimal=2)
 
-@pytest.mark.skip_in_ci
 def test_circuit_get_positions(tmp_path):
     path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
 
