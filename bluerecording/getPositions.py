@@ -1,20 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import numpy as np
-from morphio import SectionType
-from morphio import Morphology
-import libsonata as lb
-import bluepysnap as bp
-
-import pandas as pd
-import sys
-from scipy.interpolate import interp1d
-from mpi4py import MPI
-import warnings
 import json
-from scipy.spatial.transform import Rotation as R
-from .utils import *
 import os
-import math
+import warnings
+
+import libsonata
+import neurodamus
+import numpy as np
+import pandas as pd
+from morphio import Morphology, SectionType
+from mpi4py import MPI
+from scipy.interpolate import interp1d
+from scipy.spatial.transform import Rotation as R
+from pathlib import Path
+
+from .utils import *
+
+rank = MPI.COMM_WORLD.Get_rank()
+
 
 warnings.filterwarnings('error', '', RuntimeWarning)
 '''
@@ -391,25 +393,38 @@ def positionMorphology(m, population, i):
 
     return m, center
 
-def getNewIndex(colIdx):
 
-    '''
-    Because we are saving the start and end points for each non-somatic segment, we need to add an additional entry to the dataframe column indices for section
-    '''
+def getNewIndex(cols):
+    """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
+    Rules:
+    - Every column is kept once.
+    - The last column is repeated to represent the end point.
+    - Columns with section != 0 are duplicated if the next column tuple differs.
+
+    Returns a pandas MultiIndex with levels ["id", "section"].
+    """
     newIdx = []
 
-    for i, col in enumerate(colIdx): # Iterates through column indices of compartment report
+    # Ensure cols is a list of tuples
+    cols_list = [tuple(c) for c in cols]
+
+    for i, col in enumerate(cols_list):
         newIdx.append(col)
-        if i == len(colIdx)-1: # For the last compartment, we need to add an index to account for the end point
+
+        # Last column: repeat to account for end point
+        if i == len(cols_list) - 1:
             newIdx.append(col)
-        elif col[-1]!=0: # If the compartment is not a soma
-            if colIdx[i+1]!=col: # and if the segment is not in the middle of the section
+
+        # Non-somatic segments: add extra entry if next col is different
+        elif col[-1] != 0:  # section != 0
+            if cols_list[i + 1] != col:  # now comparing tuples
                 newIdx.append(col)
 
-    newCols = pd.MultiIndex.from_tuples(newIdx, names=colIdx.names)
+    newCols = pd.MultiIndex.from_tuples(newIdx, names=["id", "section"])
 
     return newCols
+
 
 def checkAxonsFirst(morphology):
 
@@ -425,35 +440,18 @@ def checkAxonsFirst(morphology):
 
     return axonFirst
 
-def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_positions_folder,replace_axons=True):
+
+def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons=True):
 
     '''
     path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
     path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
-    neurons_per_file is the number of neurons in each of the segment positions pickle files.
-    files_per_folder is the number of positions pickle files in each subfolder in segment_position_folder. This parameter is used in order to avoid stressing the file system with too many files in a given folder
     '''
 
-    newidx = MPI.COMM_WORLD.Get_rank()
+    ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
 
-    report, nodeIds = getSimulationInfo(path_to_simconfig)
-    population = getPopulationObject(path_to_simconfig)
-
-    if len(nodeIds)/neurons_per_file > MPI.COMM_WORLD.Get_size():
-        raise AssertionError("Make sure that enough processes have been allocated to write position files")
-
-    try:
-        ids = nodeIds[neurons_per_file*newidx:neurons_per_file*(newidx+1)]
-    except:
-        ids = nodeIds[neurons_per_file*newidx:]
-
-    if len(ids) == 0:
-        return 1
-
-    data = getMinimalReport(report,ids)
-
-    colIdx = data.columns # node_id and Section IDs for each cell
-    cols = np.array(list(data.columns))
+    rSim = bp.Simulation(path_to_simconfig)
+    population = rSim.circuit.nodes[population_name]
 
     for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
 
@@ -475,8 +473,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
             xyz = np.hstack((xyz,somaPos.reshape(3,1)))
 
         try:
-
-            numSomas = len(data[i][0].iloc[0])
+            numSomas = np.sum((cols[:,0] == i) & (cols[:,1] == 0))
         except:
             numSomas = 1
 
@@ -495,7 +492,7 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
             '''
 
             try:
-                numCompartments = len(data[i][secName].iloc[0].values)
+                numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
             except:
                 numCompartments = 1
 
@@ -542,8 +539,40 @@ def getPositions(path_to_simconfig, neurons_per_file, files_per_folder, path_to_
 
             xyz = np.hstack((xyz,segPos.T))
 
-    newCols = getNewIndex(colIdx)
+    newCols = getNewIndex(cols)
 
     positionsOut = pd.DataFrame(xyz,columns=newCols)
 
-    positionsOut.to_pickle(path_to_positions_folder+'/' + str(int(newidx / files_per_folder)) + '/positions'+str(newidx)+'.pkl')
+    path_to_positions_folder = Path(path_to_positions_folder)
+    path_to_positions_folder.mkdir(parents=True, exist_ok=True)
+    positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
+
+
+
+
+def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
+    """Load a Neurodamus simulation and return neuron IDs and discretization columns.
+
+    Args:
+        path_to_simconfig: Path to the Neurodamus simulation configuration file.
+
+    Returns:
+        ids: Array of neuron GIDs.
+        cols: Array of (gid, section) tuples representing discretized segments.
+    """
+    nd = neurodamus.Node(path_to_simconfig, options={"enable_coord_mapping": True})
+    nd.load_targets()
+    nd.create_cells()
+    assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
+
+    for node_manager in nd.circuits.node_managers.values():
+        ids = node_manager.get_final_gids()
+        points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+
+        cols = np.array([
+            (p.gid, s)
+            for p in points
+            for s in sorted(p.sclst_ids)
+        ], dtype=np.int64)
+
+        return ids, cols, node_manager.population_name

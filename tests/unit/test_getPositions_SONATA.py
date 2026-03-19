@@ -5,7 +5,6 @@ import pytest
 from scipy.spatial.transform import Rotation as R
 
 from bluerecording import getPositions
-from bluerecording import utils
 
 def test_MutableMorph(morphology):
 
@@ -18,7 +17,7 @@ def test_get_morph_path(path_to_simconfig_with_output,expected_path_to_morph):
 
     neuron_id = 0
 
-    population = getPositions.getPopulationObject(path_to_simconfig_with_output)
+    _, _, population = getPositions.getSimulationInfo(path_to_simconfig_with_output)
 
     morph_path = getPositions.get_morph_path(population, neuron_id, path_to_simconfig_with_output)
 
@@ -313,16 +312,17 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
 
     np.testing.assert_almost_equal(segPos,expectedSegPos,decimal=2)
 
+# this requires to download a good chunk of data. We skip in CI
 @pytest.mark.skip_in_ci
-def test_circuit_get_positions():
-    path_to_simconfig = "examples/circuitTest/data/simulation/simulation_config.json"
-    path_to_positions_folder = "examples/circuitTest/data/getPositions/positions"
-    getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
-                 neurons_per_file=1000, 
-                 files_per_folder=50, path_to_positions_folder=path_to_positions_folder)
+def test_circuit_get_positions(tmp_path):
+    """Test that the positions0.pkl file matches the reference in repo"""
+    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
 
-    ref_path = "examples/circuitTest/data/getPositions/positions0_ref.pkl"
-    new_path = "examples/circuitTest/data/getPositions/positions/0/positions0.pkl"
+    ref_path = "examples/circuitTest/data/positions0_ref.pkl"
+    new_path = str(tmp_path / "positions0.pkl")
+
+    getPositions.getPositions(path_to_simconfig=path_to_simconfig, 
+                 path_to_positions_folder=tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
     df_new = pd.read_pickle(new_path)

@@ -94,13 +94,8 @@ fi
 # Virtual environment
 # -------------------------
 
-VENV_EXISTS=0   # default: not found
-if [ -d "venv" ]; then
-    VENV_EXISTS=1
-fi
-
 echo "=== Checking for existing virtual environment ==="
-if [ $VENV_EXISTS -eq 1 ]; then
+if [ -d "venv" ]; then
     echo "Virtual environment exists — activating."
     source venv/bin/activate
 else
@@ -108,47 +103,8 @@ else
     python3 -m venv venv
     source venv/bin/activate
 
-    pip install --upgrade pip setuptools wheel cython numpy
-fi
+    pip install --upgrade pip setuptools wheel cython numpy NEURON-nightly
 
-# -------------------------
-# Install libsonatareport
-# -------------------------
-if [ ! -d "libsonatareport" ]; then
-    git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
-    cmake -B libsonatareport/build -S libsonatareport \
-    -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
-
-    cmake --build libsonatareport/build
-    cmake --install libsonatareport/build
-fi
-
-# -------------------------
-# Install neuron with libsonatareport
-# -------------------------
-if [ ! -d "nrn" ]; then
-    git clone --recursive https://github.com/neuronsimulator/nrn.git
-    python -m pip install --upgrade pip -r nrn/nrn_requirements.txt
-    cmake -B nrn/build -S nrn -G Ninja \
-        -DPYTHON_EXECUTABLE=$(which python) \
-        -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
-        -DNRN_ENABLE_MPI=ON \
-        -DNRN_ENABLE_INTERVIEWS=OFF \
-        -DNRN_ENABLE_CORENEURON=ON \
-        -DCMAKE_C_COMPILER=gcc \
-        -DCMAKE_CXX_COMPILER=g++ \
-        -DCORENRN_ENABLE_REPORTING=ON \
-        -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR -GNinja
-    cmake --build nrn/build --parallel
-    cmake --build nrn/build --target install
-fi
-
-export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
-
-# -------------------------
-# Install h5py, mpi4pi and neurodamus
-# -------------------------
-if [ $VENV_EXISTS -eq 0 ]; then
     echo "=== Configuring MPI build environment ==="
     export CC=$(which mpicc)
     export CXX=$(which mpicxx)
@@ -168,13 +124,24 @@ if [ $VENV_EXISTS -eq 0 ]; then
     pip install neurodamus
 fi
 
-export NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
+# -------------------------
+# Install libsonatareport
+# -------------------------
+if [ ! -d "libsonatareport" ]; then
+    git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
+    cmake -B libsonatareport/build -S libsonatareport \
+    -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
+
+    cmake --build libsonatareport/build
+    cmake --install libsonatareport/build
+fi
 
 # -------------------------
 # Install neurodamus-models
 # -------------------------
 if [ ! -d "neurodamus-models" ]; then
   git clone https://github.com/openbraininstitute/neurodamus-models.git
+  NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
   cmake -B neurodamus-models/build -S neurodamus-models/ \
       -DPython_EXECUTABLE=$(which python) \
@@ -188,6 +155,7 @@ if [ ! -d "neurodamus-models" ]; then
   cmake --build neurodamus-models/build
   cmake --install neurodamus-models/build
 fi
+
 
 # -------------------------
 # Install project
@@ -228,7 +196,7 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     # -------------------------
     # Download networks data if requested via --data
     # -------------------------
-    CONFIG_DIR="examples/circuitTest/data/simulation/configuration"
+    CONFIG_DIR="examples/circuitTest/data/configuration"
     NETWORK_DIR="$CONFIG_DIR/networks"
 
     if [ -d "$NETWORK_DIR" ] && [ "$(ls -A "$NETWORK_DIR")" ]; then
@@ -249,18 +217,6 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
 
         echo "=== Networks dataset ready at $NETWORK_DIR ==="
     fi
-
-    # -------------------------
-    # Run compare-to-reference-solutions
-    # -------------------------
-    echo "=== Generate compare-to-reference-solutions data ==="
-    neurodamus examples/compare-to-reference-solutions/data/simulation/simulation_config.json
-
-    # -------------------------
-    # Run circuitTest
-    # -------------------------
-    echo "=== Generate circuitTest data ==="
-    neurodamus examples/circuitTest/data/simulation/simulation_config.json
 else
     echo "=== Skipping data download and generation — --data not given ==="
 fi

@@ -106,22 +106,9 @@ def getSimulationInfo(path_to_simconfig):
     
     nodeIds = report.node_ids
 
-    return report, nodeIds
+    pop_obj = rSim.circuit.nodes[population_name]
 
-def getPopulationObject(path_to_simconfig):
-
-    '''
-    Returns the following:
-    'population': SONATA population object
-    '''
-    
-    rSim = bp.Simulation(path_to_simconfig)
-
-    population_name = getPopulationName(path_to_simconfig)
-
-    population = rSim.circuit.nodes[population_name]
-
-    return population
+    return report, nodeIds, pop_obj
 
 
 def getPopulationName(path_to_simconfig):

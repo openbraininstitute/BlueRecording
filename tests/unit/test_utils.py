@@ -122,7 +122,7 @@ def test_process_writeH5_inputs():
 @pytest.mark.skip_in_ci
 def test_getSimulationInfo(path_to_simconfig_with_output):
     
-    report, nodeIds = getSimulationInfo(path_to_simconfig_with_output)
+    _, nodeIds, _ = getSimulationInfo(path_to_simconfig_with_output)
             
     assert nodeIds == 0
 

@@ -41,7 +41,7 @@ def path_to_example_folder():
 
     PARENT_DIR = Path(__file__).parent.parent
 
-    example_path = "examples/compare-to-reference-solutions/data/simulation/"
+    example_path = "examples/compare-to-reference-solutions/data/"
 
     return PARENT_DIR / example_path
 
