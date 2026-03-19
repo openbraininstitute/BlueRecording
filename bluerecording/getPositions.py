@@ -560,7 +560,9 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
         ids: Array of neuron GIDs.
         cols: Array of (gid, section) tuples representing discretized segments.
     """
-    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True,enable_coord_mapping=True)
+    nd = neurodamus.Node(path_to_simconfig, options={"enable_coord_mapping": True})
+    nd.load_targets()
+    nd.create_cells()
     assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
 
     for node_manager in nd.circuits.node_managers.values():
