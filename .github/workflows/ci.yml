@@ -39,10 +39,10 @@ jobs:
 
       - name: Run tests
         run: |
-          source setup.sh --dev --no-system
+          source venv/bin/activate
           pytest -v -m "not skip_in_ci" tests/unit
 
       - name: Run MPI tests
         run: |
-          source setup.sh --dev --no-system
+          source venv/bin/activate
           mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
