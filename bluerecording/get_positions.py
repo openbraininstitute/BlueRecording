@@ -72,14 +72,25 @@ def interp_points(coords, ncomps):
     return xyz
 
 
-def get_axon_points(m,center):
+def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Extract 3D positions and cumulative lengths along the simulated axon.
 
-    '''
-    This function returns the 3d positions and the cumulative length of the part of the axon that is simulated
-    We only simulate two sections of the AIS, each 30 um long, and a 1000 um myelinated section
-    The positions of these sections are not defined by the simulator, so we assume that it is the first 1060 um of a particular axonal branch
-    For efficiency, we just take the first axonal branch we find that has a length of at least 1060 um
-    '''
+    The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
+    myelinated section, totalling 1060 µm.  Since the simulator does not define
+    the spatial positions of these sections, we walk the morphology tree to find
+    the first axonal branch that is at least 1060 µm long and extract its 3D
+    points.  If no branch is long enough, the longest one is linearly
+    extrapolated.
+
+    Args:
+        m: Mutable morphology with rotated/translated points and section indices.
+        center: Soma position as a 1D array of shape (3,).
+
+    Returns:
+        axon_points: Unique 3D positions along the selected axonal branch,
+            shape (N, 3).
+        running_lengths: Cumulative arc length at each point, shape (N,).
+    """
 
     targetLength = 1060
 
