@@ -10,7 +10,6 @@ import pandas as pd
 from morphio import Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
-from scipy.spatial.transform import Rotation as R
 from pathlib import Path
 
 from .utils import *
@@ -53,14 +52,18 @@ def interp_points(coords, ncomps):
     with each segment having equal length
     '''
 
+    # Remove consecutive duplicate points that can arise from float32 rotation precision
+    diffs = np.linalg.norm(np.diff(coords, axis=0), axis=1)
+    mask = np.concatenate(([True], diffs > 0))
+    coords = coords[mask]
+
     xyz = np.array([]).reshape(ncomps + 1, 0)
-    npoints = coords.shape[0]
+
+    distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
+    distances /= distances[-1]
+    distances = np.insert(distances,0,0)
 
     for dim in range(coords.shape[1]):
-
-        distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
-        distances /= distances[-1]
-        distances = np.insert(distances,0,0)
 
         f = interp1d(distances, coords[:, dim], kind='linear')
         ic = f(np.linspace(0, 1, ncomps + 1)).reshape(ncomps + 1, 1)
@@ -69,14 +72,25 @@ def interp_points(coords, ncomps):
     return xyz
 
 
-def get_axon_points(m,center):
+def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Extract 3D positions and cumulative lengths along the simulated axon.
 
-    '''
-    This function returns the 3d positions and the cumulative length of the part of the axon that is simulated
-    We only simulate two sections of the AIS, each 30 um long, and a 1000 um myelinated section
-    The positions of these sections are not defined by the simulator, so we assume that it is the first 1060 um of a particular axonal branch
-    For efficiency, we just take the first axonal branch we find that has a length of at least 1060 um
-    '''
+    The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
+    myelinated section, totalling 1060 µm.  Since the simulator does not define
+    the spatial positions of these sections, we walk the morphology tree to find
+    the first axonal branch that is at least 1060 µm long and extract its 3D
+    points.  If no branch is long enough, the longest one is linearly
+    extrapolated.
+
+    Args:
+        m: Mutable morphology with rotated/translated points and section indices.
+        center: Soma position as a 1D array of shape (3,).
+
+    Returns:
+        axon_points: Unique 3D positions along the selected axonal branch,
+            shape (N, 3).
+        running_lengths: Cumulative arc length at each point, shape (N,).
+    """
 
     targetLength = 1060
 
@@ -343,8 +357,7 @@ def get_morph_path(population, i, path_to_simconfig):
     return fileName
 
 
-def getMorphology(population, i, path_to_simconfig):
-
+def getMorphology(population, i, path_to_simconfig, cell):
 
     finalmorphpath = get_morph_path(population, i, path_to_simconfig)
 
@@ -352,44 +365,13 @@ def getMorphology(population, i, path_to_simconfig):
 
     m = MutableMorph(mImmutable) # Mutable version, so that we can change the positions to orient the cell correctly within the circuit
 
-    m, center = positionMorphology(m, population, i)
+    # Use neurodamus for rotation + translation of morphology points (float32 precision)
+    m.points = cell.local_to_global_coord_mapping(m.points)
 
-    return m, center
-
-def get_transform(population, i):
-
-    center = np.array([population.get(group=[i],properties='x'),population.get(group=[i],properties='y'),population.get(group=[i],properties='z')]) # Gets soma position
-
-    center = center.flatten()
-
-    ### Gets orientation of the cell in the circuit
-    rotW = population.get(group=[i],properties='orientation_w')
-    rotX = population.get(group=[i],properties='orientation_x')
-    rotY = population.get(group=[i],properties='orientation_y')
-    rotZ = population.get(group=[i],properties='orientation_z')
-    ####
-
-    ### Creates rotation quaternion for cell
-    rotQuat = np.array([rotX,rotY,rotZ,rotW])
-    rotQuat /= np.linalg.norm(rotQuat)
-    rotation = R.from_quat(rotQuat.flatten())
-    ###
-
-    return center, rotation
-
-def apply_transform(m, center, rotation):
-
-    m.points = R.apply(rotation,m.points) # Rotates cell
-
-    m.points += center # Translates cell
-
-    return m
-
-def positionMorphology(m, population, i):
-
-    center, rotation = get_transform(population, i)
-
-    m = apply_transform(m, center, rotation)
+    # Soma position: sonata node x/y/z from the transform matrix translation column (float32).
+    # This is the BlueRecording convention (raw placement position), NOT the neurodamus soma
+    # centroid (mean of NEURON soma section boundary points), which differs by up to ~1.8 µm.
+    center = cell.local_to_global_matrix[:, 3]
 
     return m, center
 
@@ -426,119 +408,117 @@ def getNewIndex(cols):
     return newCols
 
 
-def checkAxonsFirst(morphology):
+def get_cell_positions(m, center, cols, gid, replace_axons):
+    """Compute the 3D segment boundary positions for a single cell.
 
-    '''
-    Checks if the morphology file is has axons first (like with cortical neurons)
-    or dendrites first (like thalamic neurons)
-    '''
+    Returns a (3, N) array where each column is the x/y/z position of a segment
+    boundary (start points, plus the end point of the last segment in each section).
+    """
 
-    if morphology.sections[0].type == 2:
-        axonFirst = True
+    # Determine morphology ordering: axon-first (cortical) or dendrite-first (thalamic)
+    first_section_type = m.sections[0].type
+    if first_section_type == SectionType.axon:
+        axons_first = True
+    elif first_section_type in (SectionType.basal_dendrite, SectionType.apical_dendrite):
+        axons_first = False
     else:
-        axonFirst = False
+        raise ValueError(f'Unexpected first section type in morphology: {first_section_type}')
 
-    return axonFirst
+    somaPos = center[:,np.newaxis]
 
+    axonPoints, runningLens = None, None
+    if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
+        axonPoints, runningLens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
 
-def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons=True):
+    sections = np.unique(cols[np.where(cols[:,0]==gid),1:].flatten()) # List of sections for the given neuron
 
-    '''
-    path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
-    path_to_positions_folder refers to the path to the top-level folder containing pickle files with the position of each segment.
-    '''
+    # Start with soma position(s)
+    xyz = somaPos.reshape(3,1)
 
-    ids, cols, population_name = get_discretization(path_to_simconfig=path_to_simconfig)
+    numSomas = np.sum((cols[:,0] == gid) & (cols[:,1] == 0))
 
-    rSim = bp.Simulation(path_to_simconfig)
-    population = rSim.circuit.nodes[population_name]
-
-    for idx, i in enumerate(ids): # Iterates through node_ids and gets segment positions
-
-        m, center = getMorphology(population,i, path_to_simconfig)
-
-        axonsFirst = checkAxonsFirst(m)
-
-        somaPos = center[:,np.newaxis]
-
-        if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
-
-            axonPoints, runningLens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
-
-        sections = np.unique(cols[np.where(cols[:,0]==i),1:].flatten()) # List of sections for the given neuron
-
-        if idx ==0: # For the first cell, the array of positions xyz is initialized with the soma position
-            xyz = somaPos.reshape(3,1)
-        else:
+    if numSomas > 1: # If there is more than one somatic segment, we assume that they all have the same position
+        for k in np.arange(1,numSomas):
             xyz = np.hstack((xyz,somaPos.reshape(3,1)))
 
-        try:
-            numSomas = np.sum((cols[:,0] == i) & (cols[:,1] == 0))
-        except:
-            numSomas = 1
+    morphSectionIdx = 0 # Index used if morphology lists dendrites before axons
 
-        if numSomas > 1: # If there is more than one somatic segment, we assume that they all have the same position
-            for k in np.arange(1,numSomas):
-                xyz = np.hstack((xyz,somaPos.reshape(3,1)))
+    for secName in list(sections[1:]):
 
-        morphSectionIdx = 0 # Index used if morphology file lists dendrites before axons
+        numCompartments = np.sum((cols[:,0] == gid) & (cols[:,1] == secName))
 
-        for secName in list(sections[1:]):
+        # Section 1 and 2 are always axonal when axons are replaced (AIS)
+        if secName < 3 and replace_axons:
+            segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
 
-            '''
-            For each non-somatic segment, we interpolate the start and end point. Having the start and end, rather than the center, allows us to use either the
-            line-source approximation (for LFP) or the reciprocity approach (for EEG). Note that for segments in the middle of a section, the end point is the
-            same as the start point of the next section, so we do not need to save the end point, just the start point
-            '''
-
-            try:
-                numCompartments = np.sum((cols[:,0] == i) & (cols[:,1] == secName))
-            except:
-                numCompartments = 1
-
-            if secName < 3 and replace_axons: # Section 1 and Section 2 are always axonal sections, if the axon is being replaced
-
+        elif axons_first:
+            secId = secName - 1
+            if secId >= len(m.indices): # Beyond morphology sections → myelinated AIS
                 segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
-            elif axonsFirst:
-
-                secId = secName - 1
-
-                if secId >= len(m.indices): # If the section is not in the morphIO object, then it is the myelinated part of the AIS
-
-                    segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
-                else: # Most other sections are dendritic, and are therefore included in the morphIO morphology object
-
-                    ptIdx = m.indices[secId]
-                    pts = m.points[ptIdx]
-
-                    secPts = np.array(pts)
-
-                    segPos = interp_points(secPts,numCompartments)
-
             else:
+                secPts = np.array(m.points[m.indices[secId]])
+                segPos = interp_points(secPts,numCompartments)
 
-                if m.sections[morphSectionIdx].type == 3 or m.sections[morphSectionIdx].type == 4: # If dendrite
+        else: # Dendrite-first morphology
+            sec_type = m.sections[morphSectionIdx].type
+            if sec_type in (SectionType.basal_dendrite, SectionType.apical_dendrite):
+                secPts = np.array(m.points[m.indices[morphSectionIdx]])
+                segPos = interp_points(secPts,numCompartments)
+                morphSectionIdx += 1
+            elif sec_type == SectionType.axon:
+                segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+            else:
+                raise ValueError(f'Unexpected section type in morphology: {sec_type}')
 
-                    ptIdx = m.indices[morphSectionIdx]
-                    pts = m.points[ptIdx]
+        xyz = np.hstack((xyz,segPos.T))
 
-                    secPts = np.array(pts)
+    return xyz
 
-                    segPos = interp_points(secPts,numCompartments)
 
-                    morphSectionIdx += 1
 
-                elif m.sections[morphSectionIdx].type == 2: # If axon
+def get_positions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons: bool = True):
+    """Compute and save segment boundary positions for all cells in the circuit.
 
-                    segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+    Initializes neurodamus to obtain cell morphologies and discretization info,
+    then computes the 3D position of each segment boundary for every cell.
+    Results are saved as a pickle file per MPI rank.
 
-                else:
-                    raise ValueError('Non-axonal and non-dendritic section found in morphology file')
+    Args:
+        path_to_simconfig: Path to the SONATA simulation configuration file.
+        path_to_positions_folder: Output directory for the positions pickle files.
+        replace_axons: If True, replace morphological axons with a standardized
+            stub (two 30 µm AIS sections + 1000 µm myelinated section).
+    """
 
-            xyz = np.hstack((xyz,segPos.T))
+    # Initialize neurodamus and get discretization info
+    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True, enable_coord_mapping=True)
+    assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
+    node_manager = next(iter(nd.circuits.node_managers.values()))
 
+    ids = node_manager.get_final_gids()
+    points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
+    cols = np.array([
+        (p.gid, s)
+        for p in points
+        for s in sorted(p.sclst_ids)
+    ], dtype=np.int64)
+
+    # Still needed for get_morph_path (morphology file resolution)
+    rSim = bp.Simulation(path_to_simconfig)
+    population = rSim.circuit.nodes[node_manager.population_name]
+
+    # Compute segment positions for each cell
+    cell_arrays = []
+    for i in ids:
+
+        cell = node_manager.get_cell(i)
+        m, center = getMorphology(population, i, path_to_simconfig, cell)
+
+        cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
+
+    xyz = np.hstack(cell_arrays)
+
+    # Write output
     newCols = getNewIndex(cols)
 
     positionsOut = pd.DataFrame(xyz,columns=newCols)
@@ -546,31 +526,3 @@ def getPositions(path_to_simconfig: str, path_to_positions_folder: str, replace_
     path_to_positions_folder = Path(path_to_positions_folder)
     path_to_positions_folder.mkdir(parents=True, exist_ok=True)
     positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
-
-
-
-
-def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
-    """Load a Neurodamus simulation and return neuron IDs and discretization columns.
-
-    Args:
-        path_to_simconfig: Path to the Neurodamus simulation configuration file.
-
-    Returns:
-        ids: Array of neuron GIDs.
-        cols: Array of (gid, section) tuples representing discretized segments.
-    """
-    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True,enable_coord_mapping=True)
-    assert len(nd.circuits.node_managers.values()) == 1, "Multiple or no node managers are not allowed for the moment"
-
-    for node_manager in nd.circuits.node_managers.values():
-        ids = node_manager.get_final_gids()
-        points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
-
-        cols = np.array([
-            (p.gid, s)
-            for p in points
-            for s in sorted(p.sclst_ids)
-        ], dtype=np.int64)
-
-        return ids, cols, node_manager.population_name
