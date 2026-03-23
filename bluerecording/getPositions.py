@@ -567,6 +567,7 @@ def get_discretization(path_to_simconfig: str) -> tuple[np.ndarray, np.ndarray]:
 
     for node_manager in nd.circuits.node_managers.values():
         ids = node_manager.get_final_gids()
+
         points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
 
         cols = np.array([
