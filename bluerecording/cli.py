@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
-from . import get_positions
+from . import positions
+from .circuit import init_circuit
 from . import __version__
 
 def main():
@@ -42,8 +43,10 @@ def main():
     args = parser.parse_args()
 
     if args.command == "get_positions":
-        get_positions.get_positions(
+        node_manager, ids, cols, population = init_circuit(args.path_to_simconfig)
+        positions_df, _ = positions.get_positions(
+            node_manager, ids, cols, population,
             path_to_simconfig=args.path_to_simconfig,
-            path_to_positions_folder=args.path_to_positions_folder,
-            replace_axons=args.replace_axons
+            replace_axons=args.replace_axons,
         )
+        positions.save_positions(positions_df, args.path_to_positions_folder)

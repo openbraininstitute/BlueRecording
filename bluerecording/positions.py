@@ -452,39 +452,48 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
 
 
 
-def get_positions(path_to_simconfig: str, path_to_positions_folder: str, replace_axons: bool = True):
-    """Compute and save segment boundary positions for all cells in the circuit.
+def get_positions(node_manager, ids, cols, population, path_to_simconfig, replace_axons=True):
+    """Compute segment boundary positions for all cells on this rank.
 
-    Initializes neurodamus to obtain cell morphologies and discretization info,
-    then computes the 3D position of each segment boundary for every cell.
-    Results are saved as a pickle file per MPI rank.
+    Pure computation — no file I/O. Returns the positions DataFrame
+    and the cols array for downstream use.
 
     Args:
-        path_to_simconfig: Path to the SONATA simulation configuration file.
-        path_to_positions_folder: Output directory for the positions pickle files.
+        node_manager: Neurodamus node manager.
+        ids: GIDs assigned to this MPI rank.
+        cols: (N, 2) int64 array of (gid, section) pairs.
+        population: bluepysnap NodePopulation for morphology resolution.
+        path_to_simconfig: Path to the SONATA simulation config.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).
+
+    Returns:
+        positions_df: DataFrame with MultiIndex columns (id, section),
+            shape (3, M) where M includes segment boundary duplicates.
+        cols: The input cols array, passed through for convenience.
     """
-
-    # Initialize neurodamus and get discretization info
-    node_manager, ids, cols, population = init_circuit(path_to_simconfig)
-
-    # Compute segment positions for each cell
     cell_arrays = []
     for i in ids:
-
         cell = node_manager.get_cell(i)
         m, center = getMorphology(population, i, path_to_simconfig, cell)
-
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
     xyz = np.hstack(cell_arrays)
+    new_cols = getNewIndex(cols)
+    positions_df = pd.DataFrame(xyz, columns=new_cols)
 
-    # Write output
-    newCols = getNewIndex(cols)
+    return positions_df, cols
 
-    positionsOut = pd.DataFrame(xyz,columns=newCols)
 
+
+
+def save_positions(positions_df, path_to_positions_folder):
+    """Write positions DataFrame to a pickle file for this MPI rank.
+
+    Args:
+        positions_df: DataFrame returned by get_positions.
+        path_to_positions_folder: Output directory.
+    """
     path_to_positions_folder = Path(path_to_positions_folder)
     path_to_positions_folder.mkdir(parents=True, exist_ok=True)
-    positionsOut.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
+    positions_df.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
