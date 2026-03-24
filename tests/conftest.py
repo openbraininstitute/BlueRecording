@@ -332,43 +332,6 @@ def morphology_short(path_to_morphology_file):
 
 
 @pytest.fixture(scope="module")
-def morphology_short_dendFirst(path_to_morphology_file):
-
-    file = h5py.File(path_to_morphology_file, "w")
-
-    structureData = np.array(
-        [[0, 1, -1], 
-         [3, 3, 0], 
-         [5, 2, 0], 
-         [9, 2, 1]]
-    )  # One soma with 1 3d point, 2 axon sections with4 and 3 points, one basal dendrite with undefined number of points
-
-    file.create_dataset("structure", data=structureData)
-
-    pointsData = np.array(
-        [
-            [-1, 0, 0, 1],
-            [0, -1, 0, 1],
-            [0, 0, 0, 1],
-            [10, 0, 0, 5],
-            [100, 0, 0, 5],
-            [0, 0, 0, 1],
-            [0, 0, 1, 0.3],
-            [0, 0, 2, 0.3],
-            [0, 0, 3, 1],
-            [0, 0, 3, 1],
-            [0, 0, 4, 1],
-            [0, 0, 0, 1],
-        ]
-    )
-    file.create_dataset("points", data=pointsData)
-
-    file.close()
-
-    return Morphology(path_to_morphology_file)
-
-
-@pytest.fixture(scope="module")
 def morphology(path_to_morphology_file):
 
     file = h5py.File(path_to_morphology_file, "w")
@@ -393,43 +356,6 @@ def morphology(path_to_morphology_file):
             [0, 0, 0, 1],
             [10, 0, 0, 5],
             [100, 0, 0, 5],
-        ]
-    )
-    file.create_dataset("points", data=pointsData)
-
-    file.close()
-
-    return Morphology(path_to_morphology_file)
-
-
-@pytest.fixture(scope="module")
-def morphology_dendFirst(path_to_morphology_file):
-
-    file = h5py.File(path_to_morphology_file, "w")
-
-    structureData = np.array(
-        [[0, 1, -1], 
-         [3, 3, 0], 
-         [6, 2, 0], 
-         [10, 2, 1]]
-    )  # One soma with 3 3d point, 2 axon sections with 4 and 2 points, one basal dendrite with undefined number of points
-
-    file.create_dataset("structure", data=structureData)
-
-    pointsData = np.array(
-        [
-            [-1, 0, 0, 1],
-            [0, -1, 0, 1],
-            [0, 0, 0, 1],
-            [0, 0, 0, 1],
-            [10, 0, 0, 5],
-            [100, 0, 0, 5],
-            [0, 0, 0, 1],
-            [0, 0, 1, 0.3],
-            [0, 0, 2, 0.3],
-            [0, 0, 3, 1],
-            [0, 0, 3, 1],
-            [0, 0, 1073, 1],
         ]
     )
     file.create_dataset("points", data=pointsData)

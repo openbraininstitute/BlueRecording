@@ -415,62 +415,39 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
     boundary (start points, plus the end point of the last segment in each section).
     """
 
-    # Determine morphology ordering: axon-first (cortical) or dendrite-first (thalamic)
-    first_section_type = m.sections[0].type
-    if first_section_type == SectionType.axon:
-        axons_first = True
-    elif first_section_type in (SectionType.basal_dendrite, SectionType.apical_dendrite):
-        axons_first = False
-    else:
-        raise ValueError(f'Unexpected first section type in morphology: {first_section_type}')
+    soma_pos = center[:,np.newaxis]
 
-    somaPos = center[:,np.newaxis]
-
-    axonPoints, runningLens = None, None
+    axon_points, running_lens = None, None
     if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
-        axonPoints, runningLens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
+        axon_points, running_lens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
 
     sections = np.unique(cols[np.where(cols[:,0]==gid),1:].flatten()) # List of sections for the given neuron
 
     # Start with soma position(s)
-    xyz = somaPos.reshape(3,1)
+    xyz = soma_pos.reshape(3,1)
 
-    numSomas = np.sum((cols[:,0] == gid) & (cols[:,1] == 0))
+    num_somas = np.sum((cols[:,0] == gid) & (cols[:,1] == 0))
 
-    if numSomas > 1: # If there is more than one somatic segment, we assume that they all have the same position
-        for k in np.arange(1,numSomas):
-            xyz = np.hstack((xyz,somaPos.reshape(3,1)))
+    if num_somas > 1: # If there is more than one somatic segment, we assume that they all have the same position
+        for k in np.arange(1,num_somas):
+            xyz = np.hstack((xyz,soma_pos.reshape(3,1)))
 
-    morphSectionIdx = 0 # Index used if morphology lists dendrites before axons
+    for sec_name in list(sections[1:]):
 
-    for secName in list(sections[1:]):
-
-        numCompartments = np.sum((cols[:,0] == gid) & (cols[:,1] == secName))
+        num_compartments = np.sum((cols[:,0] == gid) & (cols[:,1] == sec_name))
 
         # Section 1 and 2 are always axonal when axons are replaced (AIS)
-        if secName < 3 and replace_axons:
-            segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-
-        elif axons_first:
-            secId = secName - 1
-            if secId >= len(m.indices): # Beyond morphology sections → myelinated AIS
-                segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
+        if sec_name < 3 and replace_axons:
+            seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
+        else:
+            sec_id = sec_name - 1
+            if sec_id >= len(m.indices): # Beyond morphology sections → myelinated AIS
+                seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
             else:
-                secPts = np.array(m.points[m.indices[secId]])
-                segPos = interp_points(secPts,numCompartments)
+                sec_pts = np.array(m.points[m.indices[sec_id]])
+                seg_pos = interp_points(sec_pts,num_compartments)
 
-        else: # Dendrite-first morphology
-            sec_type = m.sections[morphSectionIdx].type
-            if sec_type in (SectionType.basal_dendrite, SectionType.apical_dendrite):
-                secPts = np.array(m.points[m.indices[morphSectionIdx]])
-                segPos = interp_points(secPts,numCompartments)
-                morphSectionIdx += 1
-            elif sec_type == SectionType.axon:
-                segPos = interp_points_axon(axonPoints,runningLens,secName,numCompartments,somaPos)
-            else:
-                raise ValueError(f'Unexpected section type in morphology: {sec_type}')
-
-        xyz = np.hstack((xyz,segPos.T))
+        xyz = np.hstack((xyz,seg_pos.T))
 
     return xyz
 
