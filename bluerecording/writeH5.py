@@ -13,6 +13,8 @@ from .utils import *
 import warnings
 from sklearn.decomposition import PCA
 
+DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
+
 def add_data(h5, ids, coeffs ,population_name):
 
 
@@ -564,7 +566,7 @@ def get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCS
 
     return arrayIdx, objectiveCSD_count
 
-def writeH5File(path_to_simconfig,segment_position_folder,outputfile,neurons_per_file,files_per_folder,sigma=[0.277],path_to_fields=None,objective_csd_array_indices=None):
+def writeH5File(path_to_simconfig,segment_position_folder,outputfile,neurons_per_file,files_per_folder,sigma=None,path_to_fields=None,objective_csd_array_indices=None):
 
     '''
     path_to_simconfig refers to the BlueConfig from the 1-timestep simulation used to get the segment positions
@@ -572,6 +574,9 @@ def writeH5File(path_to_simconfig,segment_position_folder,outputfile,neurons_per
     outputfile is the h5 file containing the compartment weights
     files_per_folder is the number of positions pickle files in each subfolder in segment_position_folder. This is also specified by the user in get_positions()
     '''
+
+    if sigma is None:
+        sigma = [DEFAULT_SIGMA]
 
     _, allNodeIds, _ = getSimulationInfo(path_to_simconfig)
     population_name = getPopulationName(path_to_simconfig)
