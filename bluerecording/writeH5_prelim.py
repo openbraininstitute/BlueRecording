@@ -7,6 +7,7 @@ import sys
 import bluepysnap as bp
 import json
 from .utils import *
+from . import __version__
 import datetime
 
 class ElectrodeFileStructure(object):
