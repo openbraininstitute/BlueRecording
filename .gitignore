@@ -47,3 +47,5 @@ htmlcov/
 libsonatareport/
 neurodamus-models/
 nrn/
+.code
+.kiro
