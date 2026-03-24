@@ -7,6 +7,7 @@ import sys
 import bluepysnap as bp
 import json
 from .utils import *
+from . import __version__
 import datetime
 
 class ElectrodeFileStructure(object):
@@ -212,40 +213,49 @@ def process_objectiveCSD(electrodeType):
 
         return objectiveDict
 
-def initializeH5File(path_to_simconfig,outputfile,electrode_csv):
+def initializeH5File(cols, population_name, circuit_path, outputfile, electrode_csv):
 
     '''
-    path_to_simconfig refers to the simulation_config from the 1-timestep simulation used to get the segment positions
-    electrode_csv is a csv file containing the position, region, and layer of each electrode
-    type is either EEG or LFP
+    Initializes the H5 electrode weights file on rank 0.
+
+    Gathers rank-local cols via MPI, builds the global structure, and writes
+    electrode metadata + offsets. The file is closed before returning.
+
+    cols: rank-local (N, 2) int64 array of (gid, section) pairs
+    population_name: SONATA population name
+    circuit_path: path to the circuit config (written as metadata)
+    outputfile: path to the output H5 file
+    electrode_csv: path to the electrode CSV file
     '''
 
-    report, nodeIds, _ = getSimulationInfo(path_to_simconfig)
+    from mpi4py import MPI
 
-    population_name = getPopulationName(path_to_simconfig)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
 
-    circuitpath = getCircuitPath(path_to_simconfig)
+    # Gather all rank-local cols to rank 0
+    all_cols_list = comm.gather(cols, root=0)
 
-    data = getMinimalReport(report, nodeIds)
+    if rank == 0:
+        all_cols = np.concatenate(all_cols_list, axis=0)
+        node_ids = np.unique(all_cols[:, 0])
 
+        section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
 
-    sectionIdsFrame = data.columns.to_frame()
-    sectionIdsFrame.index = range(len(sectionIdsFrame))
+        electrodes = makeElectrodeDict(electrode_csv)
 
-    electrodes = makeElectrodeDict(electrode_csv) # Dictionary containing metadata about the electrodes
+        h5file = h5py.File(outputfile, 'w')
 
-    h5file = h5py.File(outputfile,'w') # Creates h5 file for coefficients
+        # Tune HDF5 metadata cache for faster writes
+        h5id = h5file.id
+        cc = h5id.get_mdc_config()
+        cc.max_size = 1024 * 1024 * 124
+        h5id.set_mdc_config(cc)
 
-    ### This block sets memory parameters that make writing the H5 file faster
-    h5id = h5file.id
-    cc = h5id.get_mdc_config()
-    cc.max_size = 1024*1024*124
-    h5id.set_mdc_config(cc)
-    #####
+        h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name, circuit=circuit_path, version=__version__)
 
-    h5 = ElectrodeFileStructure(h5file, nodeIds, electrodes, population_name, circuit=circuitpath,version=__version__) # Initializes fields in h5 file
+        write_all_neuron(section_ids_frame, population_name, h5, h5file, electrodes)
 
+        h5file.close()
 
-    write_all_neuron(sectionIdsFrame, population_name, h5, h5file, electrodes)  # For each node_id, initializes coefficient field in h5 file
-
-    h5file.close()
+    comm.Barrier()

@@ -11,7 +11,7 @@ if __name__=='__main__':
     if len(sys.argv) > 3:  # optional third argument
         replace_axons = sys.argv[3].lower() in ('true', '1', 'yes')
 
-    node_manager, ids, cols, population = init_circuit(path_to_simconfig)
+    node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
     positions_df, _ = get_positions(node_manager, ids, cols, population,
                                     path_to_simconfig=path_to_simconfig,
                                     replace_axons=replace_axons)

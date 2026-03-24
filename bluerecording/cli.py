@@ -3,6 +3,8 @@ from pathlib import Path
 from . import positions
 from .circuit import init_circuit
 from .writeH5 import DEFAULT_SIGMA
+from .writeH5_prelim import initializeH5File
+from .utils import getCircuitPath
 from . import __version__
 
 def main():
@@ -57,9 +59,9 @@ def main():
         help="Path to the electrode CSV file"
     )
     ww_parser.add_argument(
-        "output_file",
+        "output_path",
         type=str,
-        help="Path to the output H5 weights file"
+        help="Path to the output H5 weights file, or a directory (weights.h5 will be created inside)"
     )
     ww_parser.add_argument(
         "--no-replace-axons",
@@ -85,7 +87,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "write_positions":
-        node_manager, ids, cols, population = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, _ = init_circuit(args.path_to_simconfig)
         positions_df, _ = positions.get_positions(
             node_manager, ids, cols, population,
             path_to_simconfig=args.path_to_simconfig,
@@ -94,10 +96,16 @@ def main():
         positions.save_positions(positions_df, args.path_to_positions_folder)
 
     elif args.command == "write_weights":
-        node_manager, ids, cols, population = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, population_name = init_circuit(args.path_to_simconfig)
         positions_df, cols = positions.get_positions(
             node_manager, ids, cols, population,
             path_to_simconfig=args.path_to_simconfig,
             replace_axons=args.replace_axons,
         )
-        # TODO: connect to initializeH5File + writeH5File
+        circuit_path = getCircuitPath(args.path_to_simconfig)
+        output_file = Path(args.output_path)
+        if output_file.is_dir() or not output_file.suffix:
+            output_file.mkdir(parents=True, exist_ok=True)
+            output_file = output_file / "weights.h5"
+        initializeH5File(cols, population_name, circuit_path, str(output_file), args.electrode_csv)
+        # TODO: connect to writeH5File

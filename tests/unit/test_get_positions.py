@@ -273,7 +273,7 @@ def test_circuit_get_positions(tmp_path):
     ref_path = "examples/circuitTest/data/positions0_ref.pkl"
     new_path = str(tmp_path / "positions0.pkl")
 
-    node_manager, ids, cols, population = init_circuit(path_to_simconfig)
+    node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
     positions_df, _ = positions.get_positions(node_manager, ids, cols, population,
                                               path_to_simconfig=path_to_simconfig)
     positions.save_positions(positions_df, tmp_path)

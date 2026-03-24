@@ -24,6 +24,7 @@ def init_circuit(path_to_simconfig: str):
             compartment on this rank.
         population: bluepysnap NodePopulation, needed for morphology file
             resolution.
+        population_name: Name of the SONATA node population.
     """
     nd = neurodamus.Neurodamus(
         path_to_simconfig,
@@ -49,6 +50,7 @@ def init_circuit(path_to_simconfig: str):
     )
 
     r_sim = bp.Simulation(path_to_simconfig)
-    population = r_sim.circuit.nodes[node_manager.population_name]
+    population_name = node_manager.population_name
+    population = r_sim.circuit.nodes[population_name]
 
-    return node_manager, ids, cols, population
+    return node_manager, ids, cols, population, population_name
