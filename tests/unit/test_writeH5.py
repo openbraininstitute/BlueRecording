@@ -10,14 +10,6 @@ from bluerecording.writeH5 import *
 from bluerecording.writeH5_prelim import ElectrodeFileStructure
 
 @pytest.fixture
-def filesPerFolder():
-    return 50
-
-@pytest.fixture
-def numPositionFiles():
-    return 100
-
-@pytest.fixture
 def electrodePosition():
     return np.array([10,10,10])
 
@@ -96,35 +88,6 @@ def write_ElectrodeFileStructure_objective(path_to_weights_file, electrodes_obje
     h5file.close()
 
     return path_to_weights_file, h5
-
-def test_get_position_file_name(filesPerFolder, numPositionFiles):
-
-    rank = 0
-
-    assert get_position_file_name(filesPerFolder,numPositionFiles,rank)=='0/positions0.pkl'
-
-    rank = 453
-
-    assert get_position_file_name(filesPerFolder,numPositionFiles,rank)=='1/positions53.pkl'
-
-def test_get_indices(numPositionFiles):
-
-    rank = 1
-    nranks = 400
-    neuronsPerFile = 1000
-
-    iteration, iterationSize = get_indices(rank, nranks, neuronsPerFile, numPositionFiles)
-
-    assert iterationSize == 250
-    assert iteration == 0
-
-    with pytest.raises(AssertionError):
-        nranks = 2
-        iteration, iterationSize = get_indices(rank, nranks, neuronsPerFile, numPositionFiles)
-
-    with pytest.raises(AssertionError):
-        nranks = 2
-        iteration, iterationSize = get_indices(rank, nranks, neuronsPerFile, numPositionFiles)
 
 def test_getSegmentMidpts(positions,gids):
 
@@ -473,3 +436,43 @@ def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective):
 
     np.testing.assert_equal(arrayIdx,np.arange(4,5))
     assert objectiveCSD_count == 1
+
+
+@pytest.mark.skip_in_ci
+def test_circuit_write_weights(tmp_path):
+    """Test that the full write_weights pipeline produces weights matching the reference."""
+    from bluerecording.circuit import init_circuit
+    from bluerecording import positions
+    from bluerecording.writeH5_prelim import initializeH5File
+    from bluerecording.utils import getCircuitPath
+
+    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
+    electrode_csv = "examples/circuitTest/test/electrodeFile/electrodes.csv"
+    ref_path = "examples/circuitTest/weights_ref.h5"
+    output_path = str(tmp_path / "weights.h5")
+
+    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
+    positions_df, cols = positions.get_positions(
+        node_manager, ids, cols, population,
+        path_to_simconfig=path_to_simconfig,
+    )
+    circuit_path = getCircuitPath(path_to_simconfig)
+    initializeH5File(cols, population_name, circuit_path, output_path, electrode_csv)
+    writeH5File(positions_df, cols, population_name, output_path)
+
+    with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
+        # Compare node_ids
+        ref_ids = ref[population_name + "/node_ids"][:]
+        new_ids = new[population_name + "/node_ids"][:]
+        np.testing.assert_array_equal(ref_ids, new_ids)
+
+        # Compare offsets
+        ref_offsets = ref[population_name + "/offsets"][:]
+        new_offsets = new[population_name + "/offsets"][:]
+        np.testing.assert_array_equal(ref_offsets, new_offsets)
+
+        # Compare scaling factors
+        dset = "electrodes/" + population_name + "/scaling_factors"
+        ref_sf = ref[dset][:]
+        new_sf = new[dset][:]
+        np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)

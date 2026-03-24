@@ -399,19 +399,6 @@ def get_coeffs_reciprocity(compartment_positions, path_to_fields):
 
     return outdf
 
-def load_positions(segment_position_folder, filesPerFolder, numPositionFiles, rank):
-
-    '''
-    Loads positions file based on rank
-    '''
-
-    index = int(rank % numPositionFiles) # Selects position file to load
-    folder = int(index/filesPerFolder) # Finds which subfolder the position file is in
-
-    allPositions = pd.read_pickle(segment_position_folder+'/'+str(folder)+'/positions'+str(index)+'.pkl')
-
-    return allPositions
-
 def getNeuronSegmentMidpts(position):
     '''
     Gets midpoints for a single neuron
@@ -451,69 +438,7 @@ def getSegmentMidpts(positions,node_ids):
     return newPos
 
 
-def get_indices(rank, nranks,neurons_per_file,numPositionFiles):
 
-    iterationsPerFile = int(nranks/numPositionFiles) # How many ranks is any position file divided among
-
-    if iterationsPerFile < 1:
-        raise AssertionError("One rank cannot process more than one position file. Either increase the number of ranks or increase the number of neurons per file if necessary")
-
-    iterationSize = int(np.ceil(neurons_per_file/iterationsPerFile))  # Number of node_ids processed on this rank
-
-    if iterationSize < 1:
-        raise AssertionError("Each rank must process at least one neuron. Either decrease the number of ranks or decrease the number of neurons per file if necessary")
-
-    iteration = int(rank/numPositionFiles)
-
-    return iteration, iterationSize
-
-def get_position_file_name(filesPerFolder, numPositionFiles, rank):
-
-    index = int(rank % numPositionFiles)
-    folder = int(index/filesPerFolder)
-
-    return str(folder)+'/positions'+str(index)+'.pkl'
-
-def load_positions(segment_position_folder, filesPerFolder, numPositionFiles, rank):
-
-    position_file = get_position_file_name(filesPerFolder, numPositionFiles, rank)
-
-    allPositions = pd.read_pickle(segment_position_folder+'/'+position_file)
-
-    return allPositions
-
-def getCurrentIds(positions,iteration,iterationSize):
-
-    #### For the current rank, selects node ids for which to calculate the coefficients
-    try:
-        node_ids= np.unique(np.array(list(positions.columns))[:,0])[iteration*iterationSize:(iteration+1)*iterationSize]
-    except:
-        node_ids = np.unique(np.array(list(positions.columns))[:,0])[iteration*iterationSize:]
-
-    #####
-
-    return node_ids
-
-def getIdsAndPositions(ids, segment_position_folder,neurons_per_file, numFilesPerFolder):
-
-    '''
-    For the current rank, selects node_ids for which to calculate the coefficients, and returns their positions
-    '''
-
-    rank = MPI.COMM_WORLD.Get_rank()
-    nranks = MPI.COMM_WORLD.Get_size()
-
-    numPositionFiles = np.ceil(len(ids)/neurons_per_file)
-
-    positions = load_positions(segment_position_folder,numFilesPerFolder, numPositionFiles, rank)
-
-    iteration, iterationSize = get_indices(rank, nranks,neurons_per_file,numPositionFiles)
-
-    g = getCurrentIds(positions,iteration,iterationSize)
-
-    positions = positions[g] # Gets positions for specific gids
-
-    return g, positions
 
 def sort_electrode_names(electrodeKeys,population_name):
 
