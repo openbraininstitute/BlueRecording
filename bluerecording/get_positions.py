@@ -3,8 +3,6 @@ import json
 import os
 import warnings
 
-import libsonata
-import neurodamus
 import numpy as np
 import pandas as pd
 from morphio import Morphology, SectionType
@@ -13,6 +11,7 @@ from scipy.interpolate import interp1d
 from pathlib import Path
 
 from .utils import *
+from .circuit import init_circuit
 
 rank = MPI.COMM_WORLD.Get_rank()
 
@@ -468,21 +467,7 @@ def get_positions(path_to_simconfig: str, path_to_positions_folder: str, replace
     """
 
     # Initialize neurodamus and get discretization info
-    nd = neurodamus.Neurodamus(path_to_simconfig, disable_reports=True, direct_mode=True, build_model=True, enable_coord_mapping=True)
-    assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
-    node_manager = next(iter(nd.circuits.node_managers.values()))
-
-    ids = node_manager.get_final_gids()
-    points = node_manager.target_manager.get_target(None).get_point_list(node_manager, libsonata.SimulationConfig.Report.Sections.all, libsonata.SimulationConfig.Report.Compartments.all)
-    cols = np.array([
-        (p.gid, s)
-        for p in points
-        for s in sorted(p.sclst_ids)
-    ], dtype=np.int64)
-
-    # Still needed for get_morph_path (morphology file resolution)
-    rSim = bp.Simulation(path_to_simconfig)
-    population = rSim.circuit.nodes[node_manager.population_name]
+    node_manager, ids, cols, population = init_circuit(path_to_simconfig)
 
     # Compute segment positions for each cell
     cell_arrays = []
