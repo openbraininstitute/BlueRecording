@@ -196,7 +196,7 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     # -------------------------
     # Download networks data if requested via --data
     # -------------------------
-    CONFIG_DIR="examples/circuitTest/data/configuration"
+    CONFIG_DIR="examples/circuit_test/configuration"
     NETWORK_DIR="$CONFIG_DIR/networks"
 
     if [ -d "$NETWORK_DIR" ] && [ "$(ls -A "$NETWORK_DIR")" ]; then

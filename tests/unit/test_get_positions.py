@@ -268,9 +268,9 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
 @pytest.mark.skip_in_ci
 def test_circuit_get_positions(tmp_path):
     """Test that the positions0.pkl file matches the reference in repo"""
-    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
+    path_to_simconfig = "examples/circuit_test/simulation_config.json"
 
-    ref_path = "examples/circuitTest/data/positions0_ref.pkl"
+    ref_path = "examples/circuit_test/reference/positions0_ref.pkl"
     new_path = str(tmp_path / "positions0.pkl")
 
     node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)

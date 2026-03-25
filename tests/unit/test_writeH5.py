@@ -446,9 +446,9 @@ def test_circuit_write_weights(tmp_path):
     from bluerecording.writeH5_prelim import initializeH5File
     from bluerecording.utils import getCircuitPath
 
-    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
-    electrode_csv = "examples/circuitTest/test/electrodeFile/electrodes.csv"
-    ref_path = "examples/circuitTest/weights_ref.h5"
+    path_to_simconfig = "examples/circuit_test/simulation_config.json"
+    electrode_csv = "examples/circuit_test/electrodes.csv"
+    ref_path = "examples/circuit_test/reference/weights_ref.h5"
     output_path = str(tmp_path / "weights.h5")
 
     node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)

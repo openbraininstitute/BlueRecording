@@ -21,9 +21,9 @@ def test_circuit_write_weights_mpi(tmp_path):
     """Test that write_weights with 2 MPI ranks produces the same result as the reference."""
     assert size == 2
 
-    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
-    electrode_csv = "examples/circuitTest/test/electrodeFile/electrodes.csv"
-    ref_path = "examples/circuitTest/weights_ref.h5"
+    path_to_simconfig = "examples/circuit_test/simulation_config.json"
+    electrode_csv = "examples/circuit_test/electrodes.csv"
+    ref_path = "examples/circuit_test/reference/weights_ref.h5"
 
     # Broadcast tmp_path from rank 0
     output_dir = comm.bcast(tmp_path, root=0)

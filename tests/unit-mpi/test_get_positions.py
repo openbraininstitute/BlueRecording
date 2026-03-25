@@ -25,7 +25,7 @@ def test_circuit_get_positions_mpi(tmp_path):
     # Broadcast tmp_path from rank 0 so all ranks write to the same directory
     output_dir = comm.bcast(tmp_path, root=0)
 
-    path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
+    path_to_simconfig = "examples/circuit_test/simulation_config.json"
 
     node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
     positions_df, _ = positions.get_positions(
@@ -38,7 +38,7 @@ def test_circuit_get_positions_mpi(tmp_path):
 
     # Only rank 0 does the comparison
     if rank == 0:
-        ref_path = "examples/circuitTest/data/positions0_ref.pkl"
+        ref_path = "examples/circuit_test/reference/positions0_ref.pkl"
         df_ref = pd.read_pickle(ref_path)
 
         # Concatenate outputs from both ranks
