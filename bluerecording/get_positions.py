@@ -3,14 +3,15 @@ import json
 import os
 import warnings
 
+import bluepysnap as bp
 import libsonata
 import neurodamus
 import numpy as np
 import pandas as pd
 from morphio import Morphology, SectionType
 from mpi4py import MPI
-from scipy.interpolate import interp1d
 from pathlib import Path
+from scipy.interpolate import interp1d
 
 from .utils import *
 
@@ -357,7 +358,28 @@ def get_morph_path(population, i, path_to_simconfig):
     return fileName
 
 
-def getMorphology(population, i, path_to_simconfig, cell):
+def get_morphology(
+    population: bp.nodes.NodePopulation,
+    i: int,
+    path_to_simconfig: str,
+    cell,
+) -> tuple[MutableMorph, np.ndarray]:
+    """Load and transform a morphology into circuit (global) coordinates.
+
+    Args:
+        population: bluepysnap NodePopulation.
+        i: Node index within the population.
+        path_to_simconfig: Path to the SONATA simulation configuration file.
+        cell: Neurodamus cell object with coordinate mapping.
+
+    Returns:
+        m: MutableMorph with points transformed to global coordinates.
+        center: (3,) float32 array — the soma position taken from the sonata
+            node x/y/z (translation column of the transform matrix).  This is
+            the BlueRecording convention (raw placement position), not the
+            neurodamus soma centroid (mean of NEURON soma section boundary
+            points), which can differ by up to ~1.8 µm.
+    """
 
     finalmorphpath = get_morph_path(population, i, path_to_simconfig)
 
@@ -368,9 +390,6 @@ def getMorphology(population, i, path_to_simconfig, cell):
     # Use neurodamus for rotation + translation of morphology points (float32 precision)
     m.points = cell.local_to_global_coord_mapping(m.points)
 
-    # Soma position: sonata node x/y/z from the transform matrix translation column (float32).
-    # This is the BlueRecording convention (raw placement position), NOT the neurodamus soma
-    # centroid (mean of NEURON soma section boundary points), which differs by up to ~1.8 µm.
     center = cell.local_to_global_matrix[:, 3]
 
     return m, center
@@ -489,7 +508,7 @@ def get_positions(path_to_simconfig: str, path_to_positions_folder: str, replace
     for i in ids:
 
         cell = node_manager.get_cell(i)
-        m, center = getMorphology(population, i, path_to_simconfig, cell)
+        m, center = get_morphology(population, i, path_to_simconfig, cell)
 
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
