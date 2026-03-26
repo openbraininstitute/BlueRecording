@@ -15,7 +15,7 @@ reporting/
 !examples/compare-to-reference-solutions/data/reporting/
 reporting_small/
 reporting_big/
-output_sonata/
+simulation_output/
 **/*.png
 **/*.pyc
 **/*.log

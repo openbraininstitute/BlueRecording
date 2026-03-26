@@ -10,7 +10,7 @@
   "node_set": "hex_O1_L4_100",
   "target_simulator": "NEURON",
   "output": {
-    "output_dir": "./output_sonata",
+    "output_dir": "./simulation_output",
     "spikes_file": "out.h5"
   },
   "conditions": {
