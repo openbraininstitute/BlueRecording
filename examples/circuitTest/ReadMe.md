@@ -16,7 +16,7 @@ Download the file networks.zip from 10.5281/zenodo.10927050 and unzip it into th
 As the same neuron is used in both examples, segment positions only need to be calculated once. Just run:
 
 ```bash
-bluerecording get_positions examples/circuitTest/data/simulation_config.json <positions_folder>
+bluerecording write_positions examples/circuitTest/data/simulation_config.json <positions_folder>
 ```
 
 and the segment positions will apear in `<positions_folder>`.

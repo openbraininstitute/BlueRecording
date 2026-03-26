@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bluerecording import get_positions
+from bluerecording import positions
+from bluerecording.circuit import init_circuit
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -26,10 +27,12 @@ def test_circuit_get_positions_mpi(tmp_path):
 
     path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
 
-    get_positions.get_positions(
+    node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
+    positions_df, _ = positions.get_positions(
+        node_manager, ids, cols, population,
         path_to_simconfig=path_to_simconfig,
-        path_to_positions_folder=str(output_dir),
     )
+    positions.save_positions(positions_df, str(output_dir))
 
     comm.Barrier()
 
