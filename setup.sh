@@ -121,7 +121,8 @@ else
     
     pip install --no-binary=mpi4py mpi4py
     pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
-    pip install neurodamus
+
+    pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 fi
 
 # -------------------------
