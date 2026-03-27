@@ -18,4 +18,4 @@
 spack env activate bluerecording-dev
 source ~/bluerecording-dev/bin/activate
 
-srun -n 1 python writeNeuropixelsToCSV.py 'Neuropixels-384' '../circuitTest/data/simulation/simulation_config.json' 'electrode_csv.csv'
+srun -n 1 python writeNeuropixelsToCSV.py 'Neuropixels-384' '../sscx_100_cells/simulation_config.json' 'electrode_csv.csv'

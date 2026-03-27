@@ -4,7 +4,7 @@ This repo contains an example of a script that generates an electrode csv file f
 ## Instructions
 
 ### Download data
-Download the data required in the [circuitTest](https://github.com/BlueBrain/BlueRecording/blob/main/examples/circuitTest/ReadMe.md) example
+Download the data required in the [sscx_100_cells](https://github.com/BlueBrain/BlueRecording/blob/main/examples/sscx_100_cells/README.md) example
 
 ### Run
-To run this example, first run *launch.sh* in the *../circuitTest/data/simulation* folder. Then, run *WriteNPCSV.sh*
+To run this example, first run *launch.sh* in the *../sscx_100_cells/* folder. Then, run *WriteNPCSV.sh*
