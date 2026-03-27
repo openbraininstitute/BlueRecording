@@ -235,7 +235,7 @@ def write_ElectrodeFileStructure(
     h5file = h5py.File(path_to_weights_file, "w")
 
     h5 = ElectrodeFileStructure(
-        h5file, gids, electrodes, population_name, circuit="test"
+        h5file, gids, electrodes, population_name
     )  # Initializes fields in h5 file
 
     h5file.close()
@@ -254,7 +254,7 @@ def write_ElectrodeFileStructure_objective(
     h5file = h5py.File(path_to_weights_file, "w")
 
     h5 = ElectrodeFileStructure(
-        h5file, gids, electrodes_objective, population_name, circuit="test"
+        h5file, gids, electrodes_objective, population_name
     )  # Initializes fields in h5 file
 
     h5file.close()

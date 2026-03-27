@@ -34,8 +34,6 @@ def test_ElectrodeFileStructure(write_ElectrodeFileStructure, electrodes, gids,p
             np.testing.assert_equal(newFile['electrodes/name/'+key][()].decode(), value)
             
     np.testing.assert_equal(newFile[population_name+'/node_ids'][:],gids)
-    
-    np.testing.assert_equal(newFile[population_name+'/node_ids'].attrs['circuit'], 'test')
 
 
 def test_ElectrodeFileStructure_objective(write_ElectrodeFileStructure_objective, electrodes_objective, gids, population_name):
@@ -60,8 +58,6 @@ def test_ElectrodeFileStructure_objective(write_ElectrodeFileStructure_objective
 
     np.testing.assert_equal(newFile[population_name + '/node_ids'][:], gids)
 
-    np.testing.assert_equal(newFile[population_name + '/node_ids'].attrs['circuit'], 'test')
-    
 def test_offset(secCounts):
     
     offsets = get_offsets(secCounts)
