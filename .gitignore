@@ -4,7 +4,7 @@ figures/
 positions_all_new/
 positions_all_new_big/
 **/*coeffs*.h5
-**/*.SUCCESS
+*.SUCCESS
 networks/
 !examples/compare-to-reference-solutions/data/configuration/networks/
 network/

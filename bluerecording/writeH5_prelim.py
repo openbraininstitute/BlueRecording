@@ -7,7 +7,6 @@ import sys
 import bluepysnap as bp
 import json
 from .utils import *
-from . import __version__
 import datetime
 
 class ElectrodeFileStructure(object):
@@ -16,21 +15,17 @@ class ElectrodeFileStructure(object):
     This class writes datasets to the h5 file
     '''
 
-    def __init__(self, h5, lst_ids, electrodes, population_name, **kwargs):
+    def __init__(self, h5, lst_ids, electrodes, population_name):
 
         '''
         h5: h5 file returned by h5py.File(filename,'w')
         lst_ids: node ids
         electrodes: Dictionary with metadata about electrodes
         population_name: Sonata population
-        **kwargs: currently expected to take the circuit path, bluerecording version number, and date of writing
         '''
 
 
         dset = h5.create_dataset(population_name+"/node_ids", data=sorted(lst_ids))
-
-        for k, v in kwargs.items():
-            dset.attrs.create(k, v)
 
         index = 0
 
@@ -213,7 +208,7 @@ def process_objectiveCSD(electrodeType):
 
         return objectiveDict
 
-def initializeH5File(cols, population_name, circuit_path, outputfile, electrode_csv):
+def initializeH5File(cols, population_name, outputfile, electrode_csv):
 
     '''
     Initializes the H5 electrode weights file on rank 0.
@@ -223,7 +218,6 @@ def initializeH5File(cols, population_name, circuit_path, outputfile, electrode_
 
     cols: rank-local (N, 2) int64 array of (gid, section) pairs
     population_name: SONATA population name
-    circuit_path: path to the circuit config (written as metadata)
     outputfile: path to the output H5 file
     electrode_csv: path to the electrode CSV file
     '''
@@ -252,7 +246,7 @@ def initializeH5File(cols, population_name, circuit_path, outputfile, electrode_
         cc.max_size = 1024 * 1024 * 124
         h5id.set_mdc_config(cc)
 
-        h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name, circuit=circuit_path, version=__version__)
+        h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name)
 
         write_all_neuron(section_ids_frame, population_name, h5, h5file, electrodes)
 

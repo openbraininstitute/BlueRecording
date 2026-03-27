@@ -4,7 +4,6 @@ from . import positions
 from .circuit import init_circuit
 from .writeH5 import DEFAULT_SIGMA, writeH5File
 from .writeH5_prelim import initializeH5File
-from .utils import getCircuitPath
 from . import __version__
 
 def main():
@@ -102,11 +101,10 @@ def main():
             path_to_simconfig=args.path_to_simconfig,
             replace_axons=args.replace_axons,
         )
-        circuit_path = getCircuitPath(args.path_to_simconfig)
         output_file = Path(args.output_path)
         if output_file.is_dir() or not output_file.suffix:
             output_file.mkdir(parents=True, exist_ok=True)
             output_file = output_file / "weights.h5"
-        initializeH5File(cols, population_name, circuit_path, str(output_file), args.electrode_csv)
+        initializeH5File(cols, population_name, str(output_file), args.electrode_csv)
         writeH5File(positions_df, cols, population_name, str(output_file),
                     sigma=args.sigma, path_to_fields=args.path_to_fields)

@@ -444,7 +444,6 @@ def test_circuit_write_weights(tmp_path):
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
     from bluerecording.writeH5_prelim import initializeH5File
-    from bluerecording.utils import getCircuitPath
 
     path_to_simconfig = "examples/circuitTest/data/simulation_config.json"
     electrode_csv = "examples/circuitTest/test/electrodeFile/electrodes.csv"
@@ -456,8 +455,7 @@ def test_circuit_write_weights(tmp_path):
         node_manager, ids, cols, population,
         path_to_simconfig=path_to_simconfig,
     )
-    circuit_path = getCircuitPath(path_to_simconfig)
-    initializeH5File(cols, population_name, circuit_path, output_path, electrode_csv)
+    initializeH5File(cols, population_name, output_path, electrode_csv)
     writeH5File(positions_df, cols, population_name, output_path)
 
     with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
@@ -476,3 +474,10 @@ def test_circuit_write_weights(tmp_path):
         ref_sf = ref[dset][:]
         new_sf = new[dset][:]
         np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
+
+    # Byte-level comparison of the two files
+    with open(ref_path, "rb") as f:
+        ref_bytes = f.read()
+    with open(output_path, "rb") as f:
+        new_bytes = f.read()
+    assert ref_bytes == new_bytes, "Output file differs from reference at byte level"

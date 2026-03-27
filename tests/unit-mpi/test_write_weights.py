@@ -8,7 +8,6 @@ from bluerecording.circuit import init_circuit
 from bluerecording import positions
 from bluerecording.writeH5 import writeH5File
 from bluerecording.writeH5_prelim import initializeH5File
-from bluerecording.utils import getCircuitPath
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -34,8 +33,7 @@ def test_circuit_write_weights_mpi(tmp_path):
         node_manager, ids, cols, population,
         path_to_simconfig=path_to_simconfig,
     )
-    circuit_path = getCircuitPath(path_to_simconfig)
-    initializeH5File(cols, population_name, circuit_path, output_path, electrode_csv)
+    initializeH5File(cols, population_name, output_path, electrode_csv)
     writeH5File(positions_df, cols, population_name, output_path)
 
     comm.Barrier()
