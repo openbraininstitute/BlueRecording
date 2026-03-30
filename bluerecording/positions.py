@@ -499,6 +499,11 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
 
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
+    if len(cell_arrays) == 0:
+        empty_idx = pd.MultiIndex.from_tuples([], names=["id", "section"])
+        positions_df = pd.DataFrame(np.empty((3, 0)), columns=empty_idx)
+        return positions_df, cols
+
     xyz = np.hstack(cell_arrays)
     new_cols = getNewIndex(cols)
     positions_df = pd.DataFrame(xyz, columns=new_cols)

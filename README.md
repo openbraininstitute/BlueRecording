@@ -119,6 +119,13 @@ pytest -v -m "not skip_in_ci" tests/unit
 
 This is also what runs in CI, where we avoid downloading the full test data to keep pipelines fast and lightweight.
 
+To run only the slow, data-intensive tests (e.g., single cell and 100-cell integration tests):
+
+```bash
+pytest -v -m "slow" tests/unit --forked
+mpirun -n 2 pytest -v -m "slow" tests/unit-mpi --with-mpi
+```
+
 
 ### Steps to produce electrode files
 

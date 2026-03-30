@@ -49,7 +49,7 @@ def init_circuit(path_to_simconfig: str):
     cols = np.array(
         [(p.gid, s) for p in points for s in sorted(p.sclst_ids)],
         dtype=np.int64,
-    )
+    ).reshape(-1, 2)
 
     r_sim = bp.Simulation(path_to_simconfig)
     population_name = node_manager.population_name

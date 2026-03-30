@@ -81,7 +81,10 @@ if [[ "$SUITE" == "all" || "$SUITE" == "mpi" ]]; then
     echo "========================================="
     for test_file in tests/unit-mpi/test_write_weights.py \
                      tests/unit-mpi/test_h5py_MPI.py \
-                     tests/unit-mpi/test_get_positions.py; do
+                     tests/unit-mpi/test_get_positions.py \
+                     tests/unit-mpi/test_single_cell_get_positions.py \
+                     tests/unit-mpi/test_single_cell_write_weights.py \
+                     tests/unit-mpi/test_single_cell_write_weights_distant.py; do
         echo ""
         echo "--- mpirun -n 2: $test_file ---"
         mpirun -n 2 python -m pytest "$test_file" --with-mpi -v || FAILED=1

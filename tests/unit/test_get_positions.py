@@ -293,3 +293,31 @@ def test_circuit_get_positions(tmp_path):
         rtol=5e-4,
         atol=0.1,
     )
+
+
+@pytest.mark.skip_in_ci
+@pytest.mark.slow
+def test_single_cell_get_positions(tmp_path):
+    """Test that get_positions works for the single_cell_l5_tpc example."""
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
+    new_path = str(tmp_path / "positions0.pkl")
+
+    node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
+    positions_df, _ = positions.get_positions(node_manager, ids, cols, population,
+                                              path_to_simconfig=path_to_simconfig)
+    positions.save_positions(positions_df, tmp_path)
+
+    df_ref = pd.read_pickle(ref_path)
+    df_new = pd.read_pickle(new_path)
+
+    assert df_ref.index.equals(df_new.index)
+    assert df_ref.columns.equals(df_new.columns)
+
+    pd.testing.assert_frame_equal(
+        df_ref,
+        df_new,
+        check_exact=False,
+        rtol=5e-4,
+        atol=0.1,
+    )
