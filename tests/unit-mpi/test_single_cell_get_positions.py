@@ -13,7 +13,6 @@ size = comm.Get_size()
 
 
 @pytest.mark.skip_in_ci
-@pytest.mark.slow
 @pytest.mark.mpi(ranks=2)
 def test_single_cell_get_positions_mpi(tmp_path):
     """Test get_positions for single_cell_l5_tpc split across 2 MPI ranks."""

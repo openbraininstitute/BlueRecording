@@ -266,6 +266,7 @@ def test_interpolate_myelin_short(data,morphology_short, somaPos):
 
 # this requires to download a good chunk of data. We skip in CI
 @pytest.mark.skip_in_ci
+@pytest.mark.slow
 def test_circuit_get_positions(tmp_path):
     """Test that the positions0.pkl file matches the reference in repo"""
     path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
@@ -296,7 +297,6 @@ def test_circuit_get_positions(tmp_path):
 
 
 @pytest.mark.skip_in_ci
-@pytest.mark.slow
 def test_single_cell_get_positions(tmp_path):
     """Test that get_positions works for the single_cell_l5_tpc example."""
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
