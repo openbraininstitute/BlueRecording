@@ -6,13 +6,14 @@ positions_all_new_big/
 **/*coeffs*.h5
 *.SUCCESS
 networks/
-!examples/compare-to-reference-solutions/data/configuration/networks/
+!examples/compare-to-reference-solutions_old/data/configuration/networks/
+!examples/single_cell_l5_tpc/configuration/networks/
 network/
 examples/allen/data/simulation/configuration/components
 bkg_inputs/
 atlas/
 reporting/
-!examples/compare-to-reference-solutions/data/reporting/
+!examples/compare-to-reference-solutions_old/data/reporting/
 reporting_small/
 reporting_big/
 output_sonata/

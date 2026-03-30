@@ -41,7 +41,7 @@ def path_to_example_folder():
 
     PARENT_DIR = Path(__file__).parent.parent
 
-    example_path = "examples/compare-to-reference-solutions/data/"
+    example_path = "examples/single_cell_l5_tpc/"
 
     return PARENT_DIR / example_path
 
