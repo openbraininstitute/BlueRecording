@@ -44,6 +44,8 @@ htmlcov/
 **/LFP.h5
 *removeme*
 *DS_Store
+*Infinite_VeryFar_HighRes.h5
+*Infinite_Close_HighRes_SmallSphere.h5
 libsonatareport/
 neurodamus-models/
 nrn/
