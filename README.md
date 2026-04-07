@@ -161,6 +161,8 @@ Once the electrode file has been generated, it can be used in a Neurodamus simul
 # Examples
 See [here](https://github.com/openbraininstitute/BlueRecording/tree/main/examples)
 
+A good starting point is the [single cell L5 TPC example](examples/single_cell_l5_tpc/), which walks through computing electrode weights, running a simulation, and visualizing extracellular signals from a single neuron.
+
 ---
 
 # Contribution Guidelines

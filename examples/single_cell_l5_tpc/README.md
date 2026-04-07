@@ -31,3 +31,25 @@ or
 ```bash
 bluerecording write_weights examples/single_cell_l5_tpc/simulation_config_near.json examples/single_cell_l5_tpc/near_electrodes.csv <weights_folder> --path-to-fields examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5 examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5 
 ```
+
+## Running the Simulation
+
+To run the simulation you need NEURON compiled with [libsonatareport](https://github.com/openbraininstitute/libsonatareport) support. The NEURON installed by `setup.sh` is the PyPI wheel, which does not include libsonatareport.
+
+Once your environment is ready, run:
+
+```bash
+neurodamus examples/single_cell_l5_tpc/simulation_config_near.json
+```
+
+or
+
+```bash
+neurodamus examples/single_cell_l5_tpc/simulation_config_distant.json
+```
+
+## Analysis
+
+After the simulation completes, open the notebook `make_figures.ipynb` in this folder to visualize and compare the extracellular signals against reference solutions. This notebook produces Figure 2 from the BlueRecording paper.
+
+> **Note:** The figure has not yet been verified against the published version. The next step is to check that it matches the paper.
