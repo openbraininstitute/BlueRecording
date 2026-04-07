@@ -20,7 +20,7 @@ def test_single_cell_write_weights_distant_mpi(tmp_path):
     """Test write_weights for single_cell_l5_tpc with 2 MPI ranks (distant electrodes)."""
     assert size == 2
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     electrode_csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
     ref_path = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
     field_path = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"

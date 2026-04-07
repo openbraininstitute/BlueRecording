@@ -12,10 +12,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all = [
+test = [
     "pytest",
     "pytest-forked",
     "pytest-mpi"
+]
+notebooks = [
+    "jupyterlab",
+    "ipympl"
+]
+all = [
+    "bluerecording[test]",
+    "bluerecording[notebooks]"
 ]
 
 [build-system]

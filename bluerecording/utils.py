@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import bluepysnap as bp
 import json
 import numpy as np
 import os
@@ -89,38 +88,6 @@ def processSubsampling(inputString):
 
     return np.arange(int(start), int(end))
 
-def getSimulationInfo(path_to_simconfig):
-
-    '''
-    Returns the following:
-    report: Sonata report object
-    node_ids: list of ids for which segment coefficients will be written
-    '''
-    
-    rSim = bp.Simulation(path_to_simconfig)
-    r = rSim.reports[list(rSim.reports.keys())[0]] # We assume that the compartment report is the only report produced by the simulation
-
-    population_name = getPopulationName(path_to_simconfig)
-
-    report = r[population_name]
-    
-    nodeIds = report.node_ids
-
-    pop_obj = rSim.circuit.nodes[population_name]
-
-    return report, nodeIds, pop_obj
-
-
-def getPopulationName(path_to_simconfig):
-
-    rSim = bp.Simulation(path_to_simconfig)
-    r = rSim.reports[list(rSim.reports.keys())[0]] # We assume that the compartment report is the only report produced by the simulation
-
-    population_name = r.population_names[0]
-
-    return population_name
-
-
 def concretize_path(known_path, newpath):
 
     '''
@@ -156,21 +123,6 @@ def getCircuitPath(path_to_simconfig):
     
 
     return circuitpath
-
-def getMinimalReport(report,node_ids):
-
-    '''
-    Returns the following:
-    data: dataframe with a compartment report, whose columns are the node_id and sectionId of each neuron
-    '''
-
-
-    data = report.get(group=node_ids,t_start=0,t_stop=report.frame_report.dt)
-    
-    data.columns = data.columns.rename('id',level=0)
-    data.columns = data.columns.rename('section',level=1)
-
-    return data
 
 def getAtlasInfo(path_to_simconfig,electrodePositions):
 

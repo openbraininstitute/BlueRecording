@@ -12,17 +12,6 @@ def test_MutableMorph(morphology):
 
     assert morph.indices == [[0,1,2,3],[4,5],[6,7,8]]
 
-@pytest.mark.skip_in_ci
-def test_get_morph_path(path_to_simconfig_with_output,expected_path_to_morph):
-
-    neuron_id = 0
-
-    _, _, population = positions.getSimulationInfo(path_to_simconfig_with_output)
-
-    morph_path = positions.get_morph_path(population, neuron_id, path_to_simconfig_with_output)
-
-    assert morph_path==expected_path_to_morph
-
 def test_get_axon_points(morphology, somaPos):
 
     morphology = positions.MutableMorph(morphology)
@@ -299,7 +288,7 @@ def test_circuit_get_positions(tmp_path):
 @pytest.mark.skip_in_ci
 def test_single_cell_get_positions(tmp_path):
     """Test that get_positions works for the single_cell_l5_tpc example."""
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
     new_path = str(tmp_path / "positions0.pkl")
 

@@ -119,18 +119,6 @@ def test_process_writeH5_inputs():
     assert path_to_h5 == ['aaa.h5']
     assert objective_csd_array_indices == ['5:9','9:14']
 
-@pytest.mark.skip_in_ci
-def test_getSimulationInfo(path_to_simconfig_with_output):
-    
-    _, nodeIds, _ = getSimulationInfo(path_to_simconfig_with_output)
-            
-    assert nodeIds == 0
-
-@pytest.mark.skip_in_ci
-def test_getPopulationName(path_to_simconfig_with_output):
-
-    assert getPopulationName(path_to_simconfig_with_output)=='S1nonbarrel_neurons'
-
 def test_getCircuitPath(path_to_simconfig_with_output,expected_circuit_path):
 
     assert getCircuitPath(path_to_simconfig_with_output)==expected_circuit_path

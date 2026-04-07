@@ -23,11 +23,11 @@ Two electrode configurations are provided: `near_electrodes.csv` (close to the n
 From the root folder:
 
 ```bash
-bluerecording write_weights examples/single_cell_l5_tpc/simulation_config.json examples/single_cell_l5_tpc/near_electrodes.csv <weights_folder>
+bluerecording write_weights examples/single_cell_l5_tpc/simulation_config_near.json examples/single_cell_l5_tpc/near_electrodes.csv <weights_folder> --path-to-fields examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5 examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5 
 ```
 
 or
 
 ```bash
-bluerecording write_weights examples/single_cell_l5_tpc/simulation_config.json examples/single_cell_l5_tpc/distant_electrodes.csv <weights_folder>
+bluerecording write_weights examples/single_cell_l5_tpc/simulation_config_near.json examples/single_cell_l5_tpc/near_electrodes.csv <weights_folder> --path-to-fields examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5 examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5 
 ```

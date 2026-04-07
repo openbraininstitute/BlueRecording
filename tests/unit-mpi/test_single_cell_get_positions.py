@@ -20,7 +20,7 @@ def test_single_cell_get_positions_mpi(tmp_path):
 
     output_dir = comm.bcast(tmp_path, root=0)
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
 
     node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
     positions_df, _ = positions.get_positions(

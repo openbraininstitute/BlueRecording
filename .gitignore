@@ -52,4 +52,4 @@ neurodamus-models/
 nrn/
 .code
 .kiro
-simulation_output/
+*output/

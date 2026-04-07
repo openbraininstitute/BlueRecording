@@ -49,7 +49,7 @@ def path_to_example_folder():
 @pytest.fixture(scope="session")
 def path_to_simconfig_with_output(path_to_example_folder):
 
-    simconfig_path = "simulation_config.json"
+    simconfig_path = "simulation_config_near.json"
 
     return str(path_to_example_folder / simconfig_path)
 

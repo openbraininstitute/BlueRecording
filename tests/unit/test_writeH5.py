@@ -491,7 +491,7 @@ def test_single_cell_write_weights(tmp_path):
     from bluerecording import positions
     from bluerecording.writeH5_prelim import initializeH5File
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     electrode_csv = "examples/single_cell_l5_tpc/near_electrodes.csv"
     ref_path = "examples/single_cell_l5_tpc/reference/weights_near_ref.h5"
     field_path = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
@@ -529,7 +529,7 @@ def test_single_cell_write_weights_distant(tmp_path):
     from bluerecording import positions
     from bluerecording.writeH5_prelim import initializeH5File
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config.json"
+    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     electrode_csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
     ref_path = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
     field_path = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
