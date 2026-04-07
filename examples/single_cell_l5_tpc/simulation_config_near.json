@@ -5,7 +5,7 @@
     "random_seed": 851,
     "run_mode":"WholeCell",
     "integration_method":"crank_nicolson_ion",
-    "electrodes_file": "./output/near_weights.h5"
+    "electrodes_file": "./reference/weights_near_ref.h5"
   },
   "target_simulator": "CORENEURON",
   "network": "./configuration/circuit_config.json",
@@ -43,7 +43,7 @@
     }
   },
   "reports": {
-    "extracellular_report": {
+    "lfp": {
       "type": "lfp",
       "cells": "Cell",
       "sections": "all",
