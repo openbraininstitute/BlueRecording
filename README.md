@@ -10,9 +10,9 @@ This branch provides code that produces an electrodes file compatible with the [
 
 ### Dependencies
 
-Bluerecording requires `mpi4py`, `h5py`, and `hdf5` built with `MPI` support. These should be installed with spack, as per the instructions in the following section. Bluerecording also depends on several other python packages, which are automatically installed.
+BlueRecording requires `mpi4py`, `h5py`, and `hdf5` built with MPI support. The provided `setup.sh` script handles all of this automatically, including building NEURON, neurodamus, and libsonatareport from source.
 
-`setup.sh` works for both mac (with `brew`) and linux (with `apt`) systems:
+`setup.sh` works for both macOS (with `brew`) and Linux (with `apt`) systems:
 
 ```bash
 source setup.sh
@@ -43,33 +43,15 @@ The initial input data of `BlueRecording` includes a [compartment report](https:
 
 ### Neurodamus
 
-We recommend installing Neurodamus and the Neurodamus-Models mechanisms in a separate spack environment. Separate environments should be used for the cortex and hippocampus packages.
+`setup.sh` automatically installs [neurodamus](https://github.com/openbraininstitute/neurodamus), [neurodamus-models](https://github.com/openbraininstitute/neurodamus-models) (neocortex mechanisms), and [libsonatareport](https://github.com/openbraininstitute/libsonatareport) from source. No separate spack environment is needed.
 
-To install Neurodamus for the neocortex, first run 
+On the first run, the script will:
+1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
+2. Clone and build `libsonatareport`
+3. Clone and build `neurodamus-models` (neocortex)
+4. Install the `bluerecording` package
 
-```
-git clone https://github.com/BlueBrain/spack.git
-. spack/share/spack/setup-env.sh
-cd spack
-spack env create neurodamus
-spack env activate -p neurodamus
-spack install --add neurodamus-models@develop+coreneuron
-```
-Then, create modules for neurodamus and its dependencies. To do so, make sure that `py-neurodamus`,`neurodamus-models`,and `neuron` are included in your `~/.spack/modules.yaml` file. An example is provided [here](https://github.com/BlueBrain/BlueRecording/blob/main/modules.yaml). Then, run 
-```
-spack module tcl refresh
-module use $SPACK_INSTALL_PREFIX/modules/linux-rhel7-skylake
-```
-The second of the two lines above must be run every time you begin a new terminal session. 
-
-To intall Neorodamus for the hippocampus, follow the same steps as for the neocortex, except that the spack commands should be:
-```
-spack env create hippocampus
-spack env activate -p hippocampus
-spack install --add neurodamus-models@develop+coreneuron model=hippocampus
-```
-
-Neurodamus-models expects that you have modules available on your system for `python/3.11.6`, `intel-oneapi-mkl/2023.2.0`, and `hpe-mpi/2.27.p1.hmpt`. The launch scripts provided in the examples folder assume that these modules are in an archive called `unstable`
+In subsequent sessions, running `source setup.sh` again will simply activate the existing environment.
 
 ---
 # Testing
@@ -138,20 +120,60 @@ mpirun -n 2 pytest -v -m "slow" tests/unit-mpi --with-mpi
        + If the electrode is in a region without laminar oraginzation, the value in the column is the string *NA*
    - The sixth column is the brain region in which the electrode is located. It is a string.
        + If the electrode is outside the brain, the value in the column is the strong *Outside*
-   -  The seventh column is the calculation method used to determine the compartment weights. Supported values are *PointSource*, *LineSource*, *Reciprocity*, *DipoleReciprocity*, and various versions of *ObjectiveCSD*. The *PointSource* and *LineSource* methods assume that the neurons are in an infinite homogeneous medium. They should be used only for recordings made inside the brain tissue. If they are used, the tissue conductivity should be provided in step 6. *Reciprocity* and *DipoleReciprocity* assign the compartment weights based on a lead-field calculated in step 3. These should be used for EEG or ECoG recordings. In general, we recommend using the *Reciprocity* method. The different *ObjectiveCSD* assigns a coefficient of 1 to each compartment that is within a specified region around the electrode and a 0 to all other compartments. More details about this option are available [here](https://github.com/openbraininstitute/BlueRecording/ObjectiveCSD.md)
+   -  The seventh column is the calculation method used to determine the compartment weights. Supported values are *PointSource*, *LineSource*, *Reciprocity*, *DipoleReciprocity*, and various versions of *ObjectiveCSD*. The *PointSource* and *LineSource* methods assume that the neurons are in an infinite homogeneous medium. They should be used only for recordings made inside the brain tissue. If they are used, the tissue conductivity should be provided via the `--sigma` flag (CLI) or the `sigma` argument (Python API). *Reciprocity* and *DipoleReciprocity* assign the compartment weights based on a lead-field calculated in step 2. These should be used for EEG or ECoG recordings. In general, we recommend using the *Reciprocity* method. The different *ObjectiveCSD* variants assign a coefficient of 1 to each compartment that is within a specified region around the electrode and a 0 to all other compartments. More details about this option are available [here](https://github.com/openbraininstitute/BlueRecording/blob/main/ObjectiveCSD.md)
 
     The folder [examples/makeCsvFiles](https://github.com/openbraininstitute/BlueRecording/tree/main/examples/makeCsvFiles) contains an example python script that will generate a csv file for a Neuropixels probe.
 
-2. If the *Reciprocity* or *DipoleReciprocity* methods are used, you must calculate a lead-field. The lead field is the potential field (for the reciprocity method) or the E-field (for the dipole reciprocity method) produced in the neural tissue by running a current of 1 nA between the recording electrode and the reference electrode. BlueRecording assumes that this field is calculated using the Sim4Lfie finite element solver and exported as an h5 file. Other calculation methods are possible, asusming the field is exported in the same format. 
+2. If the *Reciprocity* or *DipoleReciprocity* methods are used, you must calculate a lead-field. The lead field is the potential field (for the reciprocity method) or the E-field (for the dipole reciprocity method) produced in the neural tissue by running a current of 1 nA between the recording electrode and the reference electrode. BlueRecording assumes that this field is calculated using the Sim4Life finite element solver and exported as an H5 file. Other calculation methods are possible, assuming the field is exported in the same format.
 
-3. Run the function `bluerecording.getPositions.getPositions(path_to_simconfig, path_to_positions_folder,replace_axons=True)`. This creates folders containing pickle files listing the (x,y,z) position of each segment in each cell in the target. The neurons per file are distributed among the ranks used to run this function. 
-4. Run the function `bluerecording.weights.initializeH5File(path_to_simconfig,outputfile,electrode_csv)`. This loads the compartment report produced in step 1 and the csv file produced in step 2, and will create the electrodes file, with the name `outputfile`, populating all coefficients with 1s.
+3. Compute segment positions and write the electrode weights file. The simplest way is via the CLI:
 
-5. Run the function `bluerecording.weights.writeH5File(path_to_simconfig,path_to_segment_position_folder,outputfile,neurons_per_file,files_per_folder,sigma=[0.277],path_to_fields=None,objective_csd_array_indices=None)`. This loads the position files created in step 4 and the electrode file created in step 4, populates the electrode file with the correct coefficients. Here `sigma` is the conductivity of the tissue, which is a parameter to both of the analytic methods. For the *ObjectiveCSD* calculation method, `radius` defines the distance from the electrode for which a value of 1 is assigned. `path_to_fields` is the path to the finite element output calculated in step 3, which must be provided if the reciprocity-based methods are used. Details about the `objective_csd_array_indices` argument are available [here](https://github.com/openbraininstitute/BlueRecording/ObjectiveCSD.md).
+    ```bash
+    bluerecording write_weights <path_to_simconfig> <electrode_csv> <output_path> \
+        [--sigma <conductivity>] \
+        [--path-to-fields <field1.h5> <field2.h5> ...] \
+        [--no-replace-axons]
+    ```
 
- This two-step procedure is used because the calculation of the LFP coefficients for large neural populatons is not feasible without parallelization, but MPI cannot be used when H5 files are created, since parallel writing of variable length strings is not supported.
+    This single command initializes the circuit, computes segment positions, creates the H5 electrode file, and populates it with the correct coefficients. It must be run with MPI (e.g. `mpirun -n 4 bluerecording write_weights ...`).
 
- Convenience functions for running the electrode file generation process are provided [here](https://github.com/openbraininstitute/BlueRecording/tree/main/examples/scripts)
+    If you only need the segment positions (e.g. for inspection or reuse), you can compute and save them separately:
+
+    ```bash
+    bluerecording write_positions <path_to_simconfig> <path_to_positions_folder> \
+        [--no-replace-axons]
+    ```
+
+    **Python API.** The same steps can be performed from Python:
+
+    ```python
+    from bluerecording.circuit import init_circuit
+    from bluerecording.positions import get_positions, save_positions
+    from bluerecording.weights import initializeH5File, writeH5File
+
+    # Initialize the circuit (loads neurodamus, extracts discretization info)
+    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
+
+    # Compute segment boundary positions for all cells on this MPI rank
+    positions_df, cols = get_positions(
+        node_manager, ids, cols, population,
+        path_to_simconfig=path_to_simconfig,
+    )
+
+    # Optionally save positions to disk
+    save_positions(positions_df, path_to_positions_folder)
+
+    # Create the H5 electrode file (run on all ranks; only rank 0 writes)
+    initializeH5File(cols, population_name, outputfile, electrode_csv)
+
+    # Populate the electrode file with the correct coefficients (MPI-parallel)
+    writeH5File(positions_df, cols, population_name, outputfile,
+                sigma=[0.277], path_to_fields=None)
+    ```
+
+    Here `sigma` is the extracellular conductivity in S/m (default 0.277), used by the *PointSource* and *LineSource* methods. `path_to_fields` is a list of paths to finite element H5 files, required when using *Reciprocity* or *DipoleReciprocity* electrodes. Details about the `objective_csd_array_indices` argument are available [here](https://github.com/openbraininstitute/BlueRecording/blob/main/ObjectiveCSD.md).
+
+ The two-step procedure (initialize then write) is used because creating the H5 file requires writing variable-length strings, which is not supported by HDF5 parallel I/O. The initialization runs on rank 0 only, after which all ranks write coefficients in parallel.
 
 ### Running an extracellular recording simulation
 Once the electrode file has been generated, it can be used in a Neurodamus simulation that includes extracellular recording. Instructions for this step are found [here](https://github.com/openbraininstitute/neurodamus/blob/main/docs/source/lfp.rst)

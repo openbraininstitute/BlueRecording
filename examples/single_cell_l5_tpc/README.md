@@ -52,4 +52,3 @@ neurodamus examples/single_cell_l5_tpc/simulation_config_distant.json
 
 After the simulation completes, open the notebook `make_figures.ipynb` in this folder to visualize and compare the extracellular signals against reference solutions. This notebook produces Figure 2 from the BlueRecording paper.
 
-> **Note:** The figure has not yet been verified against the published version. The next step is to check that it matches the paper.
