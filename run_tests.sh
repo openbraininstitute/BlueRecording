@@ -82,7 +82,7 @@ if [[ "$SUITE" == "all" || "$SUITE" == "mpi" ]]; then
     echo "  Running MPI tests"
     echo "========================================="
     for test_file in tests/unit-mpi/test_write_weights.py \
-                     tests/unit-mpi/test_h5py_mpi.py \
+                     tests/unit-mpi/test_h5py.py \
                      tests/unit-mpi/test_positions.py \
                      tests/unit-mpi/test_single_cell_positions.py \
                      tests/unit-mpi/test_single_cell_write_weights.py \

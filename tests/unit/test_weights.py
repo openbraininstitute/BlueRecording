@@ -1,686 +1,432 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import pytest
 import pandas as pd
-import bluepysnap as bp
 import numpy as np
-from morphio import PointLevel, SectionType
-from morphio import Morphology
 import h5py
-from bluerecording.weights import *
-from bluerecording.weights import ElectrodeFileStructure
 
-@pytest.fixture
-def electrodePosition():
-    return np.array([10,10,10])
-
-@pytest.fixture
-def sigma():
-    return 1
-
-@pytest.fixture
-def radius():
-    return 50
-
-@pytest.fixture
-def data_twoSections():
-
-    '''
-    Defines a data frame mimicking a voltage report, with columns containing gids and section ids
-    '''
-
-    columns = [[1,1],[0,1]]
-
-    columnIdx = list(zip(*columns))
-
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
-
-    data = pd.DataFrame(data=np.zeros([1,len(columns[0])]),columns=columnMultiIndex)
-
-    return data
-
-@pytest.fixture
-def positions():
-
-    '''
-    Defines a position dataframe corresponding to the two-section neuron described above.
-    Positions given for soma and for start and end of section
-    '''
-
-    columns = [[1,1,1],[0,1,1]]
-
-    columnIdx = list(zip(*columns))
-
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
-
-    positions = np.array([[0.,0.,0.],[0.,0.,0.],[0.,0.,1.]])
-
-    pos = pd.DataFrame(data=positions,columns=columnMultiIndex)
-
-    return pos
-
-@pytest.fixture(scope="module")
-def electrodes_objective_array():
-
-    electrodes = {'a':{'position':np.array([1,0,0]),'type':'Reciprocity','region':'Outside','layer':'Outside'},
-                  'b':{'position':np.array([1,0,0]),'type':'Reciprocity','region':'Outside','layer':'Outside'},
-                 'name':{'position':np.array([1,0,0]),'type':'ObjectiveCSD_Disk','region':'Outside','layer':'Outside'},
-                 'name1':{'position':np.array([2,0,0]),'type':'ObjectiveCSD_Disk','region':'Outside','layer':'Outside'},
-                 'name2':{'position':np.array([1,0,0]),'type':'ObjectiveCSD_Disk','region':'Outside','layer':'Outside'},
-                 'name3':{'position':np.array([2,0,0]),'type':'ObjectiveCSD_Disk','region':'Outside','layer':'Outside'}}
-
-    return electrodes
-
-@pytest.fixture(scope="module")
-def write_ElectrodeFileStructure_objective_array(tmp_path_factory, electrodes_objective_array, gids, population_name):
-
-    '''
-    Creates h5 file, without any weights
-    '''
-
-    fn = tmp_path_factory.mktemp("data") / "testfile_array.h5"
-
-    h5file = h5py.File(fn,'w')
-
-    h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective_array, population_name) # Initializes fields in h5 file
-
-    h5file.close()
-
-    return fn, h5
-
-def test_getSegmentMidpts(positions,gids):
-
-    columns = [[1,1],[0,1]]
-
-    columnIdx = list(zip(*columns))
-
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
-
-    expectedPos = np.array([[0.,0.,0.],[0.,0.,.5]])
-
-    expectedPositions = pd.DataFrame(data=expectedPos.T,columns=columnMultiIndex)
-    expectedPositions.index = range(len(expectedPositions))
-
-    outputPos = getSegmentMidpts(positions,gids)
-
-    outputPos = getSegmentMidpts(positions,gids)
-
-    pd.testing.assert_frame_equal(outputPos,expectedPositions)
-
-    pd.testing.assert_frame_equal(outputPos,expectedPositions)
-
-def test_write_neuron(writeNeuron,population_name):
-    
-    '''
-    Tests that weights are initialized correctly for a given neuron
-    '''
-
-    newFile = h5py.File(writeNeuron[0],'r')
-
-    np.testing.assert_equal( newFile['electrodes/'+population_name+'/scaling_factors'][:],np.ones((25,2)) )
-    
-    np.testing.assert_equal( newFile[population_name+'/offsets'][:],np.array([0,19,25]) )
-
-def test_add_coeffs(writeNeuron,gids,population_name,data):
-
-    h5File = writeNeuron[0]
-
-    h5 = h5py.File(h5File,'r+')
-
-    test_data = pd.DataFrame(data=np.arange(25)[np.newaxis,:],columns=data.columns)
-
-    add_data(h5,gids,test_data,population_name)
-
-    expectedCoeffs = np.array([np.arange(25),np.ones(25)]).T
-
-    np.testing.assert_equal( h5['electrodes/'+population_name+'/scaling_factors'][:], expectedCoeffs )
-
-    h5.close()
-
-def test_add_coeffs_backwards(writeNeuron,gids,population_name,data_backwards):
-
-    h5File = writeNeuron[0]
-
-    h5 = h5py.File(h5File,'r+')
-
-    test_data = pd.DataFrame(data=np.arange(25)[np.newaxis,:],columns=data_backwards.columns)
-
-    add_data(h5,gids,test_data,population_name)
-
-    expectedCoeffs = np.array([np.hstack((np.arange(6,25),np.arange(6))),np.ones(25)]).T
-
-    np.testing.assert_equal( h5['electrodes/'+population_name+'/scaling_factors'][:], expectedCoeffs )
-
-    h5.close()
-
-def test_get_coeffs_lineSource(positions,data_twoSections,electrodePosition,sigma):
-
-    columns = data_twoSections.columns
-    coeffs = get_coeffs_lineSource(positions,columns,electrodePosition,sigma)
-
-    somaDistance = np.sqrt(3*10**2)*1e-6
-    expectedSomaCoeff = 1/(4*np.pi*sigma*somaDistance)*1e-9
-
-    expectedLineCoeff = get_line_coeffs(np.array([0,0,0]),np.array([0,0,1]),electrodePosition,sigma)
-
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedLineCoeff))[np.newaxis,:],columns=columns)
-
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
-
-def test_lineSource():
-
-    segment_positions = [np.array([0,0,0]),np.array([1,0,0])]
-    electrodePosition = np.array([2,0,1])
+from bluerecording.weights import (
+    ElectrodeFileStructure, ElectrodeType,
+    add_data, get_coeffs_lineSource, get_coeffs_pointSource,
+    get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
+    get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
+    get_coeffs_objectiveCSD_Plane, get_line_coeffs,
+    getSegmentMidpts, getArraySpacing, getThickness,
+    distances_in_planar_coords, sort_electrode_names,
+    get_objectiveCSD_array, get_offsets,
+    makeElectrodeDict, check_input_type_objectiveCSD, process_objectiveCSD,
+    initializeH5File, writeH5File,
+)
+
+from tests.helpers import (
+    GIDS, POPULATION_NAME,
+    make_report_data, make_report_data_backwards,
+    make_electrodes, make_electrodes_objective, make_electrodes_objective_array,
+    make_two_section_positions, make_two_section_data, make_sec_counts,
+    create_electrode_file, create_neuron_file,
+    create_potential_field, create_e_field,
+)
+
+
+# ---------------------------------------------------------------------------
+# Weight computation tests
+# ---------------------------------------------------------------------------
+
+def test_get_segment_midpts():
+    positions = make_two_section_positions()
+    columns = [[1, 1], [0, 1]]
+    idx = list(zip(*columns))
+    mi = pd.MultiIndex.from_tuples(idx, names=['id', 'section'])
+    expected = pd.DataFrame(
+        data=np.array([[0., 0., 0.], [0., 0., .5]]).T, columns=mi)
+    expected.index = range(len(expected))
+
+    result = getSegmentMidpts(positions, GIDS)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_write_neuron(tmp_path):
+    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    with h5py.File(path, 'r') as f:
+        np.testing.assert_equal(
+            f[f'electrodes/{POPULATION_NAME}/scaling_factors'][:],
+            np.ones((25, 2)))
+        np.testing.assert_equal(
+            f[f'{POPULATION_NAME}/offsets'][:],
+            np.array([0, 19, 25]))
+
+
+def test_add_coeffs(tmp_path):
+    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    data = make_report_data()
+    with h5py.File(path, 'r+') as h5:
+        test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data.columns)
+        add_data(h5, GIDS, test_data, POPULATION_NAME)
+        expected = np.array([np.arange(25), np.ones(25)]).T
+        np.testing.assert_equal(
+            h5[f'electrodes/{POPULATION_NAME}/scaling_factors'][:], expected)
+
+
+def test_add_coeffs_backwards(tmp_path):
+    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    data_bw = make_report_data_backwards()
+    with h5py.File(path, 'r+') as h5:
+        test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data_bw.columns)
+        add_data(h5, GIDS, test_data, POPULATION_NAME)
+        expected = np.array([np.hstack((np.arange(6, 25), np.arange(6))), np.ones(25)]).T
+        np.testing.assert_equal(
+            h5[f'electrodes/{POPULATION_NAME}/scaling_factors'][:], expected)
+
+
+def test_get_coeffs_line_source():
+    positions = make_two_section_positions()
+    data = make_two_section_data()
+    electrode_pos = np.array([10, 10, 10])
     sigma = 1
 
-    deltaS = 1 * 1e-6
-    h = 1 * 1e-6
-    r = 1 * 1e-6
-    l = 2 * 1e-6
+    coeffs = get_coeffs_lineSource(positions, data.columns, electrode_pos, sigma)
 
-    expectedOutput = 1/(4*np.pi*sigma*deltaS)*np.log( np.abs( (np.sqrt(h**2+r**2) - h)/(np.sqrt(l**2+r**2)-l) ) )
+    soma_dist = np.sqrt(3 * 10**2) * 1e-6
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
+    expected_line = get_line_coeffs(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
+    expected = pd.DataFrame(
+        data=np.hstack((expected_soma, expected_line))[np.newaxis, :], columns=data.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    lineCoeff = get_line_coeffs(segment_positions[0],segment_positions[1],electrodePosition,sigma)
 
-    np.testing.assert_almost_equal(lineCoeff, expectedOutput*1e-9)
-
-def test_lineSource_2():
-
-    segment_positions = [np.array([0,0,0]),np.array([1,0,0])]
-    electrodePosition = np.array([-2,0,1])
+def test_line_source():
+    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
+    epos = np.array([2, 0, 1])
     sigma = 1
+    ds = 1e-6
+    h, r, l = 1e-6, 1e-6, 2e-6
+    expected = 1 / (4 * np.pi * sigma * ds) * np.log(
+        np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    result = get_line_coeffs(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected * 1e-9)
 
-    deltaS = 1 * 1e-6
-    h = -3 * 1e-6
-    r = 1 * 1e-6
-    l = -2 * 1e-6
 
-    expectedOutput = 1/(4*np.pi*sigma*deltaS)*np.log( np.abs( (np.sqrt(h**2+r**2) - h)/(np.sqrt(l**2+r**2)-l) ) )
-
-    lineCoeff = get_line_coeffs(segment_positions[0],segment_positions[1],electrodePosition,sigma)
-
-    np.testing.assert_almost_equal(lineCoeff, expectedOutput*1e-9)
-
-def test_lineSource_3():
-
-    segment_positions = [np.array([0,0,0]),np.array([1,0,0])]
-    electrodePosition = np.array([0.5,0,1])
+def test_line_source_2():
+    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
+    epos = np.array([-2, 0, 1])
     sigma = 1
+    ds = 1e-6
+    h, r, l = -3e-6, 1e-6, -2e-6
+    expected = 1 / (4 * np.pi * sigma * ds) * np.log(
+        np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    result = get_line_coeffs(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected * 1e-9)
 
-    deltaS = 1 * 1e-6
-    h = -0.5 * 1e-6
-    r = 1 * 1e-6
-    l = 0.5 * 1e-6
 
-    expectedOutput = 1/(4*np.pi*sigma*deltaS)*np.log( np.abs( (np.sqrt(h**2+r**2) - h)/(np.sqrt(l**2+r**2)-l) ) )
+def test_line_source_3():
+    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
+    epos = np.array([0.5, 0, 1])
+    sigma = 1
+    ds = 1e-6
+    h, r, l = -0.5e-6, 1e-6, 0.5e-6
+    expected = 1 / (4 * np.pi * sigma * ds) * np.log(
+        np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    result = get_line_coeffs(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected * 1e-9)
 
-    lineCoeff = get_line_coeffs(segment_positions[0],segment_positions[1],electrodePosition,sigma)
 
-    np.testing.assert_almost_equal(lineCoeff, expectedOutput*1e-9)
+def test_get_coeffs_point_source():
+    positions = make_two_section_positions()
+    electrode_pos = np.array([10, 10, 10])
+    sigma = 1
+    midpts = getSegmentMidpts(positions, GIDS)
+    coeffs = get_coeffs_pointSource(midpts, electrode_pos, sigma)
 
-def test_get_coeffs_pointSource(positions,electrodePosition,sigma,gids):
+    soma_dist = np.sqrt(3 * 10**2) * 1e-6
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
+    seg_dist = np.sqrt(10**2 + 10**2 + (10 - .5)**2) * 1e-6
+    expected_seg = 1 / (4 * np.pi * sigma * seg_dist) * 1e-9
+    expected = pd.DataFrame(
+        data=np.hstack((expected_soma, expected_seg))[np.newaxis, :], columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    newPositions = getSegmentMidpts(positions,gids)
-    coeffs = get_coeffs_pointSource(newPositions,electrodePosition,sigma)
 
-    somaDistance = np.sqrt(3*10**2)*1e-6
-    expectedSomaCoeff = 1/(4*np.pi*sigma*somaDistance)*1e-9
+def test_get_coeffs_reciprocity(tmp_path):
+    positions = make_two_section_positions()
+    field_path = create_potential_field(tmp_path / "potential.h5")
+    midpts = getSegmentMidpts(positions, GIDS)
+    potentials = get_coeffs_reciprocity(midpts, field_path)
 
-    segmentDistance = np.sqrt(10**2+10**2+(10-.5)**2)*1e-6
+    columns = [[1, 1], [0, 1]]
+    mi = pd.MultiIndex.from_tuples(list(zip(*columns)), names=['id', 'section'])
+    expected = pd.DataFrame(data=np.array([0, 0.5e-6])[np.newaxis, :], columns=mi)
+    pd.testing.assert_frame_equal(potentials, expected)
 
-    expectedSegmentCoeff = 1/(4*np.pi*sigma*segmentDistance)*1e-9
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
+def test_get_coeffs_dipole_reciprocity(tmp_path):
+    positions = make_two_section_positions()
+    field_path = create_e_field(tmp_path / "efield.h5")
+    midpts = getSegmentMidpts(positions, GIDS)
+    center = midpts.mean(axis=1)
+    potentials = get_coeffs_dipoleReciprocity(midpts, field_path, center)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+    columns = [[1, 1], [0, 1]]
+    mi = pd.MultiIndex.from_tuples(list(zip(*columns)), names=['id', 'section'])
+    expected = pd.DataFrame(data=-1 * np.array([0.5e-6, 0])[np.newaxis, :]**2, columns=mi)
+    pd.testing.assert_frame_equal(potentials, expected)
 
-def test_get_coeffs_reciprocity(positions,write_potentialField,gids):
-
-    testPositions = getSegmentMidpts(positions,gids)
-    potentials = get_coeffs_reciprocity(testPositions,write_potentialField)
-
-    columns = [[1,1],[0,1]]
-
-    columnIdx = list(zip(*columns))
-
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
-
-    expectedPotential = pd.DataFrame(data=np.array([0,0.5e-6])[np.newaxis,:],columns=columnMultiIndex)
-
-    pd.testing.assert_frame_equal(potentials,expectedPotential)
-
-def test_get_coeffs_dipoleReciprocity(positions,write_EField,gids):
-
-    testPositions = getSegmentMidpts(positions,gids)
-
-    center = testPositions.mean(axis=1)
-
-    potentials = get_coeffs_dipoleReciprocity(testPositions,write_EField,center)
-
-    columns = [[1,1],[0,1]]
-
-    columnIdx = list(zip(*columns))
-
-    columnMultiIndex = pd.MultiIndex.from_tuples(columnIdx,names=['id','section'])
-
-    expectedPotential = pd.DataFrame(data=-1*np.array([0.5e-6,0])[np.newaxis,:]**2,columns=columnMultiIndex)
-
-    pd.testing.assert_frame_equal(potentials,expectedPotential)
 
 def test_sort_electrode_names():
+    keys = [0, 1, 10, 'S1nonbarrel_neurons', 3]
+    result = sort_electrode_names(keys, 'S1nonbarrel_neurons')
+    assert np.array_equal(result, [0, 1, 3, 10])
 
-    electrodes = [0,1,10,'S1nonbarrel_neurons',3]
-    population = 'S1nonbarrel_neurons'
 
-    electrodeList = sort_electrode_names(electrodes,population)
-
-    assert np.array_equal(electrodeList,[0,1,3,10])
-
-def test_electrodeType():
-
-    electrodeTypes = ['PointSource','LineSource','Reciprocity','DipoleReciprocity','ObjectiveCSD_Sphere','ObjectiveCSD_Disk']
-
-    for electrodeType in electrodeTypes:
-        assert ElectrodeType(electrodeType) == 0
-
-    badType = 'sadasd'
-
+def test_electrode_type():
+    valid = ['PointSource', 'LineSource', 'Reciprocity', 'DipoleReciprocity',
+             'ObjectiveCSD_Sphere', 'ObjectiveCSD_Disk']
+    for t in valid:
+        assert ElectrodeType(t) == 0
     with pytest.raises(AssertionError):
-        ElectrodeType(badType)
+        ElectrodeType('sadasd')
 
-def test_objectiveCSD_Sphere(positions,gids):
 
-    allEpos = np.array([[0,0,0],[2,0,0]])
+def test_objective_csd_sphere():
+    positions = make_two_section_positions()
+    all_epos = np.array([[0, 0, 0], [2, 0, 0]])
+    midpts = getSegmentMidpts(positions, GIDS)
 
-    newPositions = getSegmentMidpts(positions,gids)
-    coeffs = get_coeffs_objectiveCSD_Sphere(newPositions,allEpos[0],allEpos)
+    coeffs = get_coeffs_objectiveCSD_Sphere(midpts, all_epos[0], all_epos)
+    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    somaDistance = 0
-    expectedSomaCoeff = 1
+    coeffs = get_coeffs_objectiveCSD_Sphere(midpts, all_epos[0], all_epos, radius=.1)
+    expected = pd.DataFrame(data=np.array([[1, 0]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    expectedSegmentCoeff = 1
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
+def test_objective_csd_disk():
+    positions = make_two_section_positions()
+    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
+    midpts = getSegmentMidpts(positions, GIDS)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+    coeffs = get_coeffs_objectiveCSD_Disk(midpts, all_epos[0], all_epos)
+    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    coeffs = get_coeffs_objectiveCSD_Sphere(newPositions,allEpos[0],allEpos,radius=.1)
+    coeffs = get_coeffs_objectiveCSD_Disk(midpts, all_epos[1], all_epos)
+    expected = pd.DataFrame(data=np.array([[0, 0]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    somaDistance = 0
-    expectedSomaCoeff = 1
+    coeffs = get_coeffs_objectiveCSD_Disk(midpts, all_epos[0], all_epos, radius=.1)
+    expected = pd.DataFrame(data=np.array([[1, 0]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    expectedSegmentCoeff = 0
+    coeffs = get_coeffs_objectiveCSD_Disk(midpts, all_epos[0], all_epos, diskThickness=10)
+    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+def test_objective_csd_plane():
+    positions = make_two_section_positions()
+    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
+    midpts = getSegmentMidpts(positions, GIDS)
 
-def test_objectiveCSD_Disk(positions,gids):
+    coeffs = get_coeffs_objectiveCSD_Plane(midpts, all_epos[0], all_epos)
+    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    allEpos = np.array([[0,0,0],[1,0,0]])
+    coeffs = get_coeffs_objectiveCSD_Plane(midpts, all_epos[1], all_epos)
+    expected = pd.DataFrame(data=np.array([[0, 0]]), columns=midpts.columns)
+    pd.testing.assert_frame_equal(coeffs, expected)
 
-    newPositions = getSegmentMidpts(positions,gids)
 
-    coeffs = get_coeffs_objectiveCSD_Disk(newPositions,allEpos[0],allEpos)
+def test_array_spacing():
+    all_epos = np.array([[0, 0, 0], [0, 0, 1], [0, 0, 2]])
+    main_axis, spacing = getArraySpacing(all_epos)
+    np.testing.assert_equal(main_axis, np.array([0, 0, 1])[:, np.newaxis])
+    np.testing.assert_equal(spacing, np.array([1, 1]))
 
-    expectedSomaCoeff = 1
 
-    expectedSegmentCoeff = 1
+def test_array_thickness():
+    assert getThickness(np.array([1, 1])) == 0.5
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+def test_planar_coords():
+    positions = make_two_section_positions()
+    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
+    midpts = getSegmentMidpts(positions, GIDS)
+    main_axis, _ = getArraySpacing(all_epos)
 
-    coeffs = get_coeffs_objectiveCSD_Disk(newPositions,allEpos[1],allEpos)
+    axial, radial = distances_in_planar_coords(midpts, all_epos[0], main_axis)
+    np.testing.assert_equal(axial, np.array([0, 0])[:, np.newaxis])
+    np.testing.assert_equal(radial, np.array([0, 0.5]))
 
-    expectedSomaCoeff = 0
+    axial, radial = distances_in_planar_coords(midpts, all_epos[1], main_axis)
+    np.testing.assert_equal(axial, np.array([1, 1])[:, np.newaxis])
+    np.testing.assert_equal(radial, np.array([0, 0.5]))
 
-    expectedSegmentCoeff = 0
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
+def test_get_objective_csd_array(tmp_path):
+    electrodes = make_electrodes_objective_array()
+    path, _ = create_electrode_file(tmp_path / "obj.h5", electrodes)
+    h5 = h5py.File(path, 'r+')
+    names = ['a', 'b', 'name', 'name1', 'name2', 'name3']
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+    idx, count = get_objectiveCSD_array('ObjectiveCSD_Disk', None, 0, names, h5, 0)
+    assert idx == [2, 3, 4, 5]
+    assert count == 0
 
-    coeffs = get_coeffs_objectiveCSD_Disk(newPositions,allEpos[0],allEpos,radius=.1)
+    idx, count = get_objectiveCSD_array('ObjectiveCSD_Disk', ['2:3', '4:5'], 0, names, h5, 4)
+    np.testing.assert_equal(idx, np.arange(4, 5))
+    assert count == 1
+    h5.close()
 
-    expectedSomaCoeff = 1
 
-    expectedSegmentCoeff = 0
+# ---------------------------------------------------------------------------
+# H5 initialization tests
+# ---------------------------------------------------------------------------
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
+def test_make_electrode_dict():
+    electrodes = make_electrodes()
+    np.testing.assert_equal(makeElectrodeDict('tests/data/electrode.csv')['name'], electrodes['name'])
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
 
-    coeffs = get_coeffs_objectiveCSD_Disk(newPositions,allEpos[0],allEpos,diskThickness=10)
+def test_electrode_file_structure(tmp_path):
+    electrodes = make_electrodes()
+    path, _ = create_electrode_file(tmp_path / "test.h5", electrodes)
+    with h5py.File(path, 'r') as f:
+        for key, value in electrodes['name'].items():
+            if key == 'position':
+                np.testing.assert_equal(f['electrodes/name/' + key][:], value)
+            else:
+                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
+        np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
 
-    expectedSomaCoeff = 1
 
-    expectedSegmentCoeff = 1
+def test_electrode_file_structure_objective(tmp_path):
+    electrodes = make_electrodes_objective()
+    path, _ = create_electrode_file(tmp_path / "test.h5", electrodes)
+    with h5py.File(path, 'r') as f:
+        for key, value in electrodes['name'].items():
+            if key == 'position':
+                np.testing.assert_equal(f['electrodes/name/' + key][:], value)
+            elif key == 'type':
+                np.testing.assert_equal(f['electrodes/name/type'][()].decode(), value['type'])
+                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('radius'), value['radius'])
+                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('thickness'), value['thickness'])
+            else:
+                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
+        np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+def test_offset():
+    sec_counts = make_sec_counts()
+    offsets = get_offsets(sec_counts)
+    np.testing.assert_equal(offsets, np.array([0, 19, 25]))
 
-def test_objectiveCSD_Plane(positions,gids):
 
-    allEpos = np.array([[0,0,0],[1,0,0]])
+def test_check_input_type_objective_csd():
+    assert check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_4'.split('_')) == 0
 
-    newPositions = getSegmentMidpts(positions,gids)
+    with pytest.raises(ValueError, match='must provide either no numerical'):
+        check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_4_2'.split('_'))
 
-    coeffs = get_coeffs_objectiveCSD_Plane(newPositions,allEpos[0],allEpos)
+    with pytest.raises(ValueError, match='Invalid numerical parameter'):
+        check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_twss'.split('_'))
 
-    expectedSomaCoeff = 1
+    assert check_input_type_objectiveCSD('ObjectiveCSD_Plane', 'ObjectiveCSD_Plane_4'.split('_')) == 0
 
-    expectedSegmentCoeff = 1
+    with pytest.raises(ValueError, match='must provide either no numerical'):
+        check_input_type_objectiveCSD('ObjectiveCSD_Plane', 'ObjectiveCSD_Plane_4_2'.split('_'))
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
+    assert check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4'.split('_')) == 0
+    assert check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4.1_200'.split('_')) == 0
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
+    with pytest.raises(ValueError, match='Invalid numerical parameter'):
+        check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4.1_2as'.split('_'))
 
-    coeffs = get_coeffs_objectiveCSD_Plane(newPositions,allEpos[1],allEpos)
 
-    expectedSomaCoeff = 0
+def test_process_objective_csd():
+    with pytest.raises(ValueError, match='is an invalid objective electrode type'):
+        process_objectiveCSD('LineSource')
 
-    expectedSegmentCoeff = 0
+    assert process_objectiveCSD('ObjectiveCSD_Disk') == 'ObjectiveCSD_Disk'
+    assert process_objectiveCSD('ObjectiveCSD_Sphere_2') == {'type': 'ObjectiveCSD_Sphere', 'radius': 2.0}
+    assert process_objectiveCSD('ObjectiveCSD_Disk_2') == {'type': 'ObjectiveCSD_Disk', 'radius': 2.0}
+    assert process_objectiveCSD('ObjectiveCSD_Disk_2.1_44') == {'type': 'ObjectiveCSD_Disk', 'radius': 2.1, 'thickness': 44.}
+    assert process_objectiveCSD('ObjectiveCSD_Plane_44') == {'type': 'ObjectiveCSD_Plane', 'thickness': 44.}
 
-    expectedOutput = pd.DataFrame(data=np.hstack((expectedSomaCoeff,expectedSegmentCoeff))[np.newaxis,:],columns=newPositions.columns)
 
-    pd.testing.assert_frame_equal(coeffs,expectedOutput)
-
-def test_arraySpacing():
-
-    allEpos = np.array([[0,0,0],[0,0,1],[0,0,2]])
-
-    main_axis, arraySpacing = getArraySpacing(allEpos)
-
-    np.testing.assert_equal(main_axis,np.array([0,0,1])[:,np.newaxis])
-    np.testing.assert_equal(arraySpacing, np.array([1,1]))
-
-def test_arrayThickness():
-
-    electrodeSpacing = np.array([1,1])
-
-    thickness = getThickness(electrodeSpacing)
-
-    assert thickness == 0.5
-
-def test_planar_coords(positions, gids):
-
-    allEpos = np.array([[0,0,0],[1,0,0]])
-
-    newPositions = getSegmentMidpts(positions,gids)
-
-    main_axis, arraySpacing = getArraySpacing(allEpos)
-
-    axialDistances, radialDistances = distances_in_planar_coords(newPositions,allEpos[0],main_axis)
-
-    np.testing.assert_equal(axialDistances,np.array([0,0])[:,np.newaxis])
-
-    np.testing.assert_equal(radialDistances,np.array([0,0.5]))
-
-    axialDistances, radialDistances = distances_in_planar_coords(newPositions,allEpos[1],main_axis)
-
-    np.testing.assert_equal(axialDistances,np.array([1,1])[:,np.newaxis])
-
-    np.testing.assert_equal(radialDistances,np.array([0,0.5]))
-
-def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective_array):
-
-    electrodeType = 'ObjectiveCSD_Disk'
-    objective_csd_array_indices = None
-    objectiveCSD_count = 0
-    electrodeNames = ['a','b','name','name1','name2','name3']
-
-    h5File = write_ElectrodeFileStructure_objective_array[0]
-    h5 = h5py.File(h5File,'r+')
-    electrodeIdx = 0
-
-    arrayIdx, objectiveCSD_count = get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCSD_count,electrodeNames, h5, electrodeIdx)
-
-    assert arrayIdx == [2,3,4,5]
-    assert objectiveCSD_count == 0
-
-    objective_csd_array_indices = ['2:3','4:5']
-    electrodeIdx = 4
-
-    arrayIdx, objectiveCSD_count = get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCSD_count,electrodeNames, h5, electrodeIdx)
-
-    np.testing.assert_equal(arrayIdx,np.arange(4,5))
-    assert objectiveCSD_count == 1
-
+# ---------------------------------------------------------------------------
+# Integration tests (require data download)
+# ---------------------------------------------------------------------------
 
 @pytest.mark.skip_in_ci
 def test_circuit_write_weights(tmp_path):
-    """Test that the full write_weights pipeline produces weights matching the reference."""
+    """Full write_weights pipeline for sscx_100_cells."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
 
-    path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
-    electrode_csv = "examples/sscx_100_cells/electrodes.csv"
-    ref_path = "examples/sscx_100_cells/reference/weights_ref.h5"
-    output_path = str(tmp_path / "weights.h5")
+    simconfig = "examples/sscx_100_cells/simulation_config.json"
+    csv = "examples/sscx_100_cells/electrodes.csv"
+    ref = "examples/sscx_100_cells/reference/weights_ref.h5"
+    out = str(tmp_path / "weights.h5")
 
-    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
-    positions_df, cols = positions.get_positions(
-        node_manager, ids, cols, population,
-        path_to_simconfig=path_to_simconfig,
-    )
-    initializeH5File(cols, population_name, output_path, electrode_csv)
-    writeH5File(positions_df, cols, population_name, output_path)
+    nm, ids, cols, pop, pop_name = init_circuit(simconfig)
+    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    initializeH5File(cols, pop_name, out, csv)
+    writeH5File(pos_df, cols, pop_name, out)
 
-    with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
-        # Compare node_ids
-        ref_ids = ref[population_name + "/node_ids"][:]
-        new_ids = new[population_name + "/node_ids"][:]
-        np.testing.assert_array_equal(ref_ids, new_ids)
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
-        # Compare offsets
-        ref_offsets = ref[population_name + "/offsets"][:]
-        new_offsets = new[population_name + "/offsets"][:]
-        np.testing.assert_array_equal(ref_offsets, new_offsets)
-
-        # Compare scaling factors
-        dset = "electrodes/" + population_name + "/scaling_factors"
-        ref_sf = ref[dset][:]
-        new_sf = new[dset][:]
-        np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
-
-    # Byte-level comparison of the two files
-    with open(ref_path, "rb") as f:
-        ref_bytes = f.read()
-    with open(output_path, "rb") as f:
-        new_bytes = f.read()
-    assert ref_bytes == new_bytes, "Output file differs from reference at byte level"
+    with open(ref, "rb") as f1, open(out, "rb") as f2:
+        assert f1.read() == f2.read(), "Output differs from reference at byte level"
 
 
 @pytest.mark.skip_in_ci
 @pytest.mark.slow
 def test_single_cell_write_weights(tmp_path):
-    """Test write_weights pipeline for the single_cell_l5_tpc example with near electrodes."""
+    """Write_weights for single_cell_l5_tpc (near electrodes)."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    electrode_csv = "examples/single_cell_l5_tpc/near_electrodes.csv"
-    ref_path = "examples/single_cell_l5_tpc/reference/weights_near_ref.h5"
-    field_path = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
-    output_path = str(tmp_path / "weights.h5")
+    simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
+    csv = "examples/single_cell_l5_tpc/near_electrodes.csv"
+    ref = "examples/single_cell_l5_tpc/reference/weights_near_ref.h5"
+    field = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
+    out = str(tmp_path / "weights.h5")
 
-    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
-    positions_df, cols = positions.get_positions(
-        node_manager, ids, cols, population,
-        path_to_simconfig=path_to_simconfig,
-    )
-    initializeH5File(cols, population_name, output_path, electrode_csv)
-    writeH5File(positions_df, cols, population_name, output_path,
-                path_to_fields=[field_path, field_path])
+    nm, ids, cols, pop, pop_name = init_circuit(simconfig)
+    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    initializeH5File(cols, pop_name, out, csv)
+    writeH5File(pos_df, cols, pop_name, out, path_to_fields=[field, field])
 
-    with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
-        ref_ids = ref[population_name + "/node_ids"][:]
-        new_ids = new[population_name + "/node_ids"][:]
-        np.testing.assert_array_equal(ref_ids, new_ids)
-
-        ref_offsets = ref[population_name + "/offsets"][:]
-        new_offsets = new[population_name + "/offsets"][:]
-        np.testing.assert_array_equal(ref_offsets, new_offsets)
-
-        dset = "electrodes/" + population_name + "/scaling_factors"
-        ref_sf = ref[dset][:]
-        new_sf = new[dset][:]
-        np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
 
 @pytest.mark.skip_in_ci
 @pytest.mark.slow
 def test_single_cell_write_weights_distant(tmp_path):
-    """Test write_weights pipeline for the single_cell_l5_tpc example with distant electrodes."""
+    """Write_weights for single_cell_l5_tpc (distant electrodes)."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
 
-    path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    electrode_csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
-    ref_path = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
-    field_path = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
-    output_path = str(tmp_path / "weights.h5")
+    simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
+    csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
+    ref = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
+    field = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
+    out = str(tmp_path / "weights.h5")
 
-    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
-    positions_df, cols = positions.get_positions(
-        node_manager, ids, cols, population,
-        path_to_simconfig=path_to_simconfig,
-    )
-    initializeH5File(cols, population_name, output_path, electrode_csv)
-    writeH5File(positions_df, cols, population_name, output_path,
-                path_to_fields=[field_path, field_path])
+    nm, ids, cols, pop, pop_name = init_circuit(simconfig)
+    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    initializeH5File(cols, pop_name, out, csv)
+    writeH5File(pos_df, cols, pop_name, out, path_to_fields=[field, field])
 
-    with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
-        ref_ids = ref[population_name + "/node_ids"][:]
-        new_ids = new[population_name + "/node_ids"][:]
-        np.testing.assert_array_equal(ref_ids, new_ids)
-
-        ref_offsets = ref[population_name + "/offsets"][:]
-        new_offsets = new[population_name + "/offsets"][:]
-        np.testing.assert_array_equal(ref_offsets, new_offsets)
-
-        dset = "electrodes/" + population_name + "/scaling_factors"
-        ref_sf = ref[dset][:]
-        new_sf = new[dset][:]
-        np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
-
-# ---------------------------------------------------------------------------
-# H5 initialization tests (formerly test_h5_initialization_SONATA.py)
-# ---------------------------------------------------------------------------
-
-def test_makeElectrodeDict(electrodes):
-
-    csv = 'tests/data/electrode.csv'
-    expected = electrodes
-
-    np.testing.assert_equal(makeElectrodeDict(csv)['name'], expected['name'])
-
-def test_ElectrodeFileStructure(write_ElectrodeFileStructure, electrodes, gids,population_name):
-    
-    '''
-    Tests that electrode names and positions are written correctly
-    '''
-
-    outputfile, h5 = write_ElectrodeFileStructure
-
-    newFile = h5py.File(outputfile,'r')
-
-    for key, value in electrodes['name'].items():
-        
-        if key == 'position':
-            np.testing.assert_equal(newFile['electrodes/name/'+key][:], value)
-        else: 
-            np.testing.assert_equal(newFile['electrodes/name/'+key][()].decode(), value)
-            
-    np.testing.assert_equal(newFile[population_name+'/node_ids'][:],gids)
-
-
-def test_ElectrodeFileStructure_objective(write_ElectrodeFileStructure_objective, electrodes_objective, gids, population_name):
-    '''
-    Tests that electrode names and positions are written correctly
-    '''
-
-    outputfile, h5 = write_ElectrodeFileStructure_objective
-
-    newFile = h5py.File(outputfile, 'r')
-
-    for key, value in electrodes_objective['name'].items():
-
-        if key == 'position':
-            np.testing.assert_equal(newFile['electrodes/name/' + key][:], value)
-        elif key == 'type':
-            np.testing.assert_equal(newFile['electrodes/name/type'][()].decode(),value['type'])
-            np.testing.assert_equal(newFile['electrodes/name/type'].attrs.get('radius'),value['radius'])
-            np.testing.assert_equal(newFile['electrodes/name/type'].attrs.get('thickness'), value['thickness'])
-        else:
-            np.testing.assert_equal(newFile['electrodes/name/' + key][()].decode(), value)
-
-    np.testing.assert_equal(newFile[population_name + '/node_ids'][:], gids)
-
-def test_offset(secCounts):
-    
-    offsets = get_offsets(secCounts)
-    expected_offsets = np.array([0,19,25])
-    
-    np.testing.assert_equal(offsets, expected_offsets)
-
-def test_check_input_type_objectiveCSD():
-
-    electrodeType = 'ObjectiveCSD_Sphere'
-    electrode = 'ObjectiveCSD_Sphere_4'.split('_')
-    assert check_input_type_objectiveCSD(electrodeType,electrode) == 0
-
-    electrode = 'ObjectiveCSD_Sphere_4_2'.split('_')
-    with pytest.raises(ValueError) as excinfo:
-        check_input_type_objectiveCSD(electrodeType,electrode)
-    assert str(excinfo.value) == 'ObjectiveCSD_Sphere must provide either no numerical parameters or exactly one'
-
-    electrode = 'ObjectiveCSD_Sphere_twss'.split('_')
-    with pytest.raises(ValueError) as excinfo:
-        check_input_type_objectiveCSD(electrodeType,electrode)
-    assert str(excinfo.value) == 'Invalid numerical parameter provided to objective CSD electrode'
-
-
-    electrodeType = 'ObjectiveCSD_Plane'
-    electrode = 'ObjectiveCSD_Plane_4'.split('_')
-    assert check_input_type_objectiveCSD(electrodeType,electrode) == 0
-
-    electrode = 'ObjectiveCSD_Plane_4_2'.split('_')
-    with pytest.raises(ValueError) as excinfo:
-        check_input_type_objectiveCSD(electrodeType,electrode)
-    assert str(excinfo.value) == 'ObjectiveCSD_Plane must provide either no numerical parameters or exactly one'
-
-
-    electrodeType = 'ObjectiveCSD_Disk'
-    electrode = 'ObjectiveCSD_Disk_4'.split('_')
-    assert check_input_type_objectiveCSD(electrodeType, electrode) == 0
-
-    electrode = 'ObjectiveCSD_Disk_4.1_200'.split('_')
-    assert check_input_type_objectiveCSD(electrodeType, electrode) == 0
-
-    electrode = 'ObjectiveCSD_Disk_4.1_2as'.split('_')
-    with pytest.raises(ValueError) as excinfo:
-        check_input_type_objectiveCSD(electrodeType, electrode)
-    assert str(excinfo.value) == 'Invalid numerical parameter provided to objective CSD electrode'
-
-def test_process_objectiveCSD():
-
-    with pytest.raises(ValueError) as excinfo:
-        process_objectiveCSD('LineSource')
-    assert str(excinfo.value) == 'LineSource is an invalid objective electrode type'
-
-    output = process_objectiveCSD('ObjectiveCSD_Disk')
-    assert output == 'ObjectiveCSD_Disk'
-
-    output = process_objectiveCSD('ObjectiveCSD_Sphere_2')
-    assert output == {'type':'ObjectiveCSD_Sphere','radius':2.0}
-
-    output = process_objectiveCSD('ObjectiveCSD_Disk_2')
-    assert output == {'type': 'ObjectiveCSD_Disk', 'radius': 2.0}
-
-    output = process_objectiveCSD('ObjectiveCSD_Disk_2.1_44')
-    assert output == {'type': 'ObjectiveCSD_Disk', 'radius': 2.1,'thickness':44.}
-
-    output = process_objectiveCSD('ObjectiveCSD_Plane_44')
-    assert output == {'type': 'ObjectiveCSD_Plane','thickness': 44.}
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
