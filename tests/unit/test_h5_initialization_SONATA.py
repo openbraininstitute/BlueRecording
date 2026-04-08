@@ -6,7 +6,7 @@ import numpy as np
 from morphio import PointLevel, SectionType
 from morphio import Morphology
 import h5py
-from bluerecording.writeH5_prelim import *
+from bluerecording.weights import *
 
 
 def test_makeElectrodeDict(electrodes):

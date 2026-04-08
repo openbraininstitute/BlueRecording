@@ -2,8 +2,8 @@ import argparse
 from pathlib import Path
 from . import positions
 from .circuit import init_circuit
-from .writeH5 import DEFAULT_SIGMA, writeH5File
-from .writeH5_prelim import initializeH5File
+from .weights import DEFAULT_SIGMA, writeH5File
+from .weights import initializeH5File
 from . import __version__
 
 def main():

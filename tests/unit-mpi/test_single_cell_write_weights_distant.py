@@ -6,8 +6,8 @@ import pytest
 
 from bluerecording.circuit import init_circuit
 from bluerecording import positions
-from bluerecording.writeH5 import writeH5File
-from bluerecording.writeH5_prelim import initializeH5File
+from bluerecording.weights import writeH5File
+from bluerecording.weights import initializeH5File
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()

@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from morphio import Morphology
 import h5py
-from bluerecording.writeH5_prelim import *
+from bluerecording.weights import *
 from pathlib import Path
 
 

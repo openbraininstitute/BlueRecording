@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import sys
-from bluerecording.writeH5_prelim import initializeH5File
+from bluerecording.weights import initializeH5File
 
 if __name__=='__main__':
 

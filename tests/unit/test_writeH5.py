@@ -6,8 +6,8 @@ import numpy as np
 from morphio import PointLevel, SectionType
 from morphio import Morphology
 import h5py
-from bluerecording.writeH5 import *
-from bluerecording.writeH5_prelim import ElectrodeFileStructure
+from bluerecording.weights import *
+from bluerecording.weights import ElectrodeFileStructure
 
 @pytest.fixture
 def electrodePosition():
@@ -443,7 +443,6 @@ def test_circuit_write_weights(tmp_path):
     """Test that the full write_weights pipeline produces weights matching the reference."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
-    from bluerecording.writeH5_prelim import initializeH5File
 
     path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
     electrode_csv = "examples/sscx_100_cells/electrodes.csv"
@@ -489,7 +488,6 @@ def test_single_cell_write_weights(tmp_path):
     """Test write_weights pipeline for the single_cell_l5_tpc example with near electrodes."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
-    from bluerecording.writeH5_prelim import initializeH5File
 
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     electrode_csv = "examples/single_cell_l5_tpc/near_electrodes.csv"
@@ -527,7 +525,6 @@ def test_single_cell_write_weights_distant(tmp_path):
     """Test write_weights pipeline for the single_cell_l5_tpc example with distant electrodes."""
     from bluerecording.circuit import init_circuit
     from bluerecording import positions
-    from bluerecording.writeH5_prelim import initializeH5File
 
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     electrode_csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"

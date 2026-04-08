@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import sys
 import pandas as pd
-from bluerecording.writeH5 import writeH5File
+from bluerecording.weights import writeH5File
 from bluerecording.utils import process_writeH5_inputs
 
 if __name__=='__main__':
