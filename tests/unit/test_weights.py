@@ -59,7 +59,7 @@ def positions():
     return pos
 
 @pytest.fixture(scope="module")
-def electrodes_objective():
+def electrodes_objective_array():
 
     electrodes = {'a':{'position':np.array([1,0,0]),'type':'Reciprocity','region':'Outside','layer':'Outside'},
                   'b':{'position':np.array([1,0,0]),'type':'Reciprocity','region':'Outside','layer':'Outside'},
@@ -71,23 +71,21 @@ def electrodes_objective():
     return electrodes
 
 @pytest.fixture(scope="module")
-def write_ElectrodeFileStructure_objective(path_to_weights_file, electrodes_objective, gids, population_name):
+def write_ElectrodeFileStructure_objective_array(tmp_path_factory, electrodes_objective_array, gids, population_name):
 
     '''
     Creates h5 file, without any weights
     '''
 
-    '''
-    Creates h5 file, without any weights
-    '''
+    fn = tmp_path_factory.mktemp("data") / "testfile_array.h5"
 
-    h5file = h5py.File(path_to_weights_file,'w')
+    h5file = h5py.File(fn,'w')
 
-    h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective, population_name) # Initializes fields in h5 file
+    h5 = ElectrodeFileStructure(h5file, gids, electrodes_objective_array, population_name) # Initializes fields in h5 file
 
     h5file.close()
 
-    return path_to_weights_file, h5
+    return fn, h5
 
 def test_getSegmentMidpts(positions,gids):
 
@@ -109,6 +107,18 @@ def test_getSegmentMidpts(positions,gids):
     pd.testing.assert_frame_equal(outputPos,expectedPositions)
 
     pd.testing.assert_frame_equal(outputPos,expectedPositions)
+
+def test_write_neuron(writeNeuron,population_name):
+    
+    '''
+    Tests that weights are initialized correctly for a given neuron
+    '''
+
+    newFile = h5py.File(writeNeuron[0],'r')
+
+    np.testing.assert_equal( newFile['electrodes/'+population_name+'/scaling_factors'][:],np.ones((25,2)) )
+    
+    np.testing.assert_equal( newFile[population_name+'/offsets'][:],np.array([0,19,25]) )
 
 def test_add_coeffs(writeNeuron,gids,population_name,data):
 
@@ -413,14 +423,14 @@ def test_planar_coords(positions, gids):
 
     np.testing.assert_equal(radialDistances,np.array([0,0.5]))
 
-def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective):
+def test_get_objectiveCSD_array(write_ElectrodeFileStructure_objective_array):
 
     electrodeType = 'ObjectiveCSD_Disk'
     objective_csd_array_indices = None
     objectiveCSD_count = 0
     electrodeNames = ['a','b','name','name1','name2','name3']
 
-    h5File = write_ElectrodeFileStructure_objective[0]
+    h5File = write_ElectrodeFileStructure_objective_array[0]
     h5 = h5py.File(h5File,'r+')
     electrodeIdx = 0
 
@@ -554,3 +564,123 @@ def test_single_cell_write_weights_distant(tmp_path):
         ref_sf = ref[dset][:]
         new_sf = new[dset][:]
         np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
+
+# ---------------------------------------------------------------------------
+# H5 initialization tests (formerly test_h5_initialization_SONATA.py)
+# ---------------------------------------------------------------------------
+
+def test_makeElectrodeDict(electrodes):
+
+    csv = 'tests/data/electrode.csv'
+    expected = electrodes
+
+    np.testing.assert_equal(makeElectrodeDict(csv)['name'], expected['name'])
+
+def test_ElectrodeFileStructure(write_ElectrodeFileStructure, electrodes, gids,population_name):
+    
+    '''
+    Tests that electrode names and positions are written correctly
+    '''
+
+    outputfile, h5 = write_ElectrodeFileStructure
+
+    newFile = h5py.File(outputfile,'r')
+
+    for key, value in electrodes['name'].items():
+        
+        if key == 'position':
+            np.testing.assert_equal(newFile['electrodes/name/'+key][:], value)
+        else: 
+            np.testing.assert_equal(newFile['electrodes/name/'+key][()].decode(), value)
+            
+    np.testing.assert_equal(newFile[population_name+'/node_ids'][:],gids)
+
+
+def test_ElectrodeFileStructure_objective(write_ElectrodeFileStructure_objective, electrodes_objective, gids, population_name):
+    '''
+    Tests that electrode names and positions are written correctly
+    '''
+
+    outputfile, h5 = write_ElectrodeFileStructure_objective
+
+    newFile = h5py.File(outputfile, 'r')
+
+    for key, value in electrodes_objective['name'].items():
+
+        if key == 'position':
+            np.testing.assert_equal(newFile['electrodes/name/' + key][:], value)
+        elif key == 'type':
+            np.testing.assert_equal(newFile['electrodes/name/type'][()].decode(),value['type'])
+            np.testing.assert_equal(newFile['electrodes/name/type'].attrs.get('radius'),value['radius'])
+            np.testing.assert_equal(newFile['electrodes/name/type'].attrs.get('thickness'), value['thickness'])
+        else:
+            np.testing.assert_equal(newFile['electrodes/name/' + key][()].decode(), value)
+
+    np.testing.assert_equal(newFile[population_name + '/node_ids'][:], gids)
+
+def test_offset(secCounts):
+    
+    offsets = get_offsets(secCounts)
+    expected_offsets = np.array([0,19,25])
+    
+    np.testing.assert_equal(offsets, expected_offsets)
+
+def test_check_input_type_objectiveCSD():
+
+    electrodeType = 'ObjectiveCSD_Sphere'
+    electrode = 'ObjectiveCSD_Sphere_4'.split('_')
+    assert check_input_type_objectiveCSD(electrodeType,electrode) == 0
+
+    electrode = 'ObjectiveCSD_Sphere_4_2'.split('_')
+    with pytest.raises(ValueError) as excinfo:
+        check_input_type_objectiveCSD(electrodeType,electrode)
+    assert str(excinfo.value) == 'ObjectiveCSD_Sphere must provide either no numerical parameters or exactly one'
+
+    electrode = 'ObjectiveCSD_Sphere_twss'.split('_')
+    with pytest.raises(ValueError) as excinfo:
+        check_input_type_objectiveCSD(electrodeType,electrode)
+    assert str(excinfo.value) == 'Invalid numerical parameter provided to objective CSD electrode'
+
+
+    electrodeType = 'ObjectiveCSD_Plane'
+    electrode = 'ObjectiveCSD_Plane_4'.split('_')
+    assert check_input_type_objectiveCSD(electrodeType,electrode) == 0
+
+    electrode = 'ObjectiveCSD_Plane_4_2'.split('_')
+    with pytest.raises(ValueError) as excinfo:
+        check_input_type_objectiveCSD(electrodeType,electrode)
+    assert str(excinfo.value) == 'ObjectiveCSD_Plane must provide either no numerical parameters or exactly one'
+
+
+    electrodeType = 'ObjectiveCSD_Disk'
+    electrode = 'ObjectiveCSD_Disk_4'.split('_')
+    assert check_input_type_objectiveCSD(electrodeType, electrode) == 0
+
+    electrode = 'ObjectiveCSD_Disk_4.1_200'.split('_')
+    assert check_input_type_objectiveCSD(electrodeType, electrode) == 0
+
+    electrode = 'ObjectiveCSD_Disk_4.1_2as'.split('_')
+    with pytest.raises(ValueError) as excinfo:
+        check_input_type_objectiveCSD(electrodeType, electrode)
+    assert str(excinfo.value) == 'Invalid numerical parameter provided to objective CSD electrode'
+
+def test_process_objectiveCSD():
+
+    with pytest.raises(ValueError) as excinfo:
+        process_objectiveCSD('LineSource')
+    assert str(excinfo.value) == 'LineSource is an invalid objective electrode type'
+
+    output = process_objectiveCSD('ObjectiveCSD_Disk')
+    assert output == 'ObjectiveCSD_Disk'
+
+    output = process_objectiveCSD('ObjectiveCSD_Sphere_2')
+    assert output == {'type':'ObjectiveCSD_Sphere','radius':2.0}
+
+    output = process_objectiveCSD('ObjectiveCSD_Disk_2')
+    assert output == {'type': 'ObjectiveCSD_Disk', 'radius': 2.0}
+
+    output = process_objectiveCSD('ObjectiveCSD_Disk_2.1_44')
+    assert output == {'type': 'ObjectiveCSD_Disk', 'radius': 2.1,'thickness':44.}
+
+    output = process_objectiveCSD('ObjectiveCSD_Plane_44')
+    assert output == {'type': 'ObjectiveCSD_Plane','thickness': 44.}

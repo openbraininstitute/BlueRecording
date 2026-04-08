@@ -245,13 +245,15 @@ def write_ElectrodeFileStructure(
 
 @pytest.fixture(scope="module")
 def write_ElectrodeFileStructure_objective(
-    path_to_weights_file, electrodes_objective, gids, population_name
+    tmpdir_factory, electrodes_objective, gids, population_name
 ):
     """
     Creates h5 file, without any weights
     """
 
-    h5file = h5py.File(path_to_weights_file, "w")
+    fn = tmpdir_factory.mktemp("data").join("testfile_objective.h5")
+
+    h5file = h5py.File(fn, "w")
 
     h5 = ElectrodeFileStructure(
         h5file, gids, electrodes_objective, population_name
@@ -259,7 +261,7 @@ def write_ElectrodeFileStructure_objective(
 
     h5file.close()
 
-    return path_to_weights_file, h5
+    return fn, h5
 
 
 @pytest.fixture(scope="module")
