@@ -24,13 +24,15 @@ for arg in "$@"; do
         unit)     SUITE="unit" ;;
         mpi)      SUITE="mpi" ;;
         all)      SUITE="all" ;;
+        ci)       SUITE="ci" ;;
         -h|--help)
-            echo "Usage: ./run_tests.sh [--setup] [unit|mpi|all]"
+            echo "Usage: ./run_tests.sh [--setup] [unit|mpi|all|ci]"
             echo ""
             echo "  --setup   Source setup.sh --dev --data before running tests"
             echo "  unit      Run only unit tests"
             echo "  mpi       Run only MPI tests"
             echo "  all       Run all tests (default)"
+            echo "  ci        Run only the tests that CI runs (skip slow/data tests)"
             exit 0
             ;;
         *)
@@ -81,7 +83,7 @@ if [[ "$SUITE" == "all" || "$SUITE" == "mpi" ]]; then
     echo "========================================="
     for test_file in tests/unit-mpi/test_write_weights.py \
                      tests/unit-mpi/test_h5py_MPI.py \
-                     tests/unit-mpi/test_get_positions.py \
+                     tests/unit-mpi/test_positions.py \
                      tests/unit-mpi/test_single_cell_get_positions.py \
                      tests/unit-mpi/test_single_cell_write_weights.py \
                      tests/unit-mpi/test_single_cell_write_weights_distant.py; do
@@ -89,6 +91,23 @@ if [[ "$SUITE" == "all" || "$SUITE" == "mpi" ]]; then
         echo "--- mpirun -n 2: $test_file ---"
         mpirun -n 2 python -m pytest "$test_file" --with-mpi -v || FAILED=1
     done
+fi
+
+# -------------------------
+# CI-like tests (mirrors GitHub Actions)
+# -------------------------
+if [[ "$SUITE" == "ci" ]]; then
+    echo ""
+    echo "========================================="
+    echo "  Running CI tests (skip_in_ci excluded)"
+    echo "========================================="
+    python -m pytest tests/unit/ -v -m "not skip_in_ci" || FAILED=1
+
+    echo ""
+    echo "========================================="
+    echo "  Running CI MPI tests (skip_in_ci excluded)"
+    echo "========================================="
+    mpirun -n 2 python -m pytest tests/unit-mpi/ --with-mpi -v -m "not skip_in_ci" || FAILED=1
 fi
 
 # -------------------------
