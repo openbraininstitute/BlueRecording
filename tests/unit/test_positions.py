@@ -154,6 +154,7 @@ def test_interpolate_myelin_short(tmp_path):
 # Integration tests (require data)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skip_in_ci
 def test_single_cell_get_positions(tmp_path):
     """Test get_positions for single_cell_l5_tpc."""
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
