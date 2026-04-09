@@ -13,7 +13,7 @@ This will download the files `Infinite_VeryFar_HighRes.h5` and `Infinite_Close_H
 From the root folder:
 
 ```bash
-bluerecording write_positions examples/single_cell_l5_tpc/simulation_config.json <positions_folder>
+bluerecording write_positions examples/single_cell_l5_tpc/simulation_config_near.json <positions_folder>
 ```
 
 ## Computing Electrode Weights
