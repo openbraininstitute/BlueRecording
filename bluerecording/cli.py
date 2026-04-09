@@ -82,12 +82,19 @@ def main():
         default=None,
         help="Path(s) to H5 potential field files for reciprocity electrodes"
     )
+    ww_parser.add_argument(
+        "--with-neurite-type",
+        action="store_true",
+        default=False,
+        dest="with_neurite_type",
+        help="Append a neurite_types dataset to the weights file",
+    )
 
     args = parser.parse_args()
 
     if args.command == "write_positions":
         node_manager, ids, cols, population, _ = init_circuit(args.path_to_simconfig)
-        positions_df, _ = positions.get_positions(
+        positions_df, _, _ = positions.get_positions(
             node_manager, ids, cols, population,
             path_to_simconfig=args.path_to_simconfig,
             replace_axons=args.replace_axons,
@@ -96,7 +103,7 @@ def main():
 
     elif args.command == "write_weights":
         node_manager, ids, cols, population, population_name = init_circuit(args.path_to_simconfig)
-        positions_df, cols = positions.get_positions(
+        positions_df, cols, neurite_types = positions.get_positions(
             node_manager, ids, cols, population,
             path_to_simconfig=args.path_to_simconfig,
             replace_axons=args.replace_axons,
@@ -105,6 +112,8 @@ def main():
         if output_file.is_dir() or not output_file.suffix:
             output_file.mkdir(parents=True, exist_ok=True)
             output_file = output_file / "weights.h5"
-        initialize_h5_file(cols, population_name, str(output_file), args.electrode_csv)
+        initialize_h5_file(cols, population_name, str(output_file), args.electrode_csv,
+                         with_neurite_type=args.with_neurite_type)
         write_h5_file(positions_df, cols, population_name, str(output_file),
-                    sigma=args.sigma, path_to_fields=args.path_to_fields)
+                    sigma=args.sigma, path_to_fields=args.path_to_fields,
+                    neurite_types=neurite_types if args.with_neurite_type else None)

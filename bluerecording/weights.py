@@ -18,6 +18,36 @@ from .utils import *
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
+
+def resolve_neurite_types(cols_for_gid, morphology):
+    """Return an int array of neurite types for one neuron's compartments.
+
+    Args:
+        cols_for_gid: (M, 2) array of (gid, section_index) pairs for this neuron.
+        morphology: morphio.Morphology object for this neuron.
+
+    Returns:
+        (M,) int32 array where each element is a neurite type code derived
+        from MorphIO's ``SectionType`` enum (axon=2, basal_dendrite=3,
+        apical_dendrite=4).  Soma (section_index 0) is assigned 0 by
+        convention — MorphIO uses 1 for ``SECTION_SOMA``, but the NEURON
+        compartment model treats section 0 as soma, so we use 0 here to
+        distinguish it clearly.
+    """
+    section_indices = cols_for_gid[:, 1]
+    n_sections = len(morphology.sections)
+    result = np.empty(len(section_indices), dtype=np.int32)
+    for i, sec_idx in enumerate(section_indices):
+        if sec_idx == 0:
+            result[i] = 0  # soma
+        else:
+            morphio_idx = sec_idx - 1
+            if morphio_idx < n_sections:
+                result[i] = int(morphology.sections[morphio_idx].type)
+            else:
+                result[i] = 2  # stub axon fallback
+    return result
+
 # ---------------------------------------------------------------------------
 # H5 file initialization (formerly writeH5_prelim.py)
 # ---------------------------------------------------------------------------
@@ -197,7 +227,7 @@ def process_objectiveCSD(electrodeType):
 
         return objectiveDict
 
-def initialize_h5_file(cols, population_name, outputfile, electrode_csv):
+def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_neurite_type=False):
     """Initialize the HDF5 electrode weights file on rank 0.
 
     Gathers rank-local cols via MPI, builds the global structure, and
@@ -209,6 +239,7 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv):
         population_name: SONATA population name.
         outputfile: Path to the output HDF5 file.
         electrode_csv: Path to the electrode CSV file.
+        with_neurite_type: If True, pre-allocate a neurite_types dataset.
     """
 
     comm = MPI.COMM_WORLD
@@ -236,6 +267,14 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv):
         h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name)
 
         write_all_neuron(section_ids_frame, population_name, h5file, electrodes)
+
+        if with_neurite_type:
+            n_compartments = len(all_cols)
+            h5file.create_dataset(
+                f"{population_name}/neurite_types",
+                shape=(n_compartments,),
+                dtype=np.int32,
+            )
 
         h5file.close()
 
@@ -744,7 +783,7 @@ def get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCS
 
     return arrayIdx, objectiveCSD_count
 
-def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None):
+def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None, neurite_types=None):
     """Compute and write electrode coefficients to the HDF5 weights file.
 
     Args:
@@ -755,6 +794,8 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
+        neurite_types: (N,) int32 array from get_positions; if provided,
+            populates the neurite_types dataset.
     """
 
     if sigma is None:
@@ -853,6 +894,23 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
             coeffList = pd.concat((coeffList,coeffs))
 
     add_data(h5,node_ids,coeffList,population_name)
+
+    if neurite_types is not None:
+        offsets = h5[population_name + '/offsets'][:]
+        all_node_ids = h5[population_name + '/node_ids'][:]
+
+        for gid in node_ids:
+            gid_mask = cols[:, 0] == gid
+            ntypes = neurite_types[gid_mask]
+
+            id_index = np.where(all_node_ids == gid)[0][0]
+            offset0 = offsets[id_index]
+            if id_index == len(offsets) - 1:
+                offset1 = h5[f"electrodes/{population_name}/scaling_factors"].shape[0]
+            else:
+                offset1 = offsets[id_index + 1]
+
+            h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
 
     h5.close()
 

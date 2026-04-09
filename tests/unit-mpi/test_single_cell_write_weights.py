@@ -29,7 +29,7 @@ def test_single_cell_write_weights_mpi(tmp_path):
     output_path = str(output_dir / "weights.h5")
 
     node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
-    positions_df, cols = positions.get_positions(
+    positions_df, cols, _ = positions.get_positions(
         node_manager, ids, cols, population,
         path_to_simconfig=path_to_simconfig,
     )

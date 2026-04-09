@@ -28,7 +28,7 @@ def test_circuit_get_positions_mpi(tmp_path):
     path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
 
     node_manager, ids, cols, population, _ = init_circuit(path_to_simconfig)
-    positions_df, _ = positions.get_positions(
+    positions_df, _, _ = positions.get_positions(
         node_manager, ids, cols, population,
         path_to_simconfig=path_to_simconfig,
     )

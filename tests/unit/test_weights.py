@@ -368,7 +368,7 @@ def test_circuit_write_weights(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name = init_circuit(simconfig)
-    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
     initialize_h5_file(cols, pop_name, out, csv)
     write_h5_file(pos_df, cols, pop_name, out)
 
@@ -396,7 +396,7 @@ def test_single_cell_write_weights(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name = init_circuit(simconfig)
-    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
     initialize_h5_file(cols, pop_name, out, csv)
     write_h5_file(pos_df, cols, pop_name, out, path_to_fields=[field, field])
 
@@ -421,7 +421,7 @@ def test_single_cell_write_weights_distant(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name = init_circuit(simconfig)
-    pos_df, cols = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
     initialize_h5_file(cols, pop_name, out, csv)
     write_h5_file(pos_df, cols, pop_name, out, path_to_fields=[field, field])
 
