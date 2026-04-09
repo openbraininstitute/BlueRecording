@@ -3,7 +3,6 @@ import json
 import os
 import warnings
 
-import bluepysnap as bp
 import libsonata
 import numpy as np
 import pandas as pd
@@ -359,7 +358,7 @@ def get_morph_path(population, i, path_to_simconfig):
 
 
 def get_morphology(
-    population: bp.nodes.NodePopulation,
+    population: libsonata.NodePopulation,
     i: int,
     path_to_simconfig: str,
     cell,
@@ -367,7 +366,7 @@ def get_morphology(
     """Load and transform a morphology into circuit (global) coordinates.
 
     Args:
-        population: bluepysnap NodePopulation.
+        population: libsonata NodePopulation.
         i: Node index within the population.
         path_to_simconfig: Path to the SONATA simulation configuration file.
         cell: Neurodamus cell object with coordinate mapping.
@@ -482,7 +481,7 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
         node_manager: Neurodamus node manager.
         ids: GIDs assigned to this MPI rank.
         cols: (N, 2) int64 array of (gid, section) pairs.
-        population: bluepysnap NodePopulation for morphology resolution.
+        population: libsonata NodePopulation for morphology resolution.
         path_to_simconfig: Path to the SONATA simulation config.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).

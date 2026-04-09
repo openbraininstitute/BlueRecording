@@ -5,9 +5,10 @@ Provides the entry point for loading a circuit model and extracting
 the discretization info (node IDs, compartment structure, morphology access)
 needed by both get_positions and write_weights.
 """
-import bluepysnap as bp
 import libsonata
 import numpy as np
+
+from utils import get_node_population
 
 
 def init_circuit(path_to_simconfig: str):
@@ -21,7 +22,7 @@ def init_circuit(path_to_simconfig: str):
         ids: GIDs assigned to this MPI rank.
         cols: (N, 2) int64 array of (gid, section) pairs describing every
             compartment on this rank.
-        population: bluepysnap NodePopulation, needed for morphology file
+        population: libsonata NodePopulation, needed for morphology file
             resolution.
         population_name: Name of the SONATA node population.
     """
@@ -54,8 +55,7 @@ def init_circuit(path_to_simconfig: str):
         dtype=np.int64,
     ).reshape(-1, 2)
 
-    r_sim = bp.Simulation(path_to_simconfig)
     population_name = node_manager.population_name
-    population = r_sim.circuit.nodes[population_name]
+    population = get_node_population(path_to_simconfig, population_name)
 
     return node_manager, ids, cols, population, population_name

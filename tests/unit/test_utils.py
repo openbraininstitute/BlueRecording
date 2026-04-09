@@ -119,6 +119,22 @@ def test_process_writeH5_inputs():
     assert path_to_h5 == ['aaa.h5']
     assert objective_csd_array_indices == ['5:9','9:14']
 
+<<<<<<< HEAD
+=======
+@pytest.mark.skip_in_ci
+def test_getSimulationInfo(path_to_simconfig_with_output):
+    
+    _, nodeIds, _ = get_simulation_info(path_to_simconfig_with_output)
+            
+    assert nodeIds == 0
+
+@pytest.mark.skip_in_ci
+def test_get_report(path_to_simconfig_with_output):
+
+    population_name, _report = get_report(path_to_simconfig_with_output)
+    assert population_name == 'S1nonbarrel_neurons'
+
+>>>>>>> 065c165 (replace bluepysnap with libsonata)
 def test_getCircuitPath(path_to_simconfig_with_output,expected_circuit_path):
 
     assert getCircuitPath(path_to_simconfig_with_output)==expected_circuit_path
