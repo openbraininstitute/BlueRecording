@@ -1,6 +1,6 @@
 [project]
 name = "bluerecording"
-version = "0.2.1"
+version = "0.3.0"
 description = "A tool for calculating extracellular recording lead fields"
 requires-python = ">=3.10"
 dependencies = [
