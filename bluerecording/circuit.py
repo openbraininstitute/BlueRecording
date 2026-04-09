@@ -8,7 +8,7 @@ needed by both get_positions and write_weights.
 import libsonata
 import numpy as np
 
-from utils import get_node_population
+from .utils import get_node_population
 
 
 def init_circuit(path_to_simconfig: str):
