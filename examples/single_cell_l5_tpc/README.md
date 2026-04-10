@@ -34,7 +34,7 @@ bluerecording write_weights examples/single_cell_l5_tpc/simulation_config_near.j
 
 ## Running the Simulation
 
-To run the simulation you need NEURON compiled with [libsonatareport](https://github.com/openbraininstitute/libsonatareport) support. The NEURON installed by `setup.sh` is the PyPI wheel, which does not include libsonatareport.
+To run the simulation you need NEURON compiled with [libsonatareport](https://github.com/openbraininstitute/libsonatareport) support. The `setup.sh` script builds NEURON from source with this support.
 
 Once your environment is ready, run:
 
