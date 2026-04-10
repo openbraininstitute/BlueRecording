@@ -120,7 +120,7 @@ def create_neuron_file(path, electrodes=None, gids=GIDS, population=POPULATION_N
     path, h5 = create_electrode_file(path, electrodes, gids, population)
     sec_counts = make_sec_counts()
     h5file = h5py.File(path, "r+")
-    write_all_neuron(sec_counts, population, h5, h5file, electrodes)
+    write_all_neuron(sec_counts, population, h5file, electrodes)
     h5file.close()
     return path, h5
 

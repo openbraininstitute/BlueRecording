@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import sys
-from bluerecording.weights import initializeH5File
+from bluerecording.weights import initialize_h5_file
 
 if __name__=='__main__':
 
@@ -16,4 +16,4 @@ if __name__=='__main__':
 
     outputfile = sys.argv[3]
 
-    initializeH5File(path_to_simconfig,outputfile,electrode_csv)
+    initialize_h5_file(path_to_simconfig,outputfile,electrode_csv)

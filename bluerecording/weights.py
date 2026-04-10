@@ -25,94 +25,70 @@ DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
 class ElectrodeFileStructure(object):
 
-    '''
-    This class writes datasets to the h5 file
-    '''
+    """Write datasets to the HDF5 electrode file."""
 
     def __init__(self, h5, lst_ids, electrodes, population_name):
+        """Initialize electrode file structure and write metadata to HDF5.
 
-        '''
-        h5: h5 file returned by h5py.File(filename,'w')
-        lst_ids: node ids
-        electrodes: Dictionary with metadata about electrodes
-        population_name: Sonata population
-        '''
-
-
+        Args:
+            h5: HDF5 file handle returned by h5py.File(filename, 'w').
+            lst_ids: Node IDs.
+            electrodes: Dictionary with metadata about electrodes.
+            population_name: SONATA population name.
+        """
         dset = h5.create_dataset(population_name+"/node_ids", data=sorted(lst_ids))
 
-        index = 0
+        for index, (key, electrode) in enumerate(electrodes.items()):
+            h5.create_dataset("electrodes/" + str(key) + '/'+population_name,data=index)
 
-        ### Iterates through electrode dictionary to write metadata
-        for key, electrode in electrodes.items(): # Iterates through electrodes
-
-            h5.create_dataset("electrodes/" + str(key) + '/'+population_name,data=index) # Index of the column corresponding to this electrode in /electrodes/{population_name}/scaling_factors
-            index += 1
-
-            for item in electrode.items(): # Iterates through metadata fields for each electrode
-
-                if item[0] == 'type' and isinstance(item[1],dict): # If electrodetype is a dict produced by process_ObjectiveCSD(), write the real electrode type string and the metadata
-
+            for item in electrode.items():
+                if item[0] == 'type' and isinstance(item[1],dict):
                     dset = h5.create_dataset("electrodes/" + str(key) + '/' + item[0],
                                       data=item[1]['type'])
 
-                    for entry in item[1].items(): # Write parameters for objective calculation
-
+                    for entry in item[1].items():
                         if entry[0] !='type':
                             dset.attrs.create(entry[0],entry[1])
 
                 else:
-
                     h5.create_dataset("electrodes/" + str(key) + '/' + item[0],
                               data=item[1])
-        ####
 
         self._ids = np.array(lst_ids)
 
-    def file(self):
-        return h5py.File(self._fn, "r+")
-
-    def lengths(self, gid):
-        if gid not in self._ids:
-            raise AssertionError("gid not present")
-
-        return "lengths/" + str(int(gid))
-
-    def offsets(self,population_name):
-        return population_name+"/offsets"
-
-    def weights(self, population_name):
-
-        return '/electrodes/'+population_name+'/scaling_factors'
-
 def get_offsets(sectionIdsFrame):
+    """Compute per-node offsets into the flat segment array.
 
-    unique, counts = np.unique(sectionIdsFrame['id'].values,return_counts=True) # Unique node_ids and number of segments per node id
+    Returns an array where entry *i* is the index of the first segment
+    belonging to the *i*-th unique node ID.
+    """
+    _unique, counts = np.unique(sectionIdsFrame['id'].values,return_counts=True)
 
-    out_offsets = np.hstack((np.array([0]),np.cumsum(counts))) # Offset from start of list for each node id
+    out_offsets = np.hstack((np.array([0]),np.cumsum(counts)))
 
     return out_offsets
 
-def write_all_neuron(sectionIdsFrame, population_name, h5, file, electrode_struc):
+def write_all_neuron(sectionIdsFrame, population_name, h5file, electrode_struc):
+    """Initialize scaling_factors with ones and write per-node offsets.
 
-    file.create_dataset(h5.weights(population_name), data=np.ones([len(sectionIdsFrame['id'].values),len(electrode_struc.items())+1])) # Initializes /electrodes/{population_name}/scaling_factors with array of ones of size nSegments x (nElectrodes+1)
+    Creates a dataset of shape (nSegments, nElectrodes+1) filled with ones,
+    plus the offset array that maps each node to its range in scaling_factors.
+    """
+    h5file.create_dataset('/electrodes/'+population_name+'/scaling_factors', data=np.ones([len(sectionIdsFrame['id'].values),len(electrode_struc.items())+1]))
 
     out_offsets = get_offsets(sectionIdsFrame)
 
-    file.create_dataset(h5.offsets(population_name), data=out_offsets) # The offset for each node in the scaling_factors field
+    h5file.create_dataset(population_name+"/offsets", data=out_offsets)
 
 
-def makeElectrodeDict(electrode_csv):
-
-    '''
-    Reads electrode metadata from input csv file and writes it to a dictionary
-    '''
+def make_electrode_dict(electrode_csv):
+    """Read electrode metadata from a CSV file and return it as a dictionary."""
 
     electrode_df = pd.read_csv(electrode_csv,header=0,index_col=0)
 
     electrodes = {}
 
-    for i in range(len(electrode_df.values)): # Iterates through each electrode in array
+    for i in range(len(electrode_df.values)):
 
         name = electrode_df.index.values[i]
 
@@ -136,7 +112,7 @@ def makeElectrodeDict(electrode_csv):
 
             if 'ObjectiveCSD' in electrodeType:
 
-                electrodeType = process_objectiveCSD(electrodeType) # Returns a dict containing parameters for objective CSD electrodes
+                electrodeType = process_objectiveCSD(electrodeType)
 
         else:
             electrodeType = 'LineSource'
@@ -148,7 +124,7 @@ def makeElectrodeDict(electrode_csv):
     return electrodes
 
 def check_input_type_objectiveCSD(objectiveType,input):
-
+    """Validate the numerical parameters for an objective CSD electrode type."""
     if objectiveType == 'ObjectiveCSD_Sphere' or objectiveType == 'ObjectiveCSD_Plane':
         try:
             assert len(input) == 3
@@ -171,17 +147,17 @@ def check_input_type_objectiveCSD(objectiveType,input):
     return 0
 
 def process_objectiveCSD(electrodeType):
+    """Process an objective CSD electrode type string.
 
-    '''
-    If the electrode is one of the objective CSD electrodes, this function processes the input string to determine the radius (for a sphere) or thickness (for disk and plane) and diameter (for disk)
-    If these items are provided, returns them in a dict
-    If these items aren't provided, then returns the electrode type as a string
+    Parses the electrode type to extract geometry parameters (radius,
+    thickness) when provided. Returns a dict with the parameters, or
+    the plain type string for backwards compatibility.
 
-    electrodeType is of format objectveCSD_CalculationMethod, objectveCSD_CalculationMethod_X, or objectveCSD_Disk_X_Y
-    if calculationMethod == Sphere, X == radius, in um
-    If calculationMethod == Plane, X == thickness, in um
-    if calculationMethod == Disk, X == radius, Y == thickess, both in um
-    '''
+    Format: ``ObjectiveCSD_Method[_X[_Y]]``
+      - Sphere: X = radius (um)
+      - Plane:  X = thickness (um)
+      - Disk:   X = radius (um), Y = thickness (um)
+    """
 
 
     input = electrodeType.split('_')
@@ -222,19 +198,19 @@ def process_objectiveCSD(electrodeType):
 
         return objectiveDict
 
-def initializeH5File(cols, population_name, outputfile, electrode_csv):
+def initialize_h5_file(cols, population_name, outputfile, electrode_csv):
+    """Initialize the HDF5 electrode weights file on rank 0.
 
-    '''
-    Initializes the H5 electrode weights file on rank 0.
+    Gathers rank-local cols via MPI, builds the global structure, and
+    writes electrode metadata and offsets. The file is closed before
+    returning.
 
-    Gathers rank-local cols via MPI, builds the global structure, and writes
-    electrode metadata + offsets. The file is closed before returning.
-
-    cols: rank-local (N, 2) int64 array of (gid, section) pairs
-    population_name: SONATA population name
-    outputfile: path to the output H5 file
-    electrode_csv: path to the electrode CSV file
-    '''
+    Args:
+        cols: Rank-local (N, 2) int64 array of (gid, section) pairs.
+        population_name: SONATA population name.
+        outputfile: Path to the output HDF5 file.
+        electrode_csv: Path to the electrode CSV file.
+    """
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -248,7 +224,7 @@ def initializeH5File(cols, population_name, outputfile, electrode_csv):
 
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
 
-        electrodes = makeElectrodeDict(electrode_csv)
+        electrodes = make_electrode_dict(electrode_csv)
 
         h5file = h5py.File(outputfile, 'w')
 
@@ -260,7 +236,7 @@ def initializeH5File(cols, population_name, outputfile, electrode_csv):
 
         h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name)
 
-        write_all_neuron(section_ids_frame, population_name, h5, h5file, electrodes)
+        write_all_neuron(section_ids_frame, population_name, h5file, electrodes)
 
         h5file.close()
 
@@ -271,38 +247,41 @@ def initializeH5File(cols, population_name, outputfile, electrode_csv):
 # Weight computation (formerly writeH5.py)
 # ---------------------------------------------------------------------------
 
-def add_data(h5, ids, coeffs ,population_name):
+def add_data(h5, ids, coeffs, population_name):
+    """Write computed coefficients into the scaling_factors dataset.
 
-
-
+    Looks up each node's offset range and writes the corresponding
+    coefficient rows into the HDF5 dataset.
+    """
     dset = 'electrodes/'+population_name+'/scaling_factors'
 
     node_ids = h5[population_name+'/node_ids'][:]
 
     isInInput = np.isin(node_ids,ids)
-    nodesInInput = node_ids[isInInput] # This contains the same values as the variable ids, but in the order as in node_ids
+    nodesInInput = node_ids[isInInput]
     idIndex = np.where(isInInput)[0]
 
-    offset0 = h5[population_name+'/offsets'][idIndex] # Finds offset in  'electrodes/'+population_name+'/scaling_factors' for this particular node id
+    offset0 = h5[population_name+'/offsets'][idIndex]
 
     offset1 = np.zeros_like(offset0)
 
     if np.any(idIndex ==  len(h5[population_name+'/offsets'][:])-1):
 
         lastNodeIdx =  np.where(idIndex == len(h5[population_name+'/offsets'][:])-1)[0]
-        offset1[lastNodeIdx] = len(h5[dset][:]) # If this is the last node in the list, we write the coefficients up to the end of the coefficient array
+        offset1[lastNodeIdx] = len(h5[dset][:])
 
     notLastNodeIdx = np.where(idIndex != len(h5[population_name+'/offsets'][:])-1)[0]
-    offset1[notLastNodeIdx] =  h5[population_name+'/offsets'][idIndex[notLastNodeIdx]+1] # Otherwise, we write up to the offset for the next node
+    offset1[notLastNodeIdx] =  h5[population_name+'/offsets'][idIndex[notLastNodeIdx]+1]
 
     for i, id in enumerate(nodesInInput):
-
 
         h5[dset][offset0[i]:offset1[i],:-1] = coeffs.loc[:,id].values.T
 
 def line_source_cases(h,r2,l):
+    """Return the line-source potential term for the given geometry case.
 
-
+    Selects the appropriate formula depending on the signs of h and l.
+    """
     if h < 0 and l < 0:
 
         lineSourceTerm = np.log(((h**2+r2)**.5-h)/((l**2+r2)**.5-l))
@@ -319,17 +298,17 @@ def line_source_cases(h,r2,l):
     return lineSourceTerm
 
 def get_line_coeffs(startPos,endPos,electrodePos,sigma):
+    """Compute the line-source coefficient for a single segment.
 
-    '''
-    startPos and endPos are the starting and ending positions of the segment
-    sigma is the extracellular conductivity
-    '''
-
-    ### Convert from um to m
+    Args:
+        startPos: Starting position of the segment (um).
+        endPos: Ending position of the segment (um).
+        electrodePos: Electrode position (um).
+        sigma: Extracellular conductivity (S/m).
+    """
     startPos = startPos * 1e-6
     endPos = endPos * 1e-6
     electrodePos = electrodePos * 1e-6
-    ###
 
     segLength = np.linalg.norm(startPos-endPos)
 
@@ -359,26 +338,30 @@ def get_line_coeffs(startPos,endPos,electrodePos,sigma):
 
     segCoeff = 1/(4*np.pi*sigma*segLength)*lineSourceTerm
 
-    segCoeff *= 1e-9 # Convert from nA to A
+    segCoeff *= 1e-9
 
     return segCoeff
 
 
 def get_coeffs_lineSource(positions,columns,electrodePos,sigma):
+    """Compute line-source coefficients for all segments.
 
+    Soma segments are treated as point sources; other segments use the
+    line-source approximation between consecutive position endpoints.
+    """
     for i in range(len(positions.columns)-1):
 
-        if positions.columns[i][-1]==0: # Implies that it is a soma
+        if positions.columns[i][-1]==0:
 
             somaPos = positions.iloc[:,i]
 
             distance = np.linalg.norm(somaPos-electrodePos)
 
-            distance *= 1e-6 # Converts from um to m
+            distance *= 1e-6
 
-            somaCoeff = 1/(4*np.pi*sigma*distance) # We treat the soma as a point, so the contribution at the electrode follows the formula for the potential from a point source
+            somaCoeff = 1/(4*np.pi*sigma*distance)
 
-            somaCoeff *= 1e-9 # Converts from nA to A
+            somaCoeff *= 1e-9
 
             if i == 0:
                 coeffs = somaCoeff
@@ -386,7 +369,7 @@ def get_coeffs_lineSource(positions,columns,electrodePos,sigma):
 
                 coeffs = np.hstack((coeffs,somaCoeff))
 
-        elif positions.columns[i][-1]==positions.columns[i+1][-1]: # Ensures we are not at the far end of a section
+        elif positions.columns[i][-1]==positions.columns[i+1][-1]:
 
             segCoeff = get_line_coeffs(positions.iloc[:,i],positions.iloc[:,i+1],electrodePos,sigma)
 
@@ -400,14 +383,18 @@ def get_coeffs_lineSource(positions,columns,electrodePos,sigma):
     return coeffs
 
 def get_coeffs_pointSource(positions,electrodePos,sigma):
+    """Compute point-source coefficients for all segments.
 
+    Each segment is treated as a point source. Distances are converted
+    from um to m and currents from nA to A.
+    """
     distances = np.linalg.norm(positions.values-electrodePos[:,np.newaxis],axis=0)
 
-    distances *= 1e-6 # Converts from um to m
+    distances *= 1e-6
 
     coeffs = 1/(4*np.pi*sigma*distances)
 
-    coeffs *= 1e-9 # Converts from nA to A
+    coeffs *= 1e-9
 
     coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
 
@@ -415,33 +402,40 @@ def get_coeffs_pointSource(positions,electrodePos,sigma):
 
     return coeffs
 
-def getArraySpacing(allEpos):
+def get_array_spacing(allEpos):
+    """Compute the main axis and inter-electrode spacing of an array.
 
-    ### Finds main axis of electrode array
+    Uses PCA to find the principal axis, projects electrode positions
+    onto it, and returns the axis and the spacing between consecutive
+    projections (ignoring co-planar electrodes).
+    """
     pca = PCA(n_components=1)
     pca.fit(allEpos)
     main_axis = pca.components_[0]/np.linalg.norm(pca.components_[0])
     main_axis = main_axis[:,np.newaxis]
-    ###
 
     allEpos_projected = np.matmul(allEpos,main_axis).flatten()
 
     arraySpacing = np.abs(np.diff(allEpos_projected))
 
-    arraySpacing = arraySpacing[arraySpacing >1e-3] # removes zeros in order to not take into account electrodes on the same plane
+    arraySpacing = arraySpacing[arraySpacing >1e-3]
 
     return main_axis, arraySpacing
 
 def get_coeffs_objectiveCSD_Sphere(positions,electrodePos,allEpos,radius=None):
+    """Compute objective CSD coefficients using a spherical region.
 
-    _, arraySpacing = getArraySpacing(allEpos)
+    A segment's coefficient is 1 if it lies within the given radius
+    of the electrode, 0 otherwise. Default radius is 10 um.
+    """
+    _, arraySpacing = get_array_spacing(allEpos)
 
     if radius is None:
-        radius = 10 # Default value of 10 um
+        radius = 10
 
-    distances = np.linalg.norm(positions.values-electrodePos[:,np.newaxis],axis=0) # in microns
+    distances = np.linalg.norm(positions.values-electrodePos[:,np.newaxis],axis=0)
 
-    coeffs = np.array((distances <= radius).astype(int)) # Coeff is 1 if segment is within radius, zero otherwise
+    coeffs = np.array((distances <= radius).astype(int))
 
     coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
 
@@ -451,15 +445,20 @@ def get_coeffs_objectiveCSD_Sphere(positions,electrodePos,allEpos,radius=None):
 
 
 def get_coeffs_objectiveCSD_Plane(compartment_positions,electrodePos,allEpos,planeThickness=None):
+    """Compute objective CSD coefficients using an infinite plane.
 
-    main_axis, arraySpacing = getArraySpacing(allEpos)
+    A segment's coefficient is 1 if its axial distance from the electrode
+    plane is within the thickness, 0 otherwise. If no thickness is given,
+    it is estimated from the inter-electrode spacing.
+    """
+    main_axis, arraySpacing = get_array_spacing(allEpos)
 
-    if planeThickness is None: # If no value provided, estimates value from spacing between electrodes
-        planeThickness = getThickness(arraySpacing) # Assumes that all electrodes are evenly spaced. TODO: Relax this assumption
+    if planeThickness is None:
+        planeThickness = get_thickness(arraySpacing)
 
     axialDistances, _ = distances_in_planar_coords(compartment_positions,electrodePos,main_axis)
 
-    coeffs = np.array((axialDistances <= planeThickness).astype(int)).flatten() ### Coeff is 1 if segment is within infinite plane, zero otherwise
+    coeffs = np.array((axialDistances <= planeThickness).astype(int)).flatten()
 
     coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
 
@@ -467,15 +466,13 @@ def get_coeffs_objectiveCSD_Plane(compartment_positions,electrodePos,allEpos,pla
 
     return coeffs
 
-def getThickness(arraySpacing):
-
-    # Given the spacing between electrodes in an array, calculates the thickness for objective plane and objective disk
-
+def get_thickness(arraySpacing):
+    """Estimate plane/disk thickness as half the mean electrode spacing."""
     return np.abs(np.mean(arraySpacing)/2)
 
 def calculate_axial_vectors(axialDistances,main_axis):
-
-    axialVectors = main_axis.T # Size 1x3
+    """Build per-compartment axial displacement vectors along the main axis."""
+    axialVectors = main_axis.T
     for i in range(len(axialDistances)-1):
         axialVectors = np.vstack((axialVectors,main_axis.T))
 
@@ -485,45 +482,45 @@ def calculate_axial_vectors(axialDistances,main_axis):
 
 
 def distances_in_planar_coords(compartment_positions, electrodePos, main_axis):
+    """Decompose compartment positions into axial and radial distances.
 
-    '''
-    For a disk or plane perpendicular to main_axis, returns the axial and radial coordinates of each of the compartment positions
-    '''
-
-    ### Projects compartment positions onto plane, containing the point electrodePos, normal to electrode array
+    Projects each compartment's displacement from the electrode onto the
+    array's main axis (axial) and the perpendicular plane (radial).
+    """
     differenceVectors = compartment_positions.values - electrodePos[:,np.newaxis]
 
-    axialDistances = np.matmul(differenceVectors.T,main_axis) # Size len(compartment_positions)x1
+    axialDistances = np.matmul(differenceVectors.T,main_axis)
 
-    axialVectors = calculate_axial_vectors(axialDistances,main_axis) # Projection of diffence vector onto the main axis of the electrode array
+    axialVectors = calculate_axial_vectors(axialDistances,main_axis)
 
     radialVectors = differenceVectors - axialVectors.T
 
-    radialDistances = np.linalg.norm(radialVectors,axis=0) # in microns
+    radialDistances = np.linalg.norm(radialVectors,axis=0)
 
     return np.abs(axialDistances), radialDistances
 
 
 def get_coeffs_objectiveCSD_Disk(compartment_positions,electrodePos,allEpos,radius=None,diskThickness=None):
+    """Compute objective CSD coefficients using a disk region.
 
+    A segment's coefficient is 1 if it lies within both the disk radius
+    and thickness, 0 otherwise. Default radius is 500 um; thickness is
+    estimated from electrode spacing if not provided.
+    """
     if radius is None:
-        radius = 500 # Default radius of 500 um
+        radius = 500
 
-    main_axis, arraySpacing = getArraySpacing(allEpos)
+    main_axis, arraySpacing = get_array_spacing(allEpos)
 
-    if diskThickness is None: # If no disk thickness provided, estimate value from spacing between electrodes
-        diskThickness = getThickness(arraySpacing) # Assumes that all electrodes are evenly spaced. TODO: Relax this assumption
+    if diskThickness is None:
+        diskThickness = get_thickness(arraySpacing)
 
     axialDistances, radialDistances = distances_in_planar_coords(compartment_positions,electrodePos,main_axis)
 
-    ###
-
-    ### Coeff is 1 if segment is within disk, zero otherwise
     coeffs1 = np.array((radialDistances <= radius).astype(int)).flatten()
     coeffs2 = np.array((axialDistances <= diskThickness).astype(int)).flatten()
 
     coeffs = coeffs1 * coeffs2
-    ###
 
     coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
 
@@ -531,18 +528,20 @@ def get_coeffs_objectiveCSD_Disk(compartment_positions,electrodePos,allEpos,radi
 
     return coeffs
 
-def geth5Dataset(h5f, group_name, dataset_name):
-    """
-    Find and get dataset from h5 file.
-    out = geth5Dataset(h5f, group_name, dataset_name)
-    h5f - string - h5 file path and name
-    group_name - string - where to initiate search, '/' for root
-    dataset_name - string - dataset to be found
-    return - numpy array
+def get_h5_dataset(h5f, group_name, dataset_name):
+    """Find and return a dataset from an HDF5 file.
+
+    Args:
+        h5f: Path to the HDF5 file.
+        group_name: Group to search from (``'/'`` for root).
+        dataset_name: Name of the dataset to find.
+
+    Returns:
+        numpy.ndarray: The dataset contents.
     """
 
     def find_dataset(name):
-        """ Find first object with dataset_name anywhere in the name """
+        """Find first object with dataset_name anywhere in the name."""
         if dataset_name in name:
             return name
 
@@ -551,43 +550,42 @@ def geth5Dataset(h5f, group_name, dataset_name):
         return f[group_name + '/' + k][()]
 
 def get_coeffs_dipoleReciprocity(compartment_positions, path_to_fields,center):
+    """Compute dipole-reciprocity coefficients from a Sim4Life E-field file.
 
-    '''
-    path_to_fields is the path to the h5 file containing the potential field, outputted from Sim4Life
-    '''
+    Interpolates the E-field at the neural center and computes the
+    transfer coefficient for each compartment via the dipole approximation.
 
-
+    Args:
+        compartment_positions: DataFrame of segment positions (um).
+        path_to_fields: Path to the HDF5 file with the E-field.
+        center: Center of the neuron population.
+    """
     positionColumns = compartment_positions.columns
     compartment_positions = compartment_positions.values
-
-
-    # Get new output file potential field
 
     with h5py.File(path_to_fields, 'r') as f:
         for i in f['FieldGroups']:
             tmp = 'FieldGroups/' + i + '/AllFields/EM E(x,y,z,f0)/_Object/Snapshots/0/'
 
-        Ex = geth5Dataset(path_to_fields, tmp, 'comp0')
-        Ey = geth5Dataset(path_to_fields, tmp, 'comp1')
-        Ez = geth5Dataset(path_to_fields, tmp, 'comp2')
+        Ex = get_h5_dataset(path_to_fields, tmp, 'comp0')
+        Ey = get_h5_dataset(path_to_fields, tmp, 'comp1')
+        Ez = get_h5_dataset(path_to_fields, tmp, 'comp2')
 
         for i in f['Meshes']:
             tmp = 'Meshes/'+i
             break
-        x = geth5Dataset(path_to_fields, tmp, 'axis_x')
-        y = geth5Dataset(path_to_fields, tmp, 'axis_y')
-        z = geth5Dataset(path_to_fields, tmp, 'axis_z')
+        x = get_h5_dataset(path_to_fields, tmp, 'axis_x')
+        y = get_h5_dataset(path_to_fields, tmp, 'axis_y')
+        z = get_h5_dataset(path_to_fields, tmp, 'axis_z')
 
-        ### E field is cell-centered, so we need to take midpoints of mesh
         xCenter = (x[:-1]+x[1:])/2
         yCenter = (y[:-1]+y[1:])/2
         zCenter = (z[:-1]+z[1:])/2
-        ####
 
-        currentApplied = f['CurrentApplied'][()] # The potential field should have a current, but if not, just assume it is 1
+        currentApplied = f['CurrentApplied'][()]
 
 
-    compartment_positions = compartment_positions * 1e-6 # Converts um to m, to match the potential field file
+    compartment_positions = compartment_positions * 1e-6
 
     center = center * 1e-6
 
@@ -598,45 +596,45 @@ def get_coeffs_dipoleReciprocity(compartment_positions, path_to_fields,center):
     InterpFcnY = RegularGridInterpolator((x, yCenter, z), Ey[:, :, :, 0], method='linear')
     InterpFcnZ = RegularGridInterpolator((x, y, zCenter), Ez[:, :, :, 0], method='linear')
 
-    XComp = InterpFcnX(center)[np.newaxis]  # Interpolate E field at location of neural center
+    XComp = InterpFcnX(center)[np.newaxis]
 
-    YComp = InterpFcnY(center)[np.newaxis]  # Interpolate E field at location of neural center
+    YComp = InterpFcnY(center)[np.newaxis]
 
-    ZComp = InterpFcnZ(center)[np.newaxis]  # Interpolate E field at location of neural center
+    ZComp = InterpFcnZ(center)[np.newaxis]
 
 
     out2rat = compartment_positions_New[0]*XComp + compartment_positions_New[1]*YComp + compartment_positions_New[2]*ZComp
 
 
-    outdf = pd.DataFrame(data=(-out2rat / currentApplied), columns=positionColumns) # Scale potential field by applied current
+    outdf = pd.DataFrame(data=(-out2rat / currentApplied), columns=positionColumns)
 
     return outdf
 
 def get_coeffs_reciprocity(compartment_positions, path_to_fields):
+    """Compute reciprocity coefficients from a Sim4Life potential field.
 
-    '''
-    path_to_fields is the path to the h5 file containing the potential field, outputted from Sim4Life
-    path_to_positions is the path to the output from the position-finding script
-    '''
+    Interpolates the potential at each compartment position and scales
+    by the applied current.
 
-    # Get new output file potential field
+    Args:
+        compartment_positions: DataFrame of segment positions (um).
+        path_to_fields: Path to the HDF5 file with the potential field.
+    """
 
     with h5py.File(path_to_fields, 'r') as f:
         for i in f['FieldGroups']:
             tmp = 'FieldGroups/' + i + '/AllFields/EM Potential(x,y,z,f0)/_Object/Snapshots/0/'
-        pot = geth5Dataset(path_to_fields, tmp, 'comp0')
+        pot = get_h5_dataset(path_to_fields, tmp, 'comp0')
         for i in f['Meshes']:
             tmp = 'Meshes/'+i
             break
-        x = geth5Dataset(path_to_fields, tmp, 'axis_x')
-        y = geth5Dataset(path_to_fields, tmp, 'axis_y')
-        z = geth5Dataset(path_to_fields, tmp, 'axis_z')
+        x = get_h5_dataset(path_to_fields, tmp, 'axis_x')
+        y = get_h5_dataset(path_to_fields, tmp, 'axis_y')
+        z = get_h5_dataset(path_to_fields, tmp, 'axis_z')
 
+        currentApplied = f['CurrentApplied'][()]
 
-        currentApplied = f['CurrentApplied'][()] # The potential field should have a current, but if not, just assume it is 1
-
-
-    compartment_positions *= 1e-6 # Converts um to m, to match the potential field file
+    compartment_positions *= 1e-6
 
     xSelect = compartment_positions.values[0]
     ySelect = compartment_positions.values[1]
@@ -648,46 +646,43 @@ def get_coeffs_reciprocity(compartment_positions, path_to_fields):
 
     InterpFcn = RegularGridInterpolator((x, y, z), pot[:, :, :, 0], method='linear')
 
-    out2rat = InterpFcn(selections)[np.newaxis]  # Interpolate potential field at location of neural segments
+    out2rat = InterpFcn(selections)[np.newaxis]
 
-
-    outdf = pd.DataFrame(data=(out2rat / currentApplied), columns=compartment_positions.columns) # Scale potential field by applied current
+    outdf = pd.DataFrame(data=(out2rat / currentApplied), columns=compartment_positions.columns)
 
     return outdf
 
-def getNeuronSegmentMidpts(position):
-    '''
-    Gets midpoints for a single neuron
-    '''
+def get_neuron_segment_midpts(position):
+    """Compute segment midpoints for a single neuron."""
 
 
     secIds = np.array(list(position.columns))[:,1]
     uniqueSecIds = np.unique(secIds)
 
-    for sId in uniqueSecIds: # Iterates through sections
+    for sId in uniqueSecIds:
 
         pos = position.iloc[:,np.where(sId == secIds)[0]]
 
-        if sId == 0: # Implies that section is a soma, so we just take the position from the file
+        if sId == 0:
 
             newPos = pos
 
-        elif np.shape(pos.values)[-1] == 1: # If there is only one point in the section, we just take the value
+        elif np.shape(pos.values)[-1] == 1:
             newPos = pd.concat((newPos,pos),axis=1)
 
-        else: # We take the midpoints of the values in the file, which are the endpoints of the segments
+        else:
             pos = (pos.iloc[:,:-1]+pos.iloc[:,1:])/2
 
             newPos = pd.concat((newPos,pos),axis=1)
 
     return newPos
 
-def getSegmentMidpts(positions,node_ids):
-
+def get_segment_midpts(positions,node_ids):
+    """Compute segment midpoints for all neurons in the position DataFrame."""
     newPos = (
     positions.T
         .groupby(level=0, group_keys=False)
-        .apply(lambda g: getNeuronSegmentMidpts(g.T).T)
+        .apply(lambda g: get_neuron_segment_midpts(g.T).T)
         .T
     )
 
@@ -696,10 +691,10 @@ def getSegmentMidpts(positions,node_ids):
 
 
 def sort_electrode_names(electrodeKeys,population_name):
-
+    """Return electrode names sorted, excluding the population's scaling_factors key."""
     electrodeNames = np.array(list(electrodeKeys))
 
-    electrodeNames = electrodeNames[np.where(electrodeNames!=population_name)] # The field /electrodes/{population_name} contains the scaling factors, not the metadata
+    electrodeNames = electrodeNames[np.where(electrodeNames!=population_name)]
 
     electrode_list = []
 
@@ -717,16 +712,20 @@ def sort_electrode_names(electrodeKeys,population_name):
 
     return electrode_list
 
-def ElectrodeType(electrodeType):
-
+def electrode_type(electrodeType):
+    """Validate that the electrode type is recognized."""
     if electrodeType == 'LineSource' or electrodeType == 'PointSource' or electrodeType == 'DipoleReciprocity' or electrodeType == 'Reciprocity' or electrodeType == 'ObjectiveCSD_Sphere' or electrodeType == 'ObjectiveCSD_Disk' or electrodeType == 'ObjectiveCSD_Plane':
         return 0
     else:
         raise AssertionError("Electrode type not recognized")
 
 def get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCSD_count,electrodeNames, h5, electrodeIdx):
+    """Determine which electrodes belong to the objective CSD array.
 
-    if objective_csd_array_indices is None: # Assume all electrodes of given type are used to calculate CSD
+    If no explicit indices are given, all electrodes matching the type
+    are used. Otherwise the provided subsampling indices are applied.
+    """
+    if objective_csd_array_indices is None:
 
         allTypes = []
         for electrode in electrodeNames:
@@ -746,14 +745,18 @@ def get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCS
 
     return arrayIdx, objectiveCSD_count
 
-def writeH5File(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None):
+def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None):
+    """Compute and write electrode coefficients to the HDF5 weights file.
 
-    '''
-    positions is the DataFrame of segment boundary positions (output of get_positions)
-    cols is the (N, 2) array of (gid, section) pairs describing every compartment on this rank
-    population_name is the SONATA population name
-    outputfile is the h5 file containing the compartment weights
-    '''
+    Args:
+        positions: DataFrame of segment boundary positions.
+        cols: (N, 2) array of (gid, section) pairs for this rank.
+        population_name: SONATA population name.
+        outputfile: Path to the HDF5 weights file.
+        sigma: Extracellular conductivity value(s) in S/m.
+        path_to_fields: Path(s) to potential/E-field files for reciprocity.
+        objective_csd_array_indices: Subsampling indices for objective CSD.
+    """
 
     if sigma is None:
         sigma = [DEFAULT_SIGMA]
@@ -776,20 +779,18 @@ def writeH5File(positions, cols, population_name, outputfile, sigma=None, path_t
 
     electrodeNames = sort_electrode_names(h5['electrodes'].keys(),population_name)
 
-    reciprocityIdx = 0 # Keeps track of number of non-analytical electrodes
-    sigmaIdx = 0 # Keeps track of number of analytical electrodes
-    objectiveCSD_count = 0 # Keeps track of number of objective CSD electrodes
+    reciprocityIdx = 0
+    sigmaIdx = 0
+    objectiveCSD_count = 0
 
     for electrodeIdx, electrode in enumerate(electrodeNames):
 
+        epos = h5['electrodes'][str(electrode)]['position'][:]
 
-        epos = h5['electrodes'][str(electrode)]['position'][:] # Gets position for each electrode
-
-
-        electrodeType = h5['electrodes'][str(electrode)]['type'][()].decode() # Gets type for each electrode
+        electrodeType = h5['electrodes'][str(electrode)]['type'][()].decode()
 
 
-        ElectrodeType(electrodeType)
+        electrode_type(electrodeType)
 
         if electrodeType == 'LineSource':
 
@@ -800,7 +801,7 @@ def writeH5File(positions, cols, population_name, outputfile, sigma=None, path_t
 
         else:
 
-            newPositions = getSegmentMidpts(positions,node_ids) # For other methods, we need the segment centers, not the endpoints
+            newPositions = get_segment_midpts(positions,node_ids) # For other methods, we need the segment centers, not the endpoints
 
 
             if electrodeType == 'PointSource':
@@ -814,7 +815,7 @@ def writeH5File(positions, cols, population_name, outputfile, sigma=None, path_t
 
                 arrayIdx, objectiveCSD_count = get_objectiveCSD_array(electrodeType, objective_csd_array_indices, objectiveCSD_count, electrodeNames, h5, electrodeIdx)
 
-                allEpos = [] # List of electrode positions used to calculate CSD
+                allEpos = []
 
                 for e in electrodeNames[arrayIdx]:
                     allEpos.append( h5['electrodes'][str(e)]['position'][:] )

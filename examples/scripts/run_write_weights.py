@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import sys
 import pandas as pd
-from bluerecording.weights import writeH5File
+from bluerecording.weights import write_h5_file
 from bluerecording.utils import process_writeH5_inputs
 
 if __name__=='__main__':
@@ -18,4 +18,4 @@ if __name__=='__main__':
     # Radius is the radius to be used for the objective csd calculation
     sigma, path_to_fields, objectiveCsdIdx = process_writeH5_inputs(sys.argv)
     
-    writeH5File(path_to_simconfig,segment_position_folder,outputfile,neurons_per_file,numFilesPerFolder,sigma,path_to_fields,objectiveCsdIdx)
+    write_h5_file(path_to_simconfig,segment_position_folder,outputfile,neurons_per_file,numFilesPerFolder,sigma,path_to_fields,objectiveCsdIdx)
