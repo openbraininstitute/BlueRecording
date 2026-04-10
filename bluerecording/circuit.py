@@ -7,7 +7,6 @@ needed by both get_positions and write_weights.
 """
 import bluepysnap as bp
 import libsonata
-import neurodamus
 import numpy as np
 
 
@@ -26,6 +25,10 @@ def init_circuit(path_to_simconfig: str):
             resolution.
         population_name: Name of the SONATA node population.
     """
+    # Lazy import: neurodamus pulls in NEURON, which is not available
+    # in lightweight installs (e.g. CI with --quick).
+    import neurodamus
+
     nd = neurodamus.Neurodamus(
         path_to_simconfig,
         disable_reports=True,
