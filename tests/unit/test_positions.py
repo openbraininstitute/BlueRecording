@@ -173,7 +173,6 @@ def test_single_cell_get_positions(tmp_path):
 
 
 @pytest.mark.skip_in_ci
-@pytest.mark.slow
 def test_circuit_get_positions(tmp_path):
     """Test get_positions for sscx_100_cells."""
     simconfig = "examples/sscx_100_cells/simulation_config.json"
