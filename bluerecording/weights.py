@@ -19,33 +19,34 @@ from .utils import *
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
 
-def resolve_neurite_types(cols_for_gid, morphology):
-    """Return an int array of neurite types for one neuron's compartments.
+def resolve_neurite_types(cols_for_gid, cell):
+    """Return an int array of neurite-type codes for one neuron's compartments.
+
+    Queries the actual NEURON section via ``cell.get_sec()`` and maps the
+    section-type string (e.g. ``"soma"``, ``"axon"``, ``"myelin"``) to its
+    index in ``neurodamus.metype.BaseCell.SECTION_TYPES``.  This reflects
+    the simulator's SectionList membership rather than the coarser MorphIO
+    classification, and automatically picks up any future types added to
+    neurodamus.
 
     Args:
         cols_for_gid: (M, 2) array of (gid, section_index) pairs for this neuron.
-        morphology: morphio.Morphology object for this neuron.
+        cell: Neurodamus cell object (e.g. ``Cell_V6``).
 
     Returns:
-        (M,) int32 array where each element is a neurite type code derived
-        from MorphIO's ``SectionType`` enum (axon=2, basal_dendrite=3,
-        apical_dendrite=4).  Soma (section_index 0) is assigned 0 by
-        convention — MorphIO uses 1 for ``SECTION_SOMA``, but the NEURON
-        compartment model treats section 0 as soma, so we use 0 here to
-        distinguish it clearly.
+        (M,) int32 array where each element is the index into
+        ``BaseCell.SECTION_TYPES`` for that compartment's section.
     """
+    from neurodamus.metype import BaseCell
+
+    type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
+
     section_indices = cols_for_gid[:, 1]
-    n_sections = len(morphology.sections)
     result = np.empty(len(section_indices), dtype=np.int32)
     for i, sec_idx in enumerate(section_indices):
-        if sec_idx == 0:
-            result[i] = 0  # soma
-        else:
-            morphio_idx = sec_idx - 1
-            if morphio_idx < n_sections:
-                result[i] = int(morphology.sections[morphio_idx].type)
-            else:
-                result[i] = 2  # stub axon fallback
+        sec = cell.get_sec(int(sec_idx))
+        sec_type = sec.name().rsplit(".", 1)[-1].rsplit("[", 1)[0]
+        result[i] = type_to_code[sec_type]
     return result
 
 # ---------------------------------------------------------------------------

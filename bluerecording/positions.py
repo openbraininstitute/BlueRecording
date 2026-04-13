@@ -504,7 +504,7 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
         cols_for_gid = cols[cols[:, 0] == i]
-        neurite_type_arrays.append(resolve_neurite_types(cols_for_gid, m))
+        neurite_type_arrays.append(resolve_neurite_types(cols_for_gid, cell))
 
     if not cell_arrays:
         empty_idx = pd.MultiIndex.from_tuples([], names=["id", "section"])
