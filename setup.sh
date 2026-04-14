@@ -34,7 +34,7 @@ for arg in "$@"; do
             echo "  --no-system   Skip system package installation"
             echo "  --data        Download and unpack datasets"
             echo "  --no-cache    Remove venv, cloned repos, and build artifacts (keeps data)"
-            echo "  --quick       Skip NEURON, libsonatareport, and neurodamus-models builds"
+            echo "  --quick       Skip NEURON, libsonatareport, neurodamus, and neurodamus-models builds"
             echo "  --help, -h    Show this help message"
             return 0 2>/dev/null || exit 0
             ;;

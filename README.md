@@ -26,7 +26,7 @@ source setup.sh --dev
 
 If you want to skip the system packages installation append `--no-system` to the previous lines.
 
-Use `--quick` to skip building NEURON, libsonatareport, and neurodamus-models from source (useful for CI or when you only need the Python package):
+Use `--quick` to skip building NEURON, libsonatareport, neurodamus, and neurodamus-models from source (useful for CI or when you only need the Python package):
 
 ```bash
 source setup.sh --dev --quick
@@ -115,7 +115,7 @@ pytest -v -m "not skip_in_ci" tests/unit
 
 This is also what runs in CI, where we avoid downloading the full test data to keep pipelines fast and lightweight.
 
-> **Note:** If you installed with the `--quick` flag (i.e. `source setup.sh --dev --quick`), NEURON, neurodamus, and libsonatareport are not available. In that case only the non-MPI unit tests can run:
+> **Note:** If you installed with the `--quick` flag (i.e. `source setup.sh --dev --quick`), NEURON, neurodamus, libsonatareport, and neurodamus-models are not available. In that case only the non-MPI unit tests can run:
 > ```bash
 > pytest -v -m "not skip_in_ci" tests/unit
 > ```
