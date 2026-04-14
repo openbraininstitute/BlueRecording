@@ -1,10 +1,13 @@
 # Make CSV Files
+
+> **TODO:** This example is in the process of getting updated to work with the new `sscx_100_cells` setup and the `bluerecording` CLI. Instructions below may be incomplete or outdated.
+
 This repo contains an example of a script that generates an electrode csv file for a Neuropixels probe aligned with the central column of the BBP somatosensory cortex model. 
 
 ## Instructions
 
-### Download data
-Download the data required in the [sscx_100_cells](https://github.com/BlueBrain/BlueRecording/blob/main/examples/sscx_100_cells/README.md) example
+### Prerequisites
+Follow the setup in [sscx_100_cells](../sscx_100_cells/README.md) to download data and install dependencies.
 
 ### Run
-To run this example, first run *launch.sh* in the *../sscx_100_cells/* folder. Then, run *WriteNPCSV.sh*
+Run *WriteNPCSV.sh*
