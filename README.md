@@ -115,6 +115,12 @@ pytest -v -m "not skip_in_ci" tests/unit
 
 This is also what runs in CI, where we avoid downloading the full test data to keep pipelines fast and lightweight.
 
+> **Note:** If you installed with the `--quick` flag (i.e. `source setup.sh --dev --quick`), NEURON, neurodamus, and libsonatareport are not available. In that case only the non-MPI unit tests can run:
+> ```bash
+> pytest -v -m "not skip_in_ci" tests/unit
+> ```
+> The MPI tests and any test that requires neurodamus will be skipped or fail.
+
 To run only the slow, data-intensive tests (e.g., single cell and 100-cell integration tests):
 
 ```bash
