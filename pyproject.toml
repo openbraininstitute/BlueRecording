@@ -1,6 +1,6 @@
 [project]
 name = "bluerecording"
-version = "0.3.0"
+dynamic = ["version"]
 description = "A tool for calculating extracellular recording lead fields"
 requires-python = ">=3.10"
 dependencies = [
@@ -27,10 +27,19 @@ all = [
 ]
 
 [build-system]
-requires = ["setuptools>=64", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["bluerecording"]
+
+[tool.hatch.build.targets.wheel]
 packages = ["bluerecording"]
 
 [project.scripts]
