@@ -116,10 +116,10 @@ mpirun -n 2 pytest -v -m "slow" tests/unit-mpi --with-mpi
    - The first column is the name of the electrode contact. It is either a string or an integer
    - The second through fourth columns are the x, y, and z coordinates of the contact in Cartesian space. They are floats.
    - The fifth column is the cortical layer in which the electrode is located. It is a string in the format L*N*, where *N* is an integer.
-       + If the electrode is outside of the brain, the value in the column is the strign *Outside*
+       + If the electrode is outside of the brain, the value in the column is the string *Outside*
        + If the electrode is in a region without laminar oraginzation, the value in the column is the string *NA*
    - The sixth column is the brain region in which the electrode is located. It is a string.
-       + If the electrode is outside the brain, the value in the column is the strong *Outside*
+       + If the electrode is outside the brain, the value in the column is the string *Outside*
    -  The seventh column is the calculation method used to determine the compartment weights. Supported values are *PointSource*, *LineSource*, *Reciprocity*, *DipoleReciprocity*, and various versions of *ObjectiveCSD*. The *PointSource* and *LineSource* methods assume that the neurons are in an infinite homogeneous medium. They should be used only for recordings made inside the brain tissue. If they are used, the tissue conductivity should be provided via the `--sigma` flag (CLI) or the `sigma` argument (Python API). *Reciprocity* and *DipoleReciprocity* assign the compartment weights based on a lead-field calculated in step 2. These should be used for EEG or ECoG recordings. In general, we recommend using the *Reciprocity* method. The different *ObjectiveCSD* variants assign a coefficient of 1 to each compartment that is within a specified region around the electrode and a 0 to all other compartments. More details about this option are available [here](https://github.com/openbraininstitute/BlueRecording/blob/main/ObjectiveCSD.md)
 
     The folder [examples/makeCsvFiles](https://github.com/openbraininstitute/BlueRecording/tree/main/examples/makeCsvFiles) contains an example python script that will generate a csv file for a Neuropixels probe.
