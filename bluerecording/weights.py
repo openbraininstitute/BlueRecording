@@ -728,29 +728,34 @@ def electrode_type(electrodeType):
     else:
         raise AssertionError("Electrode type not recognized")
 
-def get_objectiveCSD_array(electrodeType,objective_csd_array_indices,objectiveCSD_count,electrodeNames, h5, electrodeIdx):
+def _parse_index_range(spec):
+    """Parse a 'start:end' string into a range."""
+    start, end = spec.split(':')
+    return range(int(start), int(end))
+
+
+def get_objectiveCSD_array(electrodeType, objective_csd_array_indices,
+                           objectiveCSD_count, electrodeNames, h5, electrodeIdx):
     """Determine which electrodes belong to the objective CSD array.
 
     If no explicit indices are given, all electrodes matching the type
     are used. Otherwise the provided subsampling indices are applied.
     """
     if objective_csd_array_indices is None:
-
-        allTypes = []
-        for electrode in electrodeNames:
-            allTypes.append( h5['electrodes'][str(electrode)]['type'][()].decode() )
-
-        arrayIdx = [i for i, e in enumerate(allTypes) if e==electrodeType]
-
+        all_types = [
+            h5['electrodes'][str(e)]['type'][()].decode()
+            for e in electrodeNames
+        ]
+        arrayIdx = [i for i, t in enumerate(all_types) if t == electrodeType]
     else:
-
-        arrayIdx = processSubsampling(objective_csd_array_indices[objectiveCSD_count])
-
+        arrayIdx = _parse_index_range(objective_csd_array_indices[objectiveCSD_count])
         if electrodeIdx not in arrayIdx:
             objectiveCSD_count += 1
-            arrayIdx = processSubsampling(objective_csd_array_indices[objectiveCSD_count])
+            arrayIdx = _parse_index_range(objective_csd_array_indices[objectiveCSD_count])
             if electrodeIdx not in arrayIdx:
-                raise AssertionError('Electrode arrays used in objective CSD must be sequential in eletcrode file')
+                raise ValueError(
+                    'Electrode arrays used in objective CSD must be sequential in electrode file'
+                )
 
     return arrayIdx, objectiveCSD_count
 
