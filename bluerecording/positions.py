@@ -415,7 +415,7 @@ def get_morph_path(population, i, path_to_simconfig):
 
     morphName = population.get_attribute('morphology', i) # Gets name of the morphology file for node_id i
 
-    circuitpath = getCircuitPath(path_to_simconfig) # path to circuit_config file
+    circuitpath = get_circuit_path(path_to_simconfig) # path to circuit_config file
 
     with open(circuitpath) as f: # Gets path to morphology file from circuit_config
 
