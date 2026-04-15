@@ -6,6 +6,7 @@ import warnings
 import libsonata
 import numpy as np
 import pandas as pd
+from collections.abc import Callable
 from morphio import Morphology, SectionType
 from mpi4py import MPI
 from pathlib import Path
@@ -35,11 +36,11 @@ class PositionedMorphology:
             global coordinates (e.g. ``cell.local_to_global_coord_mapping``).
     """
 
-    def __init__(self, morph: Morphology, transform=None):
-        self._morph = morph
-        all_points = np.concatenate([s.points for s in morph.sections])
-        self._points = transform(all_points) if transform else all_points
-        self._indices = None
+    def __init__(self, morph: Morphology, transform: Callable[[np.ndarray], np.ndarray] | None = None):
+        self._morph: Morphology = morph
+        all_points: np.ndarray = np.concatenate([s.points for s in morph.sections])
+        self._points: np.ndarray = transform(all_points) if transform else all_points
+        self._indices: list[list[int]] | None = None
 
     @property
     def sections(self):
