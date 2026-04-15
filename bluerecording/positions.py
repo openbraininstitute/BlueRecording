@@ -20,27 +20,47 @@ warnings.filterwarnings('error', '', RuntimeWarning)
 '''
 
 
-class MutableMorph():
+class PositionedMorphology:
+    """A morphology with points transformed to global (circuit) coordinates.
 
-    '''
-    This class defines a version of the morphIO morphology object that is both mutable and contains all of the data of the immutable object
-    '''
+    Wraps an immutable MorphIO morphology, applying an optional coordinate
+    transform at construction time. Provides lazy per-section point indexing
+    and a convenience accessor for section points.
 
-    def __init__(self,morphioMorph):
+    Args:
+        morph: An immutable MorphIO Morphology object.
+        transform: Optional callable that maps the (N, 3) points array to
+            global coordinates (e.g. ``cell.local_to_global_coord_mapping``).
+    """
 
-        for attr in dir(morphioMorph):
-            if '__' not in attr:
-                setattr(self,attr,getattr(morphioMorph,attr))
+    def __init__(self, morph: Morphology, transform=None):
+        self._morph = morph
+        all_points = np.concatenate([s.points for s in morph.sections])
+        self._points = transform(all_points) if transform else all_points
+        self._indices = None
 
-        #### self.indices is a list of lists, where self.indices[i] is a list containing the indices of the 3d points for the ith section. The soma is not included because it is not part of morphioImmutableObject.sections
-        self.indices = []
-        index = 0
-        for section in self.sections:
-            self.indices.append([])
+    @property
+    def sections(self):
+        return self._morph.sections
 
-            for i in range(len(section.points)):
-                self.indices[-1].append(index)
-                index += 1
+    @property
+    def points(self) -> np.ndarray:
+        return self._points
+
+    @property
+    def indices(self) -> list[list[int]]:
+        if self._indices is None:
+            self._indices = []
+            idx = 0
+            for sec in self._morph.sections:
+                n = len(sec.points)
+                self._indices.append(list(range(idx, idx + n)))
+                idx += n
+        return self._indices
+
+    def section_points(self, sec_id: int) -> np.ndarray:
+        """Return the (possibly transformed) points for a given section."""
+        return self._points[self.indices[sec_id]]
 
 
 def interp_points(coords, ncomps):
@@ -71,7 +91,7 @@ def interp_points(coords, ncomps):
 
 
 def _get_cumulative_length(
-    m: MutableMorph, sec, soma_pos: np.ndarray, cache: dict[int, float]
+    m: PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]
 ) -> float:
     """Return cumulative arc length from soma to the end of a section.
 
@@ -122,7 +142,7 @@ def _get_branch_section_ids(sec) -> list[int]:
 
 
 def _find_best_axon_branch(
-    m: MutableMorph, soma_pos: np.ndarray, target_length: float
+    m: PositionedMorphology, soma_pos: np.ndarray, target_length: float
 ) -> tuple[list[int], bool]:
     """Find the best axonal branch for simulated-axon position reconstruction.
 
@@ -164,7 +184,7 @@ def _find_best_axon_branch(
 
 
 def _collect_branch_points(
-    m: MutableMorph,
+    m: PositionedMorphology,
     section_ids: list[int],
     soma_pos: np.ndarray,
     target_length: float,
@@ -237,7 +257,7 @@ def _extrapolate_branch(
     return points, running_len
 
 
-def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract 3D positions and cumulative lengths along the simulated axon.
 
     The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
@@ -248,7 +268,7 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
     extrapolated.
 
     Args:
-        m: Mutable morphology with rotated/translated points and section indices.
+        m: PositionedMorphology with points in global coordinates.
         center: Soma position as a 1D array of shape (3,).
 
     Returns:
@@ -400,7 +420,7 @@ def get_morphology(
     i: int,
     morphologies_dir: str,
     cell,
-) -> tuple[MutableMorph, np.ndarray]:
+) -> tuple[PositionedMorphology, np.ndarray]:
     """Load and transform a morphology into circuit (global) coordinates.
 
     Args:
@@ -410,7 +430,7 @@ def get_morphology(
         cell: Neurodamus cell object with coordinate mapping.
 
     Returns:
-        m: MutableMorph with points transformed to global coordinates.
+        m: PositionedMorphology with points transformed to global coordinates.
         center: (3,) float32 array — the soma position taken from the sonata
             node x/y/z (translation column of the transform matrix).  This is
             the BlueRecording convention (raw placement position), not the
@@ -422,10 +442,7 @@ def get_morphology(
 
     mImmutable = Morphology(finalmorphpath) # Immutable MorphIO morphology object
 
-    m = MutableMorph(mImmutable) # Mutable version, so that we can change the positions to orient the cell correctly within the circuit
-
-    # Use neurodamus for rotation + translation of morphology points (float32 precision)
-    m.points = cell.local_to_global_coord_mapping(m.points)
+    m = PositionedMorphology(mImmutable, transform=cell.local_to_global_coord_mapping)
 
     center = cell.local_to_global_matrix[:, 3]
 
@@ -500,7 +517,7 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
             if sec_id >= len(m.indices): # Beyond morphology sections → myelinated AIS
                 seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
             else:
-                sec_pts = np.array(m.points[m.indices[sec_id]])
+                sec_pts = np.array(m.section_points(sec_id))
                 seg_pos = interp_points(sec_pts,num_compartments)
 
         xyz = np.hstack((xyz,seg_pos.T))
