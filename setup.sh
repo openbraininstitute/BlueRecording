@@ -170,74 +170,74 @@ fi
 # -------------------------
 if [[ $QUICK -eq 0 ]]; then
 
-# -------------------------
-# Install libsonatareport
-# -------------------------
-if [ ! -d "libsonatareport" ]; then
-    git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
-    cmake -B libsonatareport/build -S libsonatareport \
-    -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
+    # -------------------------
+    # Install libsonatareport
+    # -------------------------
+    if [ ! -d "libsonatareport" ]; then
+        git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
+        cmake -B libsonatareport/build -S libsonatareport \
+            -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
 
-    cmake --build libsonatareport/build
-    cmake --install libsonatareport/build
-fi
-
-# -------------------------
-# Install NEURON from source (with libsonatareport support)
-# -------------------------
-if [ ! -d "nrn" ]; then
-    echo "=== Building NEURON from source ==="
-    git clone --branch=master https://github.com/neuronsimulator/nrn.git
-    cd nrn && git checkout $NEURON_COMMIT && cd ..
-    pip install --upgrade pip -r nrn/nrn_requirements.txt
-
-    if [[ "$OS" == "Darwin" ]]; then
-        NRN_C_COMPILER=gcc
-        NRN_CXX_COMPILER=g++
-    else
-        NRN_C_COMPILER=gcc
-        NRN_CXX_COMPILER=g++
+        cmake --build libsonatareport/build
+        cmake --install libsonatareport/build
     fi
 
-    cmake -B nrn/build -S nrn -G Ninja \
-        -DPYTHON_EXECUTABLE=$(which python) \
-        -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
-        -DNRN_ENABLE_MPI=ON \
-        -DNRN_ENABLE_INTERVIEWS=OFF \
-        -DNRN_ENABLE_CORENEURON=ON \
-        -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
-        -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
-        -DCORENRN_ENABLE_REPORTING=ON \
-        -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
+    # -------------------------
+    # Install NEURON from source (with libsonatareport support)
+    # -------------------------
+    if [ ! -d "nrn" ]; then
+        echo "=== Building NEURON from source ==="
+        git clone --branch=master https://github.com/neuronsimulator/nrn.git
+        cd nrn && git checkout $NEURON_COMMIT && cd ..
+        pip install --upgrade pip -r nrn/nrn_requirements.txt
 
-    cmake --build nrn/build --parallel
-    cmake --build nrn/build --target install
-fi
+        if [[ "$OS" == "Darwin" ]]; then
+            NRN_C_COMPILER=gcc
+            NRN_CXX_COMPILER=g++
+        else
+            NRN_C_COMPILER=gcc
+            NRN_CXX_COMPILER=g++
+        fi
 
-# -------------------------
-# Install neurodamus
-# -------------------------
-pip install git+https://github.com/openbraininstitute/neurodamus.git@main
+        cmake -B nrn/build -S nrn -G Ninja \
+            -DPYTHON_EXECUTABLE=$(which python) \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
+            -DNRN_ENABLE_MPI=ON \
+            -DNRN_ENABLE_INTERVIEWS=OFF \
+            -DNRN_ENABLE_CORENEURON=ON \
+            -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
+            -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
+            -DCORENRN_ENABLE_REPORTING=ON \
+            -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
 
-# -------------------------
-# Install neurodamus-models
-# -------------------------
-if [ ! -d "neurodamus-models" ]; then
-  git clone https://github.com/openbraininstitute/neurodamus-models.git
-  NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
+        cmake --build nrn/build --parallel
+        cmake --build nrn/build --target install
+    fi
 
-  cmake -B neurodamus-models/build -S neurodamus-models/ \
-      -DPython_EXECUTABLE=$(which python) \
-      -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
-      -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
-      -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR \
-      -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
-      -DNEURODAMUS_MECHANISMS=neocortex \
-      -DNEURODAMUS_NCX_V5=ON
+    # -------------------------
+    # Install neurodamus
+    # -------------------------
+    pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 
-  cmake --build neurodamus-models/build
-  cmake --install neurodamus-models/build
-fi
+    # -------------------------
+    # Install neurodamus-models
+    # -------------------------
+    if [ ! -d "neurodamus-models" ]; then
+        git clone https://github.com/openbraininstitute/neurodamus-models.git
+        NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
+
+        cmake -B neurodamus-models/build -S neurodamus-models/ \
+            -DPython_EXECUTABLE=$(which python) \
+            -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
+            -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR \
+            -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
+            -DNEURODAMUS_MECHANISMS=neocortex \
+            -DNEURODAMUS_NCX_V5=ON
+
+        cmake --build neurodamus-models/build
+        cmake --install neurodamus-models/build
+    fi
 
 fi # end --quick guard
 
