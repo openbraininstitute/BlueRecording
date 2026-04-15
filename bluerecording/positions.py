@@ -42,14 +42,23 @@ class PositionedMorphology:
 
     @property
     def sections(self):
+        """The morphology's section list, delegated to the underlying MorphIO object."""
         return self._morph.sections
 
     @property
     def points(self) -> np.ndarray:
+        """Flat (N, 3) array of all section points in global coordinates."""
         return self._points
 
     @property
     def indices(self) -> list[list[int]]:
+        """Per-section index mapping into the flat ``points`` array.
+
+        ``indices[i]`` is a list of integer offsets such that
+        ``points[indices[i]]`` gives the 3D points belonging to section *i*.
+        The soma is not included (sections are numbered as in MorphIO).
+        Built lazily on first access.
+        """
         if self._indices is None:
             self._indices = []
             idx = 0
