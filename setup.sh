@@ -4,7 +4,7 @@
 # -------------------------
 # Pinned versions (edit here to update)
 # -------------------------
-NEURON_COMMIT="0d990513b"
+NEURON_COMMIT="9.0.1"
 
 if command -v deactivate &> /dev/null; then
     deactivate
