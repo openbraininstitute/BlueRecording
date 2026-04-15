@@ -429,7 +429,7 @@ def get_morph_path(population, i, path_to_simconfig):
 
         finalmorphpath = remove_variables(js, finalmorphpath)
 
-        finalmorphpath = concretize_path(circuitpath,finalmorphpath) # Goes from relative to absolute path
+        finalmorphpath = str((Path(circuitpath).parent / finalmorphpath).resolve())
 
     fileName = tryFileNames(morphName, finalmorphpath)
 
