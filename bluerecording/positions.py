@@ -72,7 +72,9 @@ def interp_points(coords, ncomps):
     return xyz
 
 
-def _get_cumulative_length(m, sec, soma_pos, cache):
+def _get_cumulative_length(
+    m: MutableMorph, sec, soma_pos: np.ndarray, cache: dict[int, float]
+) -> float:
     """Return cumulative arc length from soma to the end of a section.
 
     Computes lazily and caches results so each section is measured at most once.
@@ -104,7 +106,7 @@ def _get_cumulative_length(m, sec, soma_pos, cache):
     return cache[sec.id]
 
 
-def _get_branch_section_ids(sec):
+def _get_branch_section_ids(sec) -> list[int]:
     """Walk from a leaf section back to the root, returning section IDs soma→tip."""
     idxs = []
     this_sec = sec
@@ -117,7 +119,9 @@ def _get_branch_section_ids(sec):
     return idxs
 
 
-def _find_best_axon_branch(m, soma_pos, target_length=1060):
+def _find_best_axon_branch(
+    m: MutableMorph, soma_pos: np.ndarray, target_length: float
+) -> tuple[list[int], bool]:
     """Find the best axonal branch for simulated-axon position reconstruction.
 
     Lazily computes cumulative lengths for visited sections, then picks the
@@ -127,7 +131,7 @@ def _find_best_axon_branch(m, soma_pos, target_length=1060):
     Args:
         m: Mutable morphology with rotated/translated points and section indices.
         soma_pos: Soma position as a column vector, shape (3, 1).
-        target_length: Required branch length in µm (default 1060).
+        target_length: Required branch length in µm.
 
     Returns:
         section_ids: Section IDs ordered from soma to tip.
@@ -157,7 +161,12 @@ def _find_best_axon_branch(m, soma_pos, target_length=1060):
     return idxs, need_extension
 
 
-def _collect_branch_points(m, section_ids, soma_pos, target_length):
+def _collect_branch_points(
+    m: MutableMorph,
+    section_ids: list[int],
+    soma_pos: np.ndarray,
+    target_length: float,
+) -> tuple[np.ndarray, list[float], float]:
     """Walk a branch from soma to tip, collecting 3D points and arc lengths.
 
     Stops as soon as the cumulative arc length exceeds target_length.
@@ -173,9 +182,9 @@ def _collect_branch_points(m, section_ids, soma_pos, target_length):
         running_len: List of cumulative arc lengths, one per point.
         current_len: Final cumulative arc length.
     """
-    last_pt = soma_pos
+    last_pt = soma_pos.flatten()
 
-    points = soma_pos.reshape(-1, 3)
+    point_list = [last_pt.reshape(1, 3)]
     running_len = [0]
     current_len = 0
 
@@ -184,22 +193,24 @@ def _collect_branch_points(m, section_ids, soma_pos, target_length):
         pts = m.points[m.indices[sec.id]]
 
         for pt in pts:
-            if (last_pt == soma_pos).all():
-                current_len += np.linalg.norm(pt.flatten() - last_pt.flatten())
-            else:
-                current_len += np.linalg.norm(pt - last_pt)
+            current_len += np.linalg.norm(pt - last_pt)
             running_len.append(current_len)
-            points = np.vstack((points, pt))
+            point_list.append(pt.reshape(1, 3))
             last_pt = pt
             if current_len > target_length:
                 break
         if current_len > target_length:
             break
 
-    return points, running_len, current_len
+    return np.vstack(point_list), running_len, current_len
 
 
-def _extrapolate_branch(points, running_len, current_len, target_length):
+def _extrapolate_branch(
+    points: np.ndarray,
+    running_len: list[float],
+    current_len: float,
+    target_length: float,
+) -> tuple[np.ndarray, list[float]]:
     """Linearly extrapolate a branch that is shorter than target_length.
 
     Extends the branch by adding a single point along the direction defined
