@@ -161,42 +161,26 @@ def _find_best_axon_branch(m, somaPos, targetLength=1060):
     return idxs, needExtension
 
 
-def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Extract 3D positions and cumulative lengths along the simulated axon.
+def _collect_branch_points(m, idxs, somaPos, targetLength):
+    """Walk a branch from soma to tip, collecting 3D points and arc lengths.
 
-    The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
-    myelinated section, totalling 1060 µm.  Since the simulator does not define
-    the spatial positions of these sections, we walk the morphology tree to find
-    the first axonal branch that is at least 1060 µm long and extract its 3D
-    points.  If no branch is long enough, the longest one is linearly
-    extrapolated.
+    Stops as soon as the cumulative arc length exceeds targetLength.
 
     Args:
         m: Mutable morphology with rotated/translated points and section indices.
-        center: Soma position as a 1D array of shape (3,).
+        idxs: Ordered section IDs from soma to tip.
+        somaPos: Soma position as a column vector, shape (3, 1).
+        targetLength: Maximum arc length to collect (µm).
 
     Returns:
-        axon_points: Unique 3D positions along the selected axonal branch,
-            shape (N, 3).
-        running_lengths: Cumulative arc length at each point, shape (N,).
+        points: (N, 3) array of 3D positions along the branch.
+        runningLen: List of cumulative arc lengths, one per point.
     """
-
-    targetLength = 1060
-
-    points = np.inf
-
-    currentLen = 0
-    runningLen = []
-
-    somaPos = center[:,np.newaxis]
-
-    idxs, needExtension = _find_best_axon_branch(m, somaPos, targetLength)
-
     lastpt = somaPos
 
     points = somaPos.reshape(-1,3)
     runningLen = [0]
-
+    currentLen = 0
 
     for x in idxs: # We iterate through the selected axonal sections
 
@@ -225,19 +209,70 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
         if currentLen > targetLength:
             break
 
-    if needExtension: # If we need to extrapolate positions, we do a linear extrapolation based on the last two points
+    return points, runningLen, currentLen
 
-        toAdd = targetLength - currentLen
 
-        slopes = (points[-1] - points[-2]) / (runningLen[-1] - runningLen[-2])
+def _extrapolate_branch(points, runningLen, currentLen, targetLength):
+    """Linearly extrapolate a branch that is shorter than targetLength.
 
-        newpt = points[-1] + slopes * toAdd
+    Extends the branch by adding a single point along the direction defined
+    by the last two existing points.
 
-        points = np.vstack((points, newpt))
+    Args:
+        points: (N, 3) array of branch positions.
+        runningLen: List of cumulative arc lengths.
+        currentLen: Current total arc length.
+        targetLength: Desired total length in µm.
 
-        currentLen += np.linalg.norm(newpt - points[-2])
+    Returns:
+        points: (N+1, 3) array with the extrapolated point appended.
+        runningLen: List with the new arc length appended.
+    """
+    toAdd = targetLength - currentLen
 
-        runningLen.append(currentLen)
+    slopes = (points[-1] - points[-2]) / (runningLen[-1] - runningLen[-2])
+
+    newpt = points[-1] + slopes * toAdd
+
+    points = np.vstack((points, newpt))
+
+    currentLen += np.linalg.norm(newpt - points[-2])
+
+    runningLen.append(currentLen)
+
+    return points, runningLen
+
+
+def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Extract 3D positions and cumulative lengths along the simulated axon.
+
+    The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
+    myelinated section, totalling 1060 µm.  Since the simulator does not define
+    the spatial positions of these sections, we walk the morphology tree to find
+    the first axonal branch that is at least 1060 µm long and extract its 3D
+    points.  If no branch is long enough, the longest one is linearly
+    extrapolated.
+
+    Args:
+        m: Mutable morphology with rotated/translated points and section indices.
+        center: Soma position as a 1D array of shape (3,).
+
+    Returns:
+        axon_points: Unique 3D positions along the selected axonal branch,
+            shape (N, 3).
+        running_lengths: Cumulative arc length at each point, shape (N,).
+    """
+
+    targetLength = 1060
+
+    somaPos = center[:,np.newaxis]
+
+    idxs, needExtension = _find_best_axon_branch(m, somaPos, targetLength)
+
+    points, runningLen, currentLen = _collect_branch_points(m, idxs, somaPos, targetLength)
+
+    if needExtension:
+        points, runningLen = _extrapolate_branch(points, runningLen, currentLen, targetLength)
 
     axonPoints, indices = np.unique(np.array(points),axis=0,return_index=True)
 
