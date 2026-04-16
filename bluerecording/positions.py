@@ -72,6 +72,85 @@ def interp_points(coords, ncomps):
     return xyz
 
 
+def _compute_branch_length(m, leaf_sec, somaPos):
+    """Compute the total arc length of an axonal branch from leaf to soma.
+
+    Walks from the given leaf section back to the root, summing inter-point
+    distances within each section and gaps between parent/child sections.
+
+    Args:
+        m: Mutable morphology with rotated/translated points and section indices.
+        leaf_sec: A MorphIO section object (axonal leaf).
+        somaPos: Soma position as a column vector, shape (3, 1).
+
+    Returns:
+        length: Total arc length of the branch in µm.
+        idxs: Section IDs from leaf to root (reverse walk order).
+    """
+    length = 0
+    thisSec = leaf_sec
+
+    idxs = [] # List of section ids in the branch
+
+    idxs.append(thisSec.id)
+
+    while not thisSec.is_root: # From the end section, iterates backwards through tree until we reach the soma
+
+        newSec = thisSec.parent
+
+        length += np.linalg.norm(m.points[m.indices[newSec.id][-1]] - m.points[m.indices[thisSec.id][0]]) # Adds euclidean distance from end of parent to start of child to length
+        length += np.sum(np.linalg.norm(np.diff(m.points[m.indices[thisSec.id]],axis=0),axis=1)) # Adds sum of distance between each pair of points in child
+
+        thisSec = newSec
+        idxs.append(thisSec.id)
+
+    length += np.linalg.norm(m.points[m.indices[thisSec.id][0]][:,np.newaxis] - somaPos) # Euclidean length of root axonal section
+    length += np.sum(np.linalg.norm(np.diff(m.points[m.indices[thisSec.id]],axis=0),axis=1)) # Adds sum of distance between each pair of points in root
+
+    return length, idxs
+
+
+def _find_best_axon_branch(m, somaPos, targetLength=1060):
+    """Find the best axonal branch for simulated-axon position reconstruction.
+
+    Iterates over axonal leaf sections. Returns the first branch whose total
+    length is >= targetLength. If none qualifies, returns the longest branch
+    and signals that extrapolation is needed.
+
+    Args:
+        m: Mutable morphology with rotated/translated points and section indices.
+        somaPos: Soma position as a column vector, shape (3, 1).
+        targetLength: Required branch length in µm (default 1060).
+
+    Returns:
+        idxs: Section IDs ordered from soma to tip.
+        needExtension: True if the branch is shorter than targetLength.
+    """
+    longestLength = 0
+
+    for sec in m.sections: # Iterates through axon to find the longest branch
+
+        if sec.type == SectionType.axon and len(sec.children) == 0: # Finds an axonal end point
+
+            length, idxs = _compute_branch_length(m, sec, somaPos)
+
+            if length > longestLength: # If this branch is longer than the previous longest branch we update the longest brancg
+                longestLength = length
+                bestIdx = idxs
+
+            if length > targetLength: # We select the first branch we find that is longer than 1060 um
+                break
+
+    needExtension = False
+    if length < targetLength: # If none of the branches is longer than 1060 um, we need to extrapolate points
+        idxs = bestIdx
+        needExtension = True
+
+    idxs.reverse() # We put the section indices in order from soma to end of the axon
+
+    return idxs, needExtension
+
+
 def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract 3D positions and cumulative lengths along the simulated axon.
 
@@ -101,46 +180,7 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
 
     somaPos = center[:,np.newaxis]
 
-    needExtension = False # Flag that indicates whether the longest branch that actually exists in the morphology is shorter than 1060 um
-
-    longestLength = 0
-
-    for sec in m.sections: # Iterates through axon to find the longest branch
-
-        if sec.type == SectionType.axon and len(sec.children) == 0: # Finds an axonal end point
-
-            length = 0
-            thisSec = sec
-
-            idxs = [] # List of section ids in the branch
-
-            idxs.append(thisSec.id)
-
-            while not thisSec.is_root: # From the end section, iterates backwards through tree until we reach the soma
-
-                newSec = thisSec.parent
-
-                length += np.linalg.norm(m.points[m.indices[newSec.id][-1]] - m.points[m.indices[thisSec.id][0]]) # Adds euclidean distance from end of parent to start of child to length
-                length += np.sum(np.linalg.norm(np.diff(m.points[m.indices[thisSec.id]],axis=0),axis=1)) # Adds sum of distance between each pair of points in child
-
-                thisSec = newSec
-                idxs.append(thisSec.id)
-
-            length += np.linalg.norm(m.points[m.indices[thisSec.id][0]][:,np.newaxis] - somaPos) # Euclidean length of root axonal section
-            length += np.sum(np.linalg.norm(np.diff(m.points[m.indices[thisSec.id]],axis=0),axis=1)) # Adds sum of distance between each pair of points in root
-
-            if length > longestLength: # If this branch is longer than the previous longest branch we update the longest brancg
-                longestLength = length
-                bestIdx = idxs
-
-            if length > 1060: # We select the first branch we find that is longer than 1060 um
-                break
-
-    if length < 1060: # If none of the branches is longer than 1060 um, we need to extrapolate points
-        idxs = bestIdx
-        needExtension = True
-
-    idxs.reverse() # We put the section indices in order from soma to end of the axon
+    idxs, needExtension = _find_best_axon_branch(m, somaPos, targetLength)
 
     lastpt = somaPos
 
