@@ -72,7 +72,7 @@ def interp_points(coords, ncomps):
     return xyz
 
 
-def _get_cumulative_length(m, sec, somaPos, cache):
+def _get_cumulative_length(m, sec, soma_pos, cache):
     """Return cumulative arc length from soma to the end of a section.
 
     Computes lazily and caches results so each section is measured at most once.
@@ -80,7 +80,7 @@ def _get_cumulative_length(m, sec, somaPos, cache):
     Args:
         m: Mutable morphology with rotated/translated points and section indices.
         sec: A MorphIO section object.
-        somaPos: Soma position as a column vector, shape (3, 1).
+        soma_pos: Soma position as a column vector, shape (3, 1).
         cache: Dict mapping section id to cumulative length (mutated in place).
 
     Returns:
@@ -93,12 +93,12 @@ def _get_cumulative_length(m, sec, somaPos, cache):
     arc = np.sum(np.linalg.norm(np.diff(pts, axis=0), axis=1))
 
     if sec.is_root:
-        gap = np.linalg.norm(pts[0][:, np.newaxis] - somaPos)
+        gap = np.linalg.norm(pts[0][:, np.newaxis] - soma_pos)
         parent_len = 0
     else:
         parent_pts = m.points[m.indices[sec.parent.id]]
         gap = np.linalg.norm(parent_pts[-1] - pts[0])
-        parent_len = _get_cumulative_length(m, sec.parent, somaPos, cache)
+        parent_len = _get_cumulative_length(m, sec.parent, soma_pos, cache)
 
     cache[sec.id] = parent_len + gap + arc
     return cache[sec.id]
@@ -107,140 +107,121 @@ def _get_cumulative_length(m, sec, somaPos, cache):
 def _get_branch_section_ids(sec):
     """Walk from a leaf section back to the root, returning section IDs soma→tip."""
     idxs = []
-    thisSec = sec
+    this_sec = sec
     while True:
-        idxs.append(thisSec.id)
-        if thisSec.is_root:
+        idxs.append(this_sec.id)
+        if this_sec.is_root:
             break
-        thisSec = thisSec.parent
+        this_sec = this_sec.parent
     idxs.reverse()
     return idxs
 
 
-def _find_best_axon_branch(m, somaPos, targetLength=1060):
+def _find_best_axon_branch(m, soma_pos, target_length=1060):
     """Find the best axonal branch for simulated-axon position reconstruction.
 
-    Pre-computes cumulative lengths for all sections, then picks the first
-    axonal leaf whose branch length >= targetLength. If none qualifies,
+    Lazily computes cumulative lengths for visited sections, then picks the
+    first axonal leaf whose branch length >= target_length. If none qualifies,
     returns the longest branch and signals that extrapolation is needed.
 
     Args:
         m: Mutable morphology with rotated/translated points and section indices.
-        somaPos: Soma position as a column vector, shape (3, 1).
-        targetLength: Required branch length in µm (default 1060).
+        soma_pos: Soma position as a column vector, shape (3, 1).
+        target_length: Required branch length in µm (default 1060).
 
     Returns:
-        idxs: Section IDs ordered from soma to tip.
-        needExtension: True if the branch is shorter than targetLength.
+        section_ids: Section IDs ordered from soma to tip.
+        need_extension: True if the branch is shorter than target_length.
     """
     cumulative = {}
 
-    longestLength = 0
-    bestIdx = []
+    longest_length = 0
+    best_idx = []
     length = 0
 
     for sec in m.sections:
-
         if sec.type == SectionType.axon and len(sec.children) == 0:
-
-            length = _get_cumulative_length(m, sec, somaPos, cumulative)
+            length = _get_cumulative_length(m, sec, soma_pos, cumulative)
             idxs = _get_branch_section_ids(sec)
-
-            if length > longestLength:
-                longestLength = length
-                bestIdx = idxs
-
-            if length > targetLength:
+            if length > longest_length:
+                longest_length = length
+                best_idx = idxs
+            if length > target_length:
                 break
 
-    needExtension = False
-    if length < targetLength:
-        idxs = bestIdx
-        needExtension = True
+    need_extension = False
+    if length < target_length:
+        idxs = best_idx
+        need_extension = True
 
-    return idxs, needExtension
+    return idxs, need_extension
 
 
-def _collect_branch_points(m, idxs, somaPos, targetLength):
+def _collect_branch_points(m, section_ids, soma_pos, target_length):
     """Walk a branch from soma to tip, collecting 3D points and arc lengths.
 
-    Stops as soon as the cumulative arc length exceeds targetLength.
+    Stops as soon as the cumulative arc length exceeds target_length.
 
     Args:
         m: Mutable morphology with rotated/translated points and section indices.
-        idxs: Ordered section IDs from soma to tip.
-        somaPos: Soma position as a column vector, shape (3, 1).
-        targetLength: Maximum arc length to collect (µm).
+        section_ids: Ordered section IDs from soma to tip.
+        soma_pos: Soma position as a column vector, shape (3, 1).
+        target_length: Maximum arc length to collect (µm).
 
     Returns:
         points: (N, 3) array of 3D positions along the branch.
-        runningLen: List of cumulative arc lengths, one per point.
+        running_len: List of cumulative arc lengths, one per point.
+        current_len: Final cumulative arc length.
     """
-    lastpt = somaPos
+    last_pt = soma_pos
 
-    points = somaPos.reshape(-1,3)
-    runningLen = [0]
-    currentLen = 0
+    points = soma_pos.reshape(-1, 3)
+    running_len = [0]
+    current_len = 0
 
-    for x in idxs: # We iterate through the selected axonal sections
-
+    for x in section_ids:
         sec = m.sections[x]
-
         pts = m.points[m.indices[sec.id]]
 
-        for pt in pts: # Iterate through 3d points in the section
-
-            if (lastpt == somaPos).all(): # We calculate the distance of the current point from the soma
-                currentLen += np.linalg.norm(pt.flatten() - lastpt.flatten())
+        for pt in pts:
+            if (last_pt == soma_pos).all():
+                current_len += np.linalg.norm(pt.flatten() - last_pt.flatten())
             else:
-                currentLen += np.linalg.norm(pt - lastpt)
-
-
-            runningLen.append(currentLen)
-
-
+                current_len += np.linalg.norm(pt - last_pt)
+            running_len.append(current_len)
             points = np.vstack((points, pt))
-
-            lastpt = pt
-
-            if currentLen > targetLength: #Stop when we have 1060 um
+            last_pt = pt
+            if current_len > target_length:
                 break
-
-        if currentLen > targetLength:
+        if current_len > target_length:
             break
 
-    return points, runningLen, currentLen
+    return points, running_len, current_len
 
 
-def _extrapolate_branch(points, runningLen, currentLen, targetLength):
-    """Linearly extrapolate a branch that is shorter than targetLength.
+def _extrapolate_branch(points, running_len, current_len, target_length):
+    """Linearly extrapolate a branch that is shorter than target_length.
 
     Extends the branch by adding a single point along the direction defined
     by the last two existing points.
 
     Args:
         points: (N, 3) array of branch positions.
-        runningLen: List of cumulative arc lengths.
-        currentLen: Current total arc length.
-        targetLength: Desired total length in µm.
+        running_len: List of cumulative arc lengths.
+        current_len: Current total arc length.
+        target_length: Desired total length in µm.
 
     Returns:
         points: (N+1, 3) array with the extrapolated point appended.
-        runningLen: List with the new arc length appended.
+        running_len: List with the new arc length appended.
     """
-    toAdd = targetLength - currentLen
-
-    slopes = (points[-1] - points[-2]) / (runningLen[-1] - runningLen[-2])
-
-    newpt = points[-1] + slopes * toAdd
-
-    points = np.vstack((points, newpt))
-
-    currentLen += np.linalg.norm(newpt - points[-2])
-
-    runningLen.append(currentLen)
-
-    return points, runningLen
+    to_add = target_length - current_len
+    slopes = (points[-1] - points[-2]) / (running_len[-1] - running_len[-2])
+    new_pt = points[-1] + slopes * to_add
+    points = np.vstack((points, new_pt))
+    current_len += np.linalg.norm(new_pt - points[-2])
+    running_len.append(current_len)
+    return points, running_len
 
 
 def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -263,20 +244,17 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
         running_lengths: Cumulative arc length at each point, shape (N,).
     """
 
-    targetLength = 1060
+    target_length = 1060
+    soma_pos = center[:, np.newaxis]
+    section_ids, need_extension = _find_best_axon_branch(m, soma_pos, target_length)
+    points, running_len, current_len = _collect_branch_points(m, section_ids, soma_pos, target_length)
 
-    somaPos = center[:,np.newaxis]
-
-    idxs, needExtension = _find_best_axon_branch(m, somaPos, targetLength)
-
-    points, runningLen, currentLen = _collect_branch_points(m, idxs, somaPos, targetLength)
-
-    if needExtension:
-        points, runningLen = _extrapolate_branch(points, runningLen, currentLen, targetLength)
-
-    axonPoints, indices = np.unique(np.array(points),axis=0,return_index=True)
-
-    return axonPoints, np.array(runningLen)[indices] # We delete duplicate points that may occur if the morphology is in a format where section start and end points are repeated
+    if need_extension:
+        points, running_len = _extrapolate_branch(points, running_len, current_len, target_length)
+    
+    # Remove duplicate points (morphology formats may repeat section boundaries)
+    axon_points, indices = np.unique(np.array(points), axis=0, return_index=True)
+    return axon_points, np.array(running_len)[indices]
 
 
 def interp_points_axon(axonPoints, runningLens, secName, numCompartments, somaPos):
