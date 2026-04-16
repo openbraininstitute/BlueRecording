@@ -20,6 +20,7 @@ test = [
 notebooks = [
     "jupyterlab",
     "ipympl"
+    "bluepysnap"
 ]
 all = [
     "bluerecording[test]",

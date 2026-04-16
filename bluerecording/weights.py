@@ -4,7 +4,6 @@ import h5py
 import os
 import pandas as pd
 import sys
-import bluepysnap as bp
 import json
 import datetime
 import warnings
