@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
-import libsonata
 import numpy as np
 import os
 from voxcell.nexus.voxelbrain import Atlas
