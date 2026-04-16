@@ -471,6 +471,37 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
 
 
 
+def resolve_neurite_types(cols_for_gid, cell):
+    """Return an int array of neurite-type codes for one neuron's compartments.
+
+    Queries the actual NEURON section via ``cell.get_sec()`` and maps the
+    section-type string (e.g. ``"soma"``, ``"axon"``, ``"myelin"``) to its
+    index in ``neurodamus.metype.BaseCell.SECTION_TYPES``.  This reflects
+    the simulator's SectionList membership rather than the coarser MorphIO
+    classification, and automatically picks up any future types added to
+    neurodamus.
+
+    Args:
+        cols_for_gid: (M, 2) array of (gid, section_index) pairs for this neuron.
+        cell: Neurodamus cell object (e.g. ``Cell_V6``).
+
+    Returns:
+        (M,) int32 array where each element is the index into
+        ``BaseCell.SECTION_TYPES`` for that compartment's section.
+    """
+    from neurodamus.metype import BaseCell
+
+    type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
+
+    section_indices = cols_for_gid[:, 1]
+    result = np.empty(len(section_indices), dtype=np.int32)
+    for i, sec_idx in enumerate(section_indices):
+        sec = cell.get_sec(int(sec_idx))
+        sec_type = sec.name().rsplit(".", 1)[-1].rsplit("[", 1)[0]
+        result[i] = type_to_code[sec_type]
+    return result
+
+
 def get_positions(node_manager, ids, cols, population, path_to_simconfig, replace_axons=True):
     """Compute segment boundary positions for all cells on this rank.
 
@@ -493,8 +524,6 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
         neurite_types: (N,) int32 array of neurite type codes per compartment,
             aligned with cols row order.
     """
-    from .weights import resolve_neurite_types
-
     cell_arrays = []
     neurite_type_arrays = []
     for i in ids:
