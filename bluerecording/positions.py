@@ -68,29 +68,37 @@ class PositionedMorphology:
         return self._points[self.indices[sec_id]]
 
 
-def interp_points(coords, ncomps):
+def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
+    """Interpolate segment boundary points along a dendritic section.
 
-    '''
-    For a given dendritic section with 3d points coords and a number of segments ncomps, we interpolate the start and end points of each segment,
-    with each segment having equal length
-    '''
+    Given the 3D points of a section and a number of compartments, returns
+    equally-spaced boundary points by linear interpolation along the arc length.
+    Consecutive duplicate points (which can arise from float32 rotation
+    precision) are removed before interpolation.
 
-    # Remove consecutive duplicate points that can arise from float32 rotation precision
+    Args:
+        coords: (P, 3) array of 3D section points.
+        ncomps: Number of compartments (segments) in the section.
+
+    Returns:
+        (ncomps + 1, 3) array of interpolated boundary positions.
+    """
+
+    # --- 1. Remove consecutive near-duplicate points (float32 rotation artefacts) ---
     diffs = np.linalg.norm(np.diff(coords, axis=0), axis=1)
-    mask = np.concatenate(([True], diffs > 0))
+    mask = np.concatenate(([True], diffs > 0))  # exact dedup only
     coords = coords[mask]
 
-    xyz = np.array([]).reshape(ncomps + 1, 0)
+    # --- 2. Interpolate equally-spaced boundary points along the arc length ---
+    arc = np.cumsum(np.linalg.norm(np.diff(coords, axis=0), axis=1))
+    arc = np.insert(arc, 0, 0)
+    arc /= arc[-1]  # normalise to [0, 1]
 
-    distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
-    distances /= distances[-1]
-    distances = np.insert(distances,0,0)
-
-    for dim in range(coords.shape[1]):
-
-        f = interp1d(distances, coords[:, dim], kind='linear')
-        ic = f(np.linspace(0, 1, ncomps + 1)).reshape(ncomps + 1, 1)
-        xyz = np.hstack((xyz, ic))
+    targets = np.linspace(0, 1, ncomps + 1)
+    xyz = np.column_stack([
+        interp1d(arc, coords[:, dim], kind='linear')(targets)
+        for dim in range(coords.shape[1])
+    ])
 
     return xyz
 
