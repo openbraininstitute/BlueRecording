@@ -103,12 +103,13 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
 
     needExtension = False # Flag that indicates whether the longest branch that actually exists in the morphology is shorter than 1060 um
 
+    longestLength = 0
+
     for sec in m.sections: # Iterates through axon to find the longest branch
 
         if sec.type == SectionType.axon and len(sec.children) == 0: # Finds an axonal end point
 
             length = 0
-            longestLength = 0
             thisSec = sec
 
             idxs = [] # List of section ids in the branch
