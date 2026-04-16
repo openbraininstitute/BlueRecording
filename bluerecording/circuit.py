@@ -8,8 +8,6 @@ needed by both get_positions and write_weights.
 import libsonata
 import numpy as np
 
-from .utils import get_node_population
-
 
 def init_circuit(path_to_simconfig: str):
     """Initialize neurodamus and extract circuit discretization info.
@@ -56,6 +54,9 @@ def init_circuit(path_to_simconfig: str):
     ).reshape(-1, 2)
 
     population_name = node_manager.population_name
-    population = get_node_population(path_to_simconfig, population_name)
+
+    sim_conf = libsonata.SimulationConfig.from_file(path_to_simconfig)
+    circuit_conf = libsonata.CircuitConfig.from_file(sim_conf.network)
+    population = circuit_conf.node_population(population_name)
 
     return node_manager, ids, cols, population, population_name

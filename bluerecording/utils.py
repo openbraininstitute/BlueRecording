@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
-import libsonata
 import numpy as np
 import os
 from voxcell.nexus.voxelbrain import Atlas
@@ -184,16 +183,4 @@ def alignmentInfo(path_to_simconfig,target):
     azimuth = np.arctan2(main_axis[1],main_axis[0])
 
     return center, azimuth, elevation
-
-def get_node_population(path_to_simconfig, population_name):
-    """ Get circuit node population for population_name
-    Args:
-        path_to_simconfig: path to the sonata simulation configuration file
-        population_name: name of the population
-
-    Returns libsonata.NodePopulation
-    """
-
-    sim_conf = libsonata.SimulationConfig.from_file(path_to_simconfig)
-    circuit_conf = libsonata.CircuitConfig.from_file(sim_conf.network)
-    return circuit_conf.node_population(population_name)
+    
