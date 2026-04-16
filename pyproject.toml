@@ -19,7 +19,7 @@ test = [
 ]
 notebooks = [
     "jupyterlab",
-    "ipympl"
+    "ipympl",
     "bluepysnap"
 ]
 all = [
