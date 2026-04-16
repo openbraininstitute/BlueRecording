@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
 import os
-import warnings
 
 import libsonata
 import numpy as np
@@ -12,15 +11,9 @@ from mpi4py import MPI
 from pathlib import Path
 from scipy.interpolate import interp1d
 
-from .utils import *
-from .circuit import init_circuit
+from .utils import get_circuit_path
 
 rank = MPI.COMM_WORLD.Get_rank()
-
-
-warnings.filterwarnings('error', '', RuntimeWarning)
-'''
-'''
 
 
 class PositionedMorphology:
