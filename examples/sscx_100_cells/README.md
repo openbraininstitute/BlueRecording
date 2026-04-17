@@ -28,4 +28,4 @@ The `reference/` folder contains `positions0_ref.pkl` and `weights_ref.h5` for v
 
 ## Inspecting Weights
 
-You can use the [analyze_weights](../analyze_weights.ipynb) notebook to inspect the generated weights file — it validates the H5 structure and shows weight distributions per electrode, broken down by section type.
+You can use the [analyze_weights](../analyze_weights.ipynb) notebook to inspect the generated weights file — it validates the H5 structure and shows weight distributions per electrode. One can see this broken down by section type by adding `--with-neurite-type` option when executing the `write_weights` operation.
