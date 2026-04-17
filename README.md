@@ -205,6 +205,8 @@ See [here](https://github.com/openbraininstitute/BlueRecording/tree/main/example
 
 A good starting point is the [single cell L5 TPC example](examples/single_cell_l5_tpc/), which walks through computing electrode weights, running a simulation, and visualizing extracellular signals from a single neuron.
 
+The [analyze_weights](examples/analyze_weights.ipynb) notebook is a diagnostic tool for inspecting weights files. It can validate the structure and show weight distributions for a single file, or compare two files for regression testing. When comparing multiple files, they must share the same discretization (same circuit, same compartment report settings), and at least one of the files must have been built with the `--with-neurite-type` flag so that per-section-type breakdowns are available.
+
 ---
 
 # Contribution Guidelines
