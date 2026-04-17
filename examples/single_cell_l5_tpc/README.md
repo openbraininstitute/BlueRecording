@@ -52,3 +52,5 @@ neurodamus examples/single_cell_l5_tpc/simulation_config_distant.json
 
 After the simulation completes, open the notebook `make_figures.ipynb` in this folder to visualize and compare the extracellular signals against reference solutions. This notebook produces Figure 2 from the BlueRecording paper.
 
+You can also use the [analyze_weights](../analyze_weights.ipynb) notebook to inspect the generated weights file — it validates the H5 structure and shows weight distributions per electrode, broken down by section type.
+

@@ -25,3 +25,7 @@ bluerecording write_weights examples/sscx_100_cells/simulation_config.json examp
 ## Reference Outputs
 
 The `reference/` folder contains `positions0_ref.pkl` and `weights_ref.h5` for verifying results. These are also used by the unit and MPI tests.
+
+## Inspecting Weights
+
+You can use the [analyze_weights](../analyze_weights.ipynb) notebook to inspect the generated weights file — it validates the H5 structure and shows weight distributions per electrode, broken down by section type.
