@@ -334,7 +334,7 @@ def tryFileNames(morphName, finalmorphpath):
 
 def get_morph_path(population, i, path_to_simconfig):
 
-    morphName = population.get(i, 'morphology') # Gets name of the morphology file for node_id i
+    morphName = population.get_attribute('morphology', i) # Gets name of the morphology file for node_id i
 
     circuitpath = getCircuitPath(path_to_simconfig) # path to circuit_config file
 
