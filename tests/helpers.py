@@ -172,6 +172,44 @@ def make_morphology_far_axon(path):
         ])
 
 
+def make_morphology_two_axon_branches(path):
+    """Two short axonal branches: first leaf is longer than second.
+
+    Both branches are shorter than 1060 µm, so extrapolation is needed.
+    The first leaf (section 2, 100 µm) is longer than the second
+    (section 3, 10 µm).  The bug fixed in 699fa38 would have picked the
+    last leaf (shorter) instead of the longest one.
+
+    Structure::
+
+        soma (sec 0)
+          └─ axon root (sec 1): 0→5 µm along z
+               ├─ branch A (sec 2, leaf): 5→100 µm along z  (longest)
+               └─ branch B (sec 3, leaf): 5→10 µm along z   (shorter)
+          └─ dendrite (sec 4): 0→100 µm along x
+    """
+    return create_morphology(path,
+        structure=[
+            [0, 1, -1],   # sec 0: soma, 3 points starting at idx 0
+            [3, 2, 0],    # sec 1: axon root, 2 points starting at idx 3
+            [5, 2, 1],    # sec 2: axon branch A (leaf), 2 points at idx 5
+            [7, 2, 1],    # sec 3: axon branch B (leaf), 2 points at idx 7
+            [9, 3, 0],    # sec 4: dendrite, 3 points at idx 9
+        ],
+        points=[
+            # soma (3 pts)
+            [-1, 0, 0, 1], [0, -1, 0, 1], [0, 0, 0, 1],
+            # sec 1: axon root (2 pts)
+            [0, 0, 0, 1], [0, 0, 5, 0.3],
+            # sec 2: axon branch A — longer leaf (2 pts)
+            [0, 0, 5, 0.3], [0, 0, 100, 0.3],
+            # sec 3: axon branch B — shorter leaf (2 pts)
+            [0, 0, 5, 0.3], [0, 0, 10, 0.3],
+            # sec 4: dendrite (3 pts)
+            [0, 0, 0, 1], [10, 0, 0, 5], [100, 0, 0, 5],
+        ])
+
+
 # ---------------------------------------------------------------------------
 # Field file builders
 # ---------------------------------------------------------------------------

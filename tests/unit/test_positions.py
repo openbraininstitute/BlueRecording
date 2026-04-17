@@ -9,6 +9,7 @@ from bluerecording.circuit import init_circuit
 from tests.helpers import (
     SOMA_POS, make_report_data,
     make_morphology, make_morphology_short, make_morphology_far_axon,
+    make_morphology_two_axon_branches,
 )
 
 
@@ -43,6 +44,29 @@ def test_get_axon_points_extrapolate(tmp_path):
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 4, 1060], decimal=2)
     np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 4], [0, 0, 1060]], decimal=2)
+
+
+def test_get_axon_points_picks_longest_branch(tmp_path):
+    """Regression: longest branch must be selected when extrapolation is needed.
+
+    With two short axonal branches (both < 1060 µm), the algorithm must pick
+    the longer one (branch A, 100 µm) for extrapolation, not the last one
+    visited (branch B, 10 µm).
+    """
+    morph = positions.MutableMorph(
+        make_morphology_two_axon_branches(tmp_path / "morph.h5")
+    )
+    points, lengths = positions.get_axon_points(morph, SOMA_POS)
+
+    # Longest branch: soma(0,0,0) → root tip(0,0,5) → branch A tip(0,0,100)
+    # then extrapolated to 1060 µm along z.
+    # With the bug we'd get branch B: soma → root tip → (0,0,10) → extrapolated
+    np.testing.assert_almost_equal(
+        points, [[0, 0, 0], [0, 0, 5], [0, 0, 100], [0, 0, 1060]], decimal=2
+    )
+    np.testing.assert_almost_equal(
+        lengths, [0, 5, 100, 1060], decimal=2
+    )
 
 
 def test_get_new_idx():
