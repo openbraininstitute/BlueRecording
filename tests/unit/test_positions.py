@@ -100,7 +100,7 @@ def test_interpolate_ais(tmp_path):
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
@@ -112,7 +112,7 @@ def test_interpolate_ais_far_axon(tmp_path):
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
@@ -124,7 +124,7 @@ def test_interpolate_ais_short(tmp_path):
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
@@ -136,7 +136,7 @@ def test_interpolate_ais_2(tmp_path):
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
 
 
@@ -148,7 +148,7 @@ def test_interpolate_ais_2_short(tmp_path):
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
 
 
@@ -159,7 +159,7 @@ def test_interpolate_myelin(tmp_path):
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
 
 
@@ -170,7 +170,7 @@ def test_interpolate_myelin_short(tmp_path):
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
 
 

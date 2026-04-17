@@ -302,102 +302,101 @@ def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.nda
     return axon_points, np.array(running_len)[indices]
 
 
-def interp_points_axon(axonPoints, runningLens, secName, numCompartments, somaPos):
+def interp_points_axon(
+    axon_points: np.ndarray,
+    running_lens: np.ndarray,
+    sec_name: int,
+    num_compartments: int,
+) -> np.ndarray:
+    """Interpolate segment boundary points for a simulated-axon section.
 
-    segPos = []
+    The simulated axon has three sections identified by *sec_name*:
 
+    * 1 — first AIS section  (0–30 µm)
+    * 2 — second AIS section (30–60 µm)
+    * 3+ — myelinated section (60–1060 µm)
 
-    if secName == 1: # First AIS section
+    For each section the relevant subset of *axon_points* is selected by
+    cumulative arc length, then linearly interpolated to produce equally-spaced
+    segment boundary positions.  When fewer than two morphology points fall
+    inside the section's length window, nearby points are used as fallback
+    anchors so that extrapolation can still proceed.
 
-        secLen = 30 # By construction, has length of 30 um
-        segLen = secLen / numCompartments # Assumes each segment has the same length
+    Args:
+        axon_points: (N, 3) array of 3D positions along the axonal branch.
+        running_lens: (N,) array of cumulative arc lengths aligned with
+            *axon_points*.
+        sec_name: Section identifier (1 = first AIS, 2 = second AIS,
+            ≥3 = myelinated).
+        num_compartments: Number of compartments (segments) in this section.
 
-        startPoint = 0
-        endPoint = 30
+    Returns:
+        (num_compartments + 1, 3) array of interpolated boundary positions.
+    """
 
-        idx = np.where(runningLens <= endPoint) # Finds indices of axon 3d points where cumulative length < 30 um
+    # --- 1. Determine section geometry and select relevant points ---
 
-        axonRelevant = axonPoints[idx]
+    if sec_name == 1:  # First AIS section (0–30 µm)
+        sec_len = 30
+        start, end = 0, 30
 
+        idx = np.where(running_lens <= end)
+        axon_relevant = axon_points[idx]
+        lens_relevant = running_lens[idx] / sec_len
 
-        lensRelevant = runningLens[idx] / secLen # Gets fraction of the total section length for each 3d point
+        if len(axon_relevant) < 2:
+            axon_relevant = axon_points[:2]
+            lens_relevant = running_lens[:2] / sec_len
 
+    elif sec_name == 2:  # Second AIS section (30–60 µm)
+        sec_len = 30
+        start, end = 30, 60
 
-        if len(axonRelevant) < 2: # If there are not enough points, we use the soma position (which would be included in the axon point list) and the first real point in the axon
-            idx = 0
+        idx = np.intersect1d(
+            np.where(running_lens <= end),
+            np.where(running_lens >= start),
+        )
+        axon_relevant = axon_points[idx]
+        lens_relevant = (running_lens[idx] - start) / sec_len
 
-            axonRelevant = axonPoints[:2]
+        if len(axon_relevant) < 2:
+            idx_lo = np.argmin(np.abs(running_lens - start))
+            idx_hi = np.argmin(np.abs(running_lens - end))
 
-            lensRelevant = runningLens[:2] / secLen
-
-
-    elif secName == 2: # Second AIS section
-
-        secLen = 30 # Length is 30 unm, by construction
-        segLen = secLen / numCompartments
-
-        startPoint = 30 # Cumulative length of first AIS section
-        endPoint = 60 # Cumulative length of both AIS sections
-
-        idx = np.intersect1d(np.where(runningLens <= endPoint), np.where(runningLens >= startPoint)) # Finds indices 3d points falling in this length bin
-
-        axonRelevant = axonPoints[idx]
-
-        lensRelevant = (runningLens[idx] - startPoint) / secLen
-
-        if len(axonRelevant) < 2: # If there aren't enough points, we estimate
-
-            idxSmall = np.argmin(np.abs(runningLens - startPoint)) # Index closest to 30 um
-
-            idxBig = np.argmin(np.abs(runningLens - endPoint)) # Index closest to 60 um
-
-            if idxSmall == idxBig: # If these two points are the same, we use different points
-                if idxBig < len(runningLens)-1:
-                    idxBig += 1
+            if idx_lo == idx_hi:
+                if idx_hi < len(running_lens) - 1:
+                    idx_hi += 1
                 else:
-                    idxSmall -= 1 # If the two points are identical, then idxSmall can never be zero, since otherwise this would imply a one-point axon
+                    idx_lo -= 1
 
-            idx = [idxSmall, idxBig]
+            idx = [idx_lo, idx_hi]
+            axon_relevant = axon_points[idx]
+            lens_relevant = (running_lens[idx] - start) / sec_len
 
-            axonRelevant = axonPoints[idx]
-            lensRelevant = (runningLens[idx] - startPoint) / secLen
+    else:  # Myelinated section (60–1060 µm)
+        sec_len = 1000
+        start, end = 60, 1060
 
-
-    else: # Myelinated section
-
-        secLen = 1000
-        segLen = secLen / numCompartments
-
-        startPoint = 60
-        endPoint = 1060
-
-        idx = np.where(runningLens >= startPoint)[0] # Get indices of 3d points that are beyond the AIS
+        idx = np.where(running_lens >= start)[0]
 
         if len(idx) == 1:
             idx = [idx[0] - 1, idx[0]]
 
-        axonRelevant = axonPoints[idx]
+        axon_relevant = axon_points[idx]
+        lens_relevant = (running_lens[idx] - start) / sec_len
 
-        lensRelevant = (runningLens[idx] - startPoint) / secLen
+    # --- 2. Interpolate equally-spaced boundary points ---
 
-    for i in range(numCompartments+1): # Interpolates segment positions
+    seg_len = sec_len / num_compartments
+    targets = np.array([(i * seg_len) / sec_len for i in range(num_compartments + 1)])
 
-        frac = (i * segLen) / secLen
+    seg_pos = np.column_stack([
+        interp1d(lens_relevant, axon_relevant[:, dim], kind='linear',
+                 fill_value='extrapolate')(targets)
+        for dim in range(3)
+    ])
 
-
-        fx = interp1d(lensRelevant, axonRelevant[:, 0], kind='linear', fill_value='extrapolate')
-        fy = interp1d(lensRelevant, axonRelevant[:, 1], kind='linear', fill_value='extrapolate')
-        fz = interp1d(lensRelevant, axonRelevant[:, 2], kind='linear', fill_value='extrapolate')
-
-        newx = fx(frac)
-        newy = fy(frac)
-        newz = fz(frac)
-
-        segPos.append([newx, newy, newz])
-
-
-    segPos = np.array(segPos)
-    return segPos
+    return seg_pos
 
 def tryFileNames(morphName, finalmorphpath):
 
@@ -523,11 +522,11 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
 
         # Section 1 and 2 are always axonal when axons are replaced (AIS)
         if sec_name < 3 and replace_axons:
-            seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
+            seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments)
         else:
             sec_id = sec_name - 1
             if sec_id >= len(m.indices): # Beyond morphology sections → myelinated AIS
-                seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
+                seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments)
             else:
                 sec_pts = np.array(m.section_points(sec_id))
                 seg_pos = interp_points(sec_pts,num_compartments)
