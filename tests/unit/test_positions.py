@@ -78,7 +78,7 @@ def test_get_new_idx():
     ]
     expected_idx = list(zip(*expected_columns))
     expected_mi = pd.MultiIndex.from_tuples(expected_idx, names=['id', 'section'])
-    result = positions.getNewIndex(data.columns)
+    result = positions.get_new_index(data.columns)
     pd.testing.assert_index_equal(result, expected_mi)
 
 
