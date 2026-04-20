@@ -420,46 +420,59 @@ def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
 
     return pd.MultiIndex.from_tuples(new_idx, names=["id", "section"])
 
-def get_cell_positions(m, center, cols, gid, replace_axons):
+def _get_cell_positions(
+    m: PositionedMorphology,
+    center: np.ndarray,
+    cols: np.ndarray,
+    gid: int,
+    replace_axons: bool,
+) -> np.ndarray:
     """Compute the 3D segment boundary positions for a single cell.
 
-    Returns a (3, N) array where each column is the x/y/z position of a segment
-    boundary (start points, plus the end point of the last segment in each section).
-    """
+    For each section the morphology points are interpolated to produce
+    equally-spaced segment boundaries.  When axon replacement is active,
+    sections 1–2 (AIS) and any section beyond the morphology are
+    interpolated along the simulated axon branch instead.
 
-    soma_pos = center[:,np.newaxis]
+    Args:
+        m: PositionedMorphology with points in global coordinates.
+        center: Soma position, shape (3,).
+        cols: (N, 2) array of (gid, section) pairs for all cells.
+        gid: GID of the cell to process.
+        replace_axons: If True, use the simulated axon for AIS/myelinated
+            sections.
+
+    Returns:
+        (3, M) array where each column is an x/y/z segment boundary position.
+    """
+    soma_pos = center[:, np.newaxis]
+    gid_mask = cols[:, 0] == gid
 
     axon_points, running_lens = None, None
-    if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
-        axon_points, running_lens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
+    if replace_axons:
+        axon_points, running_lens = get_axon_points(m, center)
 
-    sections = np.unique(cols[np.where(cols[:,0]==gid),1:].flatten()) # List of sections for the given neuron
+    sections = np.unique(cols[np.where(gid_mask), 1:].flatten())
 
-    # Start with soma position(s)
-    xyz = soma_pos.reshape(3,1)
+    # Build soma columns — all somatic segments share the same position
+    num_somas = np.sum(gid_mask & (cols[:, 1] == 0))
+    xyz = np.tile(soma_pos.reshape(3, 1), num_somas)
 
-    num_somas = np.sum((cols[:,0] == gid) & (cols[:,1] == 0))
+    for sec_name in sections[1:]:
+        num_compartments = np.sum(gid_mask & (cols[:, 1] == sec_name))
 
-    if num_somas > 1: # If there is more than one somatic segment, we assume that they all have the same position
-        for k in np.arange(1,num_somas):
-            xyz = np.hstack((xyz,soma_pos.reshape(3,1)))
-
-    for sec_name in list(sections[1:]):
-
-        num_compartments = np.sum((cols[:,0] == gid) & (cols[:,1] == sec_name))
-
-        # Section 1 and 2 are always axonal when axons are replaced (AIS)
         if sec_name < 3 and replace_axons:
-            seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments)
+            seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
         else:
             sec_id = sec_name - 1
-            if sec_id >= len(m.indices): # Beyond morphology sections → myelinated AIS
-                seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments)
+            if sec_id >= len(m.indices):
+                # Beyond morphology sections → myelinated AIS
+                seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
             else:
                 sec_pts = np.array(m.section_points(sec_id))
-                seg_pos = interp_points(sec_pts,num_compartments)
+                seg_pos = interp_points(sec_pts, num_compartments)
 
-        xyz = np.hstack((xyz,seg_pos.T))
+        xyz = np.hstack((xyz, seg_pos.T))
 
     return xyz
 
@@ -579,7 +592,7 @@ def get_positions(
         )
         center = cell.local_to_global_matrix[:, 3]
 
-        cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
+        cell_arrays.append(_get_cell_positions(m, center, cols, i, replace_axons))
 
         cols_for_gid = cols[cols[:, 0] == i]
         neurite_type_arrays.append(resolve_neurite_types(cols_for_gid, cell))
