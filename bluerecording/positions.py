@@ -568,7 +568,44 @@ def resolve_neurite_types(cols_for_gid, cell):
     return result
 
 
-def get_positions(node_manager, ids, cols, population, morphologies_dir, replace_axons=True):
+def _find_morph_file(morph_name: str, morph_dir: str) -> str:
+    """Locate a morphology file by trying common subdirectory/extension combos.
+
+    Args:
+        morph_name: Morphology name (without extension) from the population.
+        morph_dir: Absolute path to the morphologies directory (from libsonata).
+
+    Returns:
+        Absolute path to the first existing morphology file found.
+
+    Raises:
+        FileNotFoundError: If no matching file is found.
+    """
+    base = Path(morph_dir)
+    candidates = [
+        base / "ascii" / f"{morph_name}.asc",
+        base / f"{morph_name}.asc",
+        base / "morphologies_asc" / f"{morph_name}.asc",
+        base / "swc" / f"{morph_name}.swc",
+        base / f"{morph_name}.swc",
+        base / "morphologies_swc" / f"{morph_name}.swc",
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path)
+    raise FileNotFoundError(
+        f"Morphology '{morph_name}' not found in {morph_dir}"
+    )
+
+
+def get_positions(
+    node_manager,
+    ids: np.ndarray,
+    cols: np.ndarray,
+    population: libsonata.NodePopulation,
+    morphologies_dir: str,
+    replace_axons: bool = True,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Compute segment boundary positions for all cells on this rank.
 
     Pure computation — no file I/O. Returns the positions DataFrame,
@@ -616,7 +653,7 @@ def get_positions(node_manager, ids, cols, population, morphologies_dir, replace
 
 
 
-def save_positions(positions_df, path_to_positions_folder):
+def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | Path) -> None:
     """Write positions DataFrame to a pickle file for this MPI rank.
 
     Args:
