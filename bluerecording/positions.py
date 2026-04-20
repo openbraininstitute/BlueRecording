@@ -528,7 +528,14 @@ def _find_morph_file(morph_name: str, morph_dir: str) -> str:
     )
 
 
-def get_positions(node_manager, ids, cols, population, path_to_simconfig, replace_axons=True):
+def get_positions(
+    node_manager,
+    ids: np.ndarray,
+    cols: np.ndarray,
+    population: libsonata.NodePopulation,
+    path_to_simconfig: str,
+    replace_axons: bool = True,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Compute segment boundary positions for all cells on this rank.
 
     Pure computation — no file I/O. Returns the positions DataFrame,
@@ -596,7 +603,7 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
 
 
 
-def save_positions(positions_df, path_to_positions_folder):
+def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | Path) -> None:
     """Write positions DataFrame to a pickle file for this MPI rank.
 
     Args:
