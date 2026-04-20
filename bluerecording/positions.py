@@ -107,7 +107,11 @@ def _get_cumulative_length(
 
 
 def _get_branch_section_ids(sec) -> list[int]:
-    """Walk from a leaf section back to the root, returning section IDs soma→tip."""
+    """Walk from a leaf section back to the root, returning section IDs root→tip.
+
+    Note: 'root' here means the first neurite section attached to the soma,
+    not the soma itself (which is not a MorphIO section).
+    """
     idxs = []
     this_sec = sec
     while True:
