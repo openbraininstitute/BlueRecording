@@ -1,7 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import json
-import os
-
 import libsonata
 import numpy as np
 import pandas as pd
@@ -10,8 +7,6 @@ from morphio import Morphology, SectionType
 from mpi4py import MPI
 from pathlib import Path
 from scipy.interpolate import interp1d
-
-from .utils import get_circuit_path
 
 rank = MPI.COMM_WORLD.Get_rank()
 
@@ -395,107 +390,6 @@ def interp_points_axon(
 
     return seg_pos
 
-def remove_variables(js, finalmorphpath):
-
-    '''
-    Removes references to variables in path to morphology
-    Assumes that all references are in the manifest section
-    '''
-
-    while '$' in finalmorphpath:
-
-        elements = finalmorphpath.split('/')
-
-        for i, element in enumerate(elements):
-
-            if '$' in element:
-                element = js['manifest'][element]
-                
-            if i == 0:
-                finalmorphpath = element
-            else:
-                finalmorphpath = finalmorphpath + '/' + element
-
-    return finalmorphpath
-
-def tryFileNames(morphName, finalmorphpath):
-
-    asc = finalmorphpath+'/ascii/'+morphName+'.asc'
-    asc1 = finalmorphpath+'/'+morphName+'.asc'
-    asc2 = finalmorphpath+'/morphologies_asc/'+morphName+'.asc'
-
-    swc = finalmorphpath+'/swc/'+morphName+'.swc'
-    swc1 = finalmorphpath+'/'+morphName+'.swc'
-    swc2 = finalmorphpath+'/morphologies_swc/'+morphName+'.swc'
-
-    options = [asc, asc1, asc2, swc, swc1, swc2]
-
-    for option in options:
-        if os.path.exists(option):
-            fileName = option
-            break
-
-    return fileName
-
-def get_morph_path(population, i, path_to_simconfig):
-
-    morphName = population.get_attribute('morphology', i) # Gets name of the morphology file for node_id i
-
-    circuitpath = get_circuit_path(path_to_simconfig) # path to circuit_config file
-
-    with open(circuitpath) as f: # Gets path to morphology file from circuit_config
-
-        js = json.load(f)
-
-        if 'components' in js.keys() and 'morphologies_dir' in js['components'].keys():
-            finalmorphpath = js['components']['morphologies_dir']
-
-        else:
-            finalmorphpath = js['manifest']['$MORPHOLOGIES']
-
-        finalmorphpath = remove_variables(js, finalmorphpath)
-
-        finalmorphpath = str((Path(circuitpath).parent / finalmorphpath).resolve())
-
-    fileName = tryFileNames(morphName, finalmorphpath)
-
-    return fileName
-
-
-def get_morphology(
-    population: libsonata.NodePopulation,
-    i: int,
-    path_to_simconfig: str,
-    cell,
-) -> tuple[PositionedMorphology, np.ndarray]:
-    """Load and transform a morphology into circuit (global) coordinates.
-
-    Args:
-        population: libsonata NodePopulation.
-        i: Node index within the population.
-        path_to_simconfig: Path to the SONATA simulation configuration file.
-        cell: Neurodamus cell object with coordinate mapping.
-
-    Returns:
-        m: PositionedMorphology with points transformed to global coordinates.
-        center: (3,) float32 array — the soma position taken from the sonata
-            node x/y/z (translation column of the transform matrix).  This is
-            the BlueRecording convention (raw placement position), not the
-            neurodamus soma centroid (mean of NEURON soma section boundary
-            points), which can differ by up to ~1.8 µm.
-    """
-
-    finalmorphpath = get_morph_path(population, i, path_to_simconfig)
-
-    mImmutable = Morphology(finalmorphpath) # Immutable MorphIO morphology object
-
-    m = PositionedMorphology(mImmutable, transform=cell.local_to_global_coord_mapping)
-
-    center = cell.local_to_global_matrix[:, 3]
-
-    return m, center
-
-
 def getNewIndex(cols):
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
@@ -604,6 +498,36 @@ def resolve_neurite_types(cols_for_gid, cell):
     return result
 
 
+def _find_morph_file(morph_name: str, morph_dir: str) -> str:
+    """Locate a morphology file by trying common subdirectory/extension combos.
+
+    Args:
+        morph_name: Morphology name (without extension) from the population.
+        morph_dir: Absolute path to the morphologies directory (from libsonata).
+
+    Returns:
+        Absolute path to the first existing morphology file found.
+
+    Raises:
+        FileNotFoundError: If no matching file is found.
+    """
+    base = Path(morph_dir)
+    candidates = [
+        base / "ascii" / f"{morph_name}.asc",
+        base / f"{morph_name}.asc",
+        base / "morphologies_asc" / f"{morph_name}.asc",
+        base / "swc" / f"{morph_name}.swc",
+        base / f"{morph_name}.swc",
+        base / "morphologies_swc" / f"{morph_name}.swc",
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path)
+    raise FileNotFoundError(
+        f"Morphology '{morph_name}' not found in {morph_dir}"
+    )
+
+
 def get_positions(node_manager, ids, cols, population, path_to_simconfig, replace_axons=True):
     """Compute segment boundary positions for all cells on this rank.
 
@@ -628,9 +552,29 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
     """
     cell_arrays = []
     neurite_type_arrays = []
+
+    # Resolve morphologies directory once via libsonata (replaces manual
+    # JSON parsing + manifest variable substitution that lived in the
+    # now-deleted get_morph_path / remove_variables / tryFileNames).
+    sim_conf = libsonata.SimulationConfig.from_file(path_to_simconfig)
+    circuit_conf = libsonata.CircuitConfig.from_file(sim_conf.network)
+    pop_name = node_manager.population_name
+    morph_dir = circuit_conf.node_population_properties(pop_name).morphologies_dir
+
     for i in ids:
         cell = node_manager.get_cell(i)
-        m, center = get_morphology(population, i, path_to_simconfig, cell)
+
+        # Load morphology, transform to global coordinates, extract soma pos.
+        # center is the raw placement position (translation column of the
+        # transform matrix), not the neurodamus soma centroid which can
+        # differ by up to ~1.8 µm.
+        morph_name = population.get_attribute("morphology", i)
+        morph_path = _find_morph_file(morph_name, morph_dir)
+        m = PositionedMorphology(
+            Morphology(morph_path),
+            transform=cell.local_to_global_coord_mapping,
+        )
+        center = cell.local_to_global_matrix[:, 3]
 
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
