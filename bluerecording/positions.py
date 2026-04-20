@@ -516,7 +516,7 @@ def _get_cell_positions(
 
     return xyz
 
-def resolve_neurite_types(cols_for_gid, cell):
+def resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
     """Return an int array of neurite-type codes for one neuron's compartments.
 
     Queries the actual NEURON section via ``cell.get_sec()`` and maps the

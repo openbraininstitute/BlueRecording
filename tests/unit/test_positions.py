@@ -53,7 +53,7 @@ def test_get_axon_points_picks_longest_branch(tmp_path):
     the longer one (branch A, 100 µm) for extrapolation, not the last one
     visited (branch B, 10 µm).
     """
-    morph = positions.MutableMorph(
+    morph = positions.PositionedMorphology(
         make_morphology_two_axon_branches(tmp_path / "morph.h5")
     )
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
