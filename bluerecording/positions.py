@@ -390,37 +390,35 @@ def interp_points_axon(
 
     return seg_pos
 
-def getNewIndex(cols):
+def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
-    Rules:
-    - Every column is kept once.
-    - The last column is repeated to represent the end point.
-    - Columns with section != 0 are duplicated if the next column tuple differs.
+    Each column is kept once.  Non-somatic columns (section != 0) are
+    duplicated when the next column tuple differs, to represent the end
+    point of that section.  The last column is always repeated.
 
-    Returns a pandas MultiIndex with levels ["id", "section"].
+    Args:
+        cols: (N, 2) array of (id, section) pairs.
+
+    Returns:
+        MultiIndex with levels ["id", "section"].
     """
-    newIdx = []
-
-    # Ensure cols is a list of tuples
+    new_idx = []
     cols_list = [tuple(c) for c in cols]
 
     for i, col in enumerate(cols_list):
-        newIdx.append(col)
+        new_idx.append(col)
 
         # Last column: repeat to account for end point
         if i == len(cols_list) - 1:
-            newIdx.append(col)
+            new_idx.append(col)
 
         # Non-somatic segments: add extra entry if next col is different
-        elif col[-1] != 0:  # section != 0
-            if cols_list[i + 1] != col:  # now comparing tuples
-                newIdx.append(col)
+        elif col[-1] != 0:
+            if cols_list[i + 1] != col:
+                new_idx.append(col)
 
-    newCols = pd.MultiIndex.from_tuples(newIdx, names=["id", "section"])
-
-    return newCols
-
+    return pd.MultiIndex.from_tuples(new_idx, names=["id", "section"])
 
 def get_cell_positions(m, center, cols, gid, replace_axons):
     """Compute the 3D segment boundary positions for a single cell.
@@ -464,8 +462,6 @@ def get_cell_positions(m, center, cols, gid, replace_axons):
         xyz = np.hstack((xyz,seg_pos.T))
 
     return xyz
-
-
 
 def resolve_neurite_types(cols_for_gid, cell):
     """Return an int array of neurite-type codes for one neuron's compartments.
@@ -594,14 +590,11 @@ def get_positions(
         return positions_df, cols, np.array([], dtype=np.int32)
 
     xyz = np.hstack(cell_arrays)
-    new_cols = getNewIndex(cols)
+    new_cols = get_new_index(cols)
     positions_df = pd.DataFrame(xyz, columns=new_cols)
     neurite_types = np.concatenate(neurite_type_arrays)
 
     return positions_df, cols, neurite_types
-
-
-
 
 def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | Path) -> None:
     """Write positions DataFrame to a pickle file for this MPI rank.
