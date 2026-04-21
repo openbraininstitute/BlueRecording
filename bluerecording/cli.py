@@ -89,6 +89,13 @@ def main():
         dest="with_neurite_type",
         help="Append a neurite_types dataset to the weights file",
     )
+    ww_parser.add_argument(
+        "--write-positions",
+        action="store_true",
+        default=False,
+        dest="write_positions",
+        help="Also save segment positions alongside the weights file",
+    )
 
     args = parser.parse_args()
 
@@ -112,8 +119,13 @@ def main():
         if output_file.is_dir() or not output_file.suffix:
             output_file.mkdir(parents=True, exist_ok=True)
             output_file = output_file / "weights.h5"
+        elif output_file.suffix != ".h5":
+            parser.error(f"output_path must be a directory or an .h5 file, got '{output_file}'")
+
         initialize_h5_file(cols, population_name, str(output_file), args.electrode_csv,
                          with_neurite_type=args.with_neurite_type)
         write_h5_file(positions_df, cols, population_name, str(output_file),
                     sigma=args.sigma, path_to_fields=args.path_to_fields,
                     neurite_types=neurite_types if args.with_neurite_type else None)
+        if args.write_positions:
+            positions.save_positions(positions_df, output_file.parent)
