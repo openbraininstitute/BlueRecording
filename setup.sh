@@ -217,23 +217,25 @@ if [[ $QUICK -eq 0 ]]; then
     # -------------------------
     # Install neurodamus
     # -------------------------
+    # TODO: Switch back to the PyPI release once it includes commit e5abd33
+    # (https://github.com/openbraininstitute/neurodamus/commit/e5abd33ad2cc5a4450c2d5190e32afc11ee385d8)
     pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 
     # -------------------------
     # Install neurodamus-models
     # -------------------------
     if [ ! -d "neurodamus-models" ]; then
-        git clone https://github.com/openbraininstitute/neurodamus-models.git
+        git clone --branch weji/no_reporting https://github.com/openbraininstitute/neurodamus-models.git
         NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
         cmake -B neurodamus-models/build -S neurodamus-models/ \
             -DPython_EXECUTABLE=$(which python) \
             -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
             -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
-            -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR \
             -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
             -DNEURODAMUS_MECHANISMS=neocortex \
-            -DNEURODAMUS_NCX_V5=ON
+            -DNEURODAMUS_NCX_V5=ON \
+            -DNEURODAMUS_ENABLE_REPORTING=OFF
 
         cmake --build neurodamus-models/build
         cmake --install neurodamus-models/build
