@@ -12,30 +12,32 @@ This branch provides code that produces an electrodes file compatible with the [
 
 BlueRecording requires `mpi4py`, `h5py`, and `hdf5` built with MPI support. The provided `setup.sh` script handles all of this automatically, including building NEURON, neurodamus, and libsonatareport from source.
 
-`setup.sh` works for both macOS (with `brew`) and Linux (with `apt`) systems:
+`setup.sh` works for both macOS (with `brew`) and Linux (with `apt`) systems. There are three install modes:
+
+**Default (`--light`)** — install NEURON from pip, build neurodamus-models without reporting. Enough to compute electrode weights:
 
 ```bash
 source setup.sh
 ```
 
-If you want the developer version with tests and editable source files:
+**`--dev`** — same as light, but with editable install and test dependencies. Use for development and running the test suite:
 
 ```bash
 source setup.sh --dev
 ```
 
-If you want to skip the system packages installation append `--no-system` to the previous lines.
-
-Use `--quick` to skip building NEURON, libsonatareport, neurodamus, and neurodamus-models from source (useful for CI or when you only need the Python package):
+**`--full`** — build everything from source (libsonatareport, NEURON, neurodamus-models with reporting). Required to run simulations with SONATA report generation:
 
 ```bash
-source setup.sh --dev --quick
+source setup.sh --full
 ```
+
+Append `--no-system` to skip system package installation (brew/apt).
 
 Use `--no-cache` to wipe the virtual environment and all build artifacts before reinstalling from scratch (downloaded data is preserved):
 
 ```bash
-source setup.sh --dev --no-cache
+source setup.sh --no-cache
 ```
 
 Finally, if you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
@@ -55,15 +57,22 @@ The initial input data of `BlueRecording` includes a [compartment report](https:
 
 ### Neurodamus
 
-`setup.sh` automatically installs [neurodamus](https://github.com/openbraininstitute/neurodamus), [neurodamus-models](https://github.com/openbraininstitute/neurodamus-models) (neocortex mechanisms), and [libsonatareport](https://github.com/openbraininstitute/libsonatareport) from source. No separate spack environment is needed.
+`setup.sh` can install the full simulation stack or a lighter version depending on the install mode:
 
-On the first run, the script will:
+**`--full` mode** (for simulations with reports):
 1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
 2. Clone and build `libsonatareport`
 3. Clone and build NEURON from source (with `libsonatareport` support)
 4. Install `neurodamus` from source
-5. Clone and build `neurodamus-models` (neocortex)
-6. Install the `bluerecording` package
+5. Clone and build `neurodamus-models` (neocortex, with reporting)
+6. Install the `bluerecording` package (editable)
+
+**`--light` / `--dev` mode** (for electrode weights without reports):
+1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
+2. Install NEURON from pip
+3. Install `neurodamus` from source
+4. Clone and build `neurodamus-models` (neocortex, without reporting)
+5. Install the `bluerecording` package (`--dev` adds editable install + test deps)
 
 In subsequent sessions, running `source setup.sh` again will simply activate the existing environment.
 
@@ -113,13 +122,7 @@ mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
 pytest -v -m "not skip_in_ci" tests/unit
 ```
 
-This is also what runs in CI, where we avoid downloading the full test data to keep pipelines fast and lightweight.
-
-> **Note:** If you installed with the `--quick` flag (i.e. `source setup.sh --dev --quick`), NEURON, neurodamus, libsonatareport, and neurodamus-models are not available. In that case only the non-MPI unit tests can run:
-> ```bash
-> pytest -v -m "not skip_in_ci" tests/unit
-> ```
-> The MPI tests and any test that requires neurodamus will be skipped or fail.
+This is also what runs in CI (with `--light` mode), where we avoid building the full simulation stack to keep pipelines fast and lightweight.
 
 To run only the slow, data-intensive tests (e.g., single cell and 100-cell integration tests):
 
