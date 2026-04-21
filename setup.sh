@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# setup.sh — Full MPI-enabled Python environment setup
+# setup.sh — MPI-enabled Python environment setup for BlueRecording
 
 # -------------------------
 # Pinned versions (edit here to update)
 # -------------------------
-NEURON_COMMIT="9.0.1"
+NEURON_VERSION="9.0.1"
 
 if command -v deactivate &> /dev/null; then
     deactivate
@@ -14,10 +14,10 @@ INSTALL_MODE="normal"
 SKIP_SYSTEM=0
 DOWNLOAD_DATA=0
 NO_CACHE=0
-QUICK=0
+BUILD_MODE="full"
 
 # -------------------------
-# Parse arguments (with --help)
+# Parse arguments
 # -------------------------
 for arg in "$@"; do
     case $arg in
@@ -25,16 +25,30 @@ for arg in "$@"; do
         --no-system) SKIP_SYSTEM=1 ;;
         --data) DOWNLOAD_DATA=1 ;;
         --no-cache) NO_CACHE=1 ;;
-        --quick) QUICK=1 ;;
+        --full) BUILD_MODE="full" ;;
+        --light) BUILD_MODE="light" ;;
+        --quick) BUILD_MODE="quick" ;;
         --help|-h)
             echo "Usage: source setup.sh [OPTIONS]"
             echo ""
-            echo "Options:"
-            echo "  --dev         Install development version (includes -e pip install)"
-            echo "  --no-system   Skip system package installation"
-            echo "  --data        Download and unpack datasets"
+            echo "Build modes (pick one, default: --full):"
+            echo "  --full        Build everything from source: libsonatareport, NEURON,"
+            echo "                neurodamus, and neurodamus-models with reporting enabled."
+            echo "                Allows computing electrode weights and running simulations"
+            echo "                with SONATA report generation."
+            echo "  --light       Install NEURON from pip, build neurodamus-models without"
+            echo "                reporting. Skips libsonatareport entirely."
+            echo "                Allows computing electrode weights, but simulations will"
+            echo "                not produce reports."
+            echo "  --quick       Skip all builds. Only sets up the venv and installs the"
+            echo "                Python project. Only unit tests will work."
+            echo "                Mostly useful for CI."
+            echo ""
+            echo "Other options:"
+            echo "  --dev         Install BlueRecording in editable mode (pip install -e)"
+            echo "  --no-system   Skip system package installation (brew/apt)"
+            echo "  --data        Download and unpack example datasets (atlas, networks, FEM)"
             echo "  --no-cache    Remove venv, cloned repos, and build artifacts (keeps data)"
-            echo "  --quick       Skip NEURON, libsonatareport, neurodamus, and neurodamus-models builds"
             echo "  --help, -h    Show this help message"
             return 0 2>/dev/null || exit 0
             ;;
@@ -72,7 +86,7 @@ if [[ $NO_CACHE -eq 1 ]]; then
     fi
 fi
 
-echo "=== Install mode: $INSTALL_MODE ==="
+echo "=== Build mode: $BUILD_MODE | Install mode: $INSTALL_MODE ==="
 echo "=== Skip system installation: $SKIP_SYSTEM ==="
 
 # -------------------------
@@ -111,12 +125,15 @@ fi
 # -------------------------
 # Set globals
 # -------------------------
-export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
 export NEURODAMUS_NEOCORTEX_ROOT="$(pwd)/neurodamus-models/build/install"
 export HOC_LIBRARY_PATH="$NEURODAMUS_NEOCORTEX_ROOT/share/neurodamus_neocortex/hoc"
-export PATH=$(pwd)/nrn/build/install/bin:$PATH
-export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
 export PATH=$NEURODAMUS_NEOCORTEX_ROOT/bin:$PATH
+
+if [[ "$BUILD_MODE" == "full" ]]; then
+    export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
+    export PATH=$(pwd)/nrn/build/install/bin:$PATH
+    export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
+fi
 
 if [[ "$OS" == "Darwin" ]]; then
   export CORENEURONLIB="$NEURODAMUS_NEOCORTEX_ROOT/lib/libcorenrnmech.dylib"
@@ -164,85 +181,101 @@ else
     pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 fi
 
-# -------------------------
-# Install libsonatareport, NEURON, neurodamus, neurodamus-models
-# (skipped with --quick)
-# -------------------------
-if [[ $QUICK -eq 0 ]]; then
+# =========================================================================
+# Build components (skipped entirely in --quick mode)
+# =========================================================================
+if [[ "$BUILD_MODE" != "quick" ]]; then
 
     # -------------------------
-    # Install libsonatareport
+    # libsonatareport (full only — needed by NEURON for reporting)
     # -------------------------
-    if [ ! -d "libsonatareport" ]; then
-        git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
-        cmake -B libsonatareport/build -S libsonatareport \
-            -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
+    if [[ "$BUILD_MODE" == "full" ]]; then
+        if [ ! -d "libsonatareport" ]; then
+            git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
+            cmake -B libsonatareport/build -S libsonatareport \
+                -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
 
-        cmake --build libsonatareport/build
-        cmake --install libsonatareport/build
-    fi
-
-    # -------------------------
-    # Install NEURON from source (with libsonatareport support)
-    # -------------------------
-    if [ ! -d "nrn" ]; then
-        echo "=== Building NEURON from source ==="
-        git clone --branch=master https://github.com/neuronsimulator/nrn.git
-        cd nrn && git checkout $NEURON_COMMIT && cd ..
-        pip install --upgrade pip -r nrn/nrn_requirements.txt
-
-        if [[ "$OS" == "Darwin" ]]; then
-            NRN_C_COMPILER=gcc
-            NRN_CXX_COMPILER=g++
-        else
-            NRN_C_COMPILER=gcc
-            NRN_CXX_COMPILER=g++
+            cmake --build libsonatareport/build
+            cmake --install libsonatareport/build
         fi
-
-        cmake -B nrn/build -S nrn -G Ninja \
-            -DPYTHON_EXECUTABLE=$(which python) \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
-            -DNRN_ENABLE_MPI=ON \
-            -DNRN_ENABLE_INTERVIEWS=OFF \
-            -DNRN_ENABLE_CORENEURON=ON \
-            -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
-            -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
-            -DCORENRN_ENABLE_REPORTING=ON \
-            -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
-
-        cmake --build nrn/build --parallel
-        cmake --build nrn/build --target install
     fi
 
     # -------------------------
-    # Install neurodamus
+    # NEURON
+    #   full:  build from source with reporting support
+    #   light: install from pip
+    # -------------------------
+    if [[ "$BUILD_MODE" == "full" ]]; then
+        if [ ! -d "nrn" ]; then
+            echo "=== Building NEURON from source ==="
+            git clone --branch=master https://github.com/neuronsimulator/nrn.git
+            cd nrn && git checkout $NEURON_VERSION && cd ..
+            pip install --upgrade pip -r nrn/nrn_requirements.txt
+
+            if [[ "$OS" == "Darwin" ]]; then
+                NRN_C_COMPILER=gcc
+                NRN_CXX_COMPILER=g++
+            else
+                NRN_C_COMPILER=gcc
+                NRN_CXX_COMPILER=g++
+            fi
+
+            cmake -B nrn/build -S nrn -G Ninja \
+                -DPYTHON_EXECUTABLE=$(which python) \
+                -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
+                -DNRN_ENABLE_MPI=ON \
+                -DNRN_ENABLE_INTERVIEWS=OFF \
+                -DNRN_ENABLE_CORENEURON=ON \
+                -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
+                -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
+                -DCORENRN_ENABLE_REPORTING=ON \
+                -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
+
+            cmake --build nrn/build --parallel
+            cmake --build nrn/build --target install
+        fi
+    elif [[ "$BUILD_MODE" == "light" ]]; then
+        echo "=== Installing NEURON from pip ==="
+        pip install neuron==$NEURON_VERSION
+    fi
+
+    # -------------------------
+    # neurodamus
     # -------------------------
     # TODO: Switch back to the PyPI release once it includes commit e5abd33
     # (https://github.com/openbraininstitute/neurodamus/commit/e5abd33ad2cc5a4450c2d5190e32afc11ee385d8)
     pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 
     # -------------------------
-    # Install neurodamus-models
+    # neurodamus-models
+    #   full:  with reporting (linked against libsonatareport)
+    #   light: without reporting
     # -------------------------
     if [ ! -d "neurodamus-models" ]; then
         git clone --branch weji/no_reporting https://github.com/openbraininstitute/neurodamus-models.git
         NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
-        cmake -B neurodamus-models/build -S neurodamus-models/ \
-            -DPython_EXECUTABLE=$(which python) \
-            -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
-            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
-            -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
-            -DNEURODAMUS_MECHANISMS=neocortex \
-            -DNEURODAMUS_NCX_V5=ON \
-            -DNEURODAMUS_ENABLE_REPORTING=OFF
+        NEURODAMUS_CMAKE_ARGS=(
+            -DPython_EXECUTABLE=$(which python)
+            -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
+            -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON}
+            -DNEURODAMUS_MECHANISMS=neocortex
+            -DNEURODAMUS_NCX_V5=ON
+        )
 
+        if [[ "$BUILD_MODE" == "full" ]]; then
+            NEURODAMUS_CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR)
+        else
+            NEURODAMUS_CMAKE_ARGS+=(-DNEURODAMUS_ENABLE_REPORTING=OFF)
+        fi
+
+        cmake -B neurodamus-models/build -S neurodamus-models/ "${NEURODAMUS_CMAKE_ARGS[@]}"
         cmake --build neurodamus-models/build
         cmake --install neurodamus-models/build
     fi
 
-fi # end --quick guard
-
+fi # end build guard
 
 # -------------------------
 # Install project
