@@ -247,7 +247,7 @@ pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 #   light: without reporting
 # -------------------------
 if [ ! -d "neurodamus-models" ]; then
-    git clone --branch weji/no_reporting https://github.com/openbraininstitute/neurodamus-models.git
+    git clone https://github.com/openbraininstitute/neurodamus-models.git
     NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
     NEURODAMUS_CMAKE_ARGS=(
