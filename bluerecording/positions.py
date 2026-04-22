@@ -317,6 +317,14 @@ def interp_points_axon(
     * 2 — second AIS section (30–60 µm)
     * 3+ — myelinated section (60–1060 µm)
 
+    These are global section IDs originating from NEURON's section
+    numbering.  Neurodamus assigns them as offsets into the
+    ``SECTION_TYPES`` ordering (soma, axon, dend, apic, ais, node,
+    myelin).  After axon replacement the first two axon slots (indices 1
+    and 2) hold the AIS stubs.  Because the mapping from ID to type
+    depends on per-cell section counts, a static IntEnum cannot represent
+    them — they are inherently positional, not categorical.
+
     For each section the relevant subset of *axon_points* is selected by
     cumulative arc length, then linearly interpolated to produce equally-spaced
     segment boundary positions.  When fewer than two morphology points fall
