@@ -361,10 +361,7 @@ def interp_points_axon(
         sec_len = 30
         start, end = 30, 60
 
-        idx = np.intersect1d(
-            np.where(running_lens <= end),
-            np.where(running_lens >= start),
-        )
+        idx = np.where((running_lens >= start) & (running_lens <= end))[0]
         axon_relevant = axon_points[idx]
         lens_relevant = (running_lens[idx] - start) / sec_len
 
