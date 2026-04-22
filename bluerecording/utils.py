@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import json
 from pathlib import Path
+
+import libsonata
 
 
 def get_circuit_path(path_to_simconfig: str | Path) -> str:
     """Return the absolute path to the circuit config for a given simulation config.
 
-    The circuit path is resolved relative to the simulation config file location.
+    Uses libsonata to resolve the network path, including manifest variable
+    expansion and relative path resolution.
 
     Args:
         path_to_simconfig: Path to the simulation configuration JSON file.
@@ -14,11 +16,5 @@ def get_circuit_path(path_to_simconfig: str | Path) -> str:
     Returns:
         Absolute path to the circuit configuration file.
     """
-    with open(path_to_simconfig) as f:
-        circuitpath = json.load(f)['network']
-    
-    circuitpath = str((Path(path_to_simconfig).parent / circuitpath).resolve())
-    return circuitpath
-
-
-    
+    sim_conf = libsonata.SimulationConfig.from_file(str(path_to_simconfig))
+    return sim_conf.network
