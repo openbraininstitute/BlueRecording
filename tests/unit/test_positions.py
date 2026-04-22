@@ -29,7 +29,8 @@ def _get_sections(data, gid):
 def test_positioned_morphology(tmp_path):
     morph = make_morphology(tmp_path / "morph.h5")
     m = positions.PositionedMorphology(morph)
-    assert m.indices == [[0, 1, 2, 3], [4, 5], [6, 7, 8]]
+    np.testing.assert_array_equal(m.offsets, [0, 4, 6, 9])
+    assert m.num_sections == 3
 
 
 def test_get_axon_points(tmp_path):

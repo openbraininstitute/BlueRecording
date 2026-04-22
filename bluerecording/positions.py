@@ -31,7 +31,7 @@ class PositionedMorphology:
         self._morph: Morphology = morph
         all_points: np.ndarray = np.concatenate([s.points for s in morph.sections])
         self._points: np.ndarray = transform(all_points) if transform else all_points
-        self._indices: list[list[int]] | None = None
+        self._offsets: np.ndarray | None = None
 
     @property
     def sections(self):
@@ -39,31 +39,33 @@ class PositionedMorphology:
         return self._morph.sections
 
     @property
+    def num_sections(self) -> int:
+        """Number of sections (excluding soma)."""
+        return len(self._morph.sections)
+
+    @property
     def points(self) -> np.ndarray:
         """Flat (N, 3) array of all section points in global coordinates."""
         return self._points
 
     @property
-    def indices(self) -> list[list[int]]:
-        """Per-section index mapping into the flat ``points`` array.
+    def offsets(self) -> np.ndarray:
+        """Section boundary offsets into the flat ``points`` array.
 
-        ``indices[i]`` is a list of integer offsets such that
-        ``points[indices[i]]`` gives the 3D points belonging to section *i*.
-        The soma is not included (sections are numbered as in MorphIO).
+        ``offsets`` has length ``num_sections + 1``.  The points for section *i*
+        are ``points[offsets[i]:offsets[i+1]]``.
         Built lazily on first access.
         """
-        if self._indices is None:
-            self._indices = []
-            idx = 0
-            for sec in self._morph.sections:
-                n = len(sec.points)
-                self._indices.append(list(range(idx, idx + n)))
-                idx += n
-        return self._indices
+        if self._offsets is None:
+            counts = [len(sec.points) for sec in self._morph.sections]
+            self._offsets = np.zeros(len(counts) + 1, dtype=np.intp)
+            np.cumsum(counts, out=self._offsets[1:])
+        return self._offsets
 
     def section_points(self, sec_id: int) -> np.ndarray:
         """Return the (possibly transformed) points for a given section."""
-        return self._points[self.indices[sec_id]]
+        o = self.offsets
+        return self._points[o[sec_id]:o[sec_id + 1]]
 
 
 def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
@@ -120,14 +122,14 @@ def _get_cumulative_length(
     if sec.id in cache:
         return cache[sec.id]
 
-    pts = m.points[m.indices[sec.id]]
+    pts = m.section_points(sec.id)
     arc = np.sum(np.linalg.norm(np.diff(pts, axis=0), axis=1))
 
     if sec.is_root:
         gap = np.linalg.norm(pts[0][:, np.newaxis] - soma_pos)
         parent_len = 0
     else:
-        parent_pts = m.points[m.indices[sec.parent.id]]
+        parent_pts = m.section_points(sec.parent.id)
         gap = np.linalg.norm(parent_pts[-1] - pts[0])
         parent_len = _get_cumulative_length(m, sec.parent, soma_pos, cache)
 
@@ -223,7 +225,7 @@ def _collect_branch_points(
 
     for x in section_ids:
         sec = m.sections[x]
-        pts = m.points[m.indices[sec.id]]
+        pts = m.section_points(sec.id)
 
         for pt in pts:
             current_len += np.linalg.norm(pt - last_pt)
@@ -472,7 +474,7 @@ def _get_cell_positions(
             seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
         else:
             sec_id = sec_name - 1
-            if sec_id >= len(m.indices):
+            if sec_id >= m.num_sections:
                 # Beyond morphology sections → myelinated AIS
                 seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
             else:
