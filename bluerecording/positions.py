@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import os
-import warnings
 
 import libsonata
 import numpy as np
 import pandas as pd
+from collections.abc import Callable
 from morphio import Morphology, SectionType
 from mpi4py import MPI
 from pathlib import Path
@@ -15,63 +14,95 @@ from .circuit import init_circuit
 rank = MPI.COMM_WORLD.Get_rank()
 
 
-warnings.filterwarnings('error', '', RuntimeWarning)
-'''
-'''
+class PositionedMorphology:
+    """A morphology with points transformed to global (circuit) coordinates.
+
+    Wraps an immutable MorphIO morphology, applying an optional coordinate
+    transform at construction time. Provides lazy per-section point indexing
+    and a convenience accessor for section points.
+
+    Args:
+        morph: An immutable MorphIO Morphology object.
+        transform: Optional callable that maps the (N, 3) points array to
+            global coordinates (e.g. ``cell.local_to_global_coord_mapping``).
+    """
+
+    def __init__(self, morph: Morphology, transform: Callable[[np.ndarray], np.ndarray] | None = None):
+        self._morph: Morphology = morph
+        all_points: np.ndarray = np.concatenate([s.points for s in morph.sections])
+        self._points: np.ndarray = transform(all_points) if transform else all_points
+        self._indices: list[list[int]] | None = None
+
+    @property
+    def sections(self):
+        """The morphology's section list, delegated to the underlying MorphIO object."""
+        return self._morph.sections
+
+    @property
+    def points(self) -> np.ndarray:
+        """Flat (N, 3) array of all section points in global coordinates."""
+        return self._points
+
+    @property
+    def indices(self) -> list[list[int]]:
+        """Per-section index mapping into the flat ``points`` array.
+
+        ``indices[i]`` is a list of integer offsets such that
+        ``points[indices[i]]`` gives the 3D points belonging to section *i*.
+        The soma is not included (sections are numbered as in MorphIO).
+        Built lazily on first access.
+        """
+        if self._indices is None:
+            self._indices = []
+            idx = 0
+            for sec in self._morph.sections:
+                n = len(sec.points)
+                self._indices.append(list(range(idx, idx + n)))
+                idx += n
+        return self._indices
+
+    def section_points(self, sec_id: int) -> np.ndarray:
+        """Return the (possibly transformed) points for a given section."""
+        return self._points[self.indices[sec_id]]
 
 
-class MutableMorph():
+def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
+    """Interpolate segment boundary points along a dendritic section.
 
-    '''
-    This class defines a version of the morphIO morphology object that is both mutable and contains all of the data of the immutable object
-    '''
+    Given the 3D points of a section and a number of compartments, returns
+    equally-spaced boundary points by linear interpolation along the arc length.
+    Consecutive duplicate points (which can arise from float32 rotation
+    precision) are removed before interpolation.
 
-    def __init__(self,morphioMorph):
+    Args:
+        coords: (P, 3) array of 3D section points.
+        ncomps: Number of compartments (segments) in the section.
 
-        for attr in dir(morphioMorph):
-            if '__' not in attr:
-                setattr(self,attr,getattr(morphioMorph,attr))
+    Returns:
+        (ncomps + 1, 3) array of interpolated boundary positions.
+    """
 
-        #### self.indices is a list of lists, where self.indices[i] is a list containing the indices of the 3d points for the ith section. The soma is not included because it is not part of morphioImmutableObject.sections
-        self.indices = []
-        index = 0
-        for section in self.sections:
-            self.indices.append([])
-
-            for i in range(len(section.points)):
-                self.indices[-1].append(index)
-                index += 1
-
-
-def interp_points(coords, ncomps):
-
-    '''
-    For a given dendritic section with 3d points coords and a number of segments ncomps, we interpolate the start and end points of each segment,
-    with each segment having equal length
-    '''
-
-    # Remove consecutive duplicate points that can arise from float32 rotation precision
+    # --- 1. Remove consecutive near-duplicate points (float32 rotation artefacts) ---
     diffs = np.linalg.norm(np.diff(coords, axis=0), axis=1)
-    mask = np.concatenate(([True], diffs > 0))
+    mask = np.concatenate(([True], diffs > 0))  # exact dedup only
     coords = coords[mask]
 
-    xyz = np.array([]).reshape(ncomps + 1, 0)
+    # --- 2. Interpolate equally-spaced boundary points along the arc length ---
+    arc = np.cumsum(np.linalg.norm(np.diff(coords, axis=0), axis=1))
+    arc = np.insert(arc, 0, 0)
+    arc /= arc[-1]  # normalise to [0, 1]
 
-    distances = np.cumsum(np.linalg.norm(np.diff(coords,axis=0),axis=1))
-    distances /= distances[-1]
-    distances = np.insert(distances,0,0)
-
-    for dim in range(coords.shape[1]):
-
-        f = interp1d(distances, coords[:, dim], kind='linear')
-        ic = f(np.linspace(0, 1, ncomps + 1)).reshape(ncomps + 1, 1)
-        xyz = np.hstack((xyz, ic))
+    targets = np.linspace(0, 1, ncomps + 1)
+    xyz = np.column_stack([
+        interp1d(arc, coords[:, dim], kind='linear')(targets)
+        for dim in range(coords.shape[1])
+    ])
 
     return xyz
 
 
 def _get_cumulative_length(
-    m: MutableMorph, sec, soma_pos: np.ndarray, cache: dict[int, float]
+    m: PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]
 ) -> float:
     """Return cumulative arc length from soma to the end of a section.
 
@@ -122,7 +153,7 @@ def _get_branch_section_ids(sec) -> list[int]:
 
 
 def _find_best_axon_branch(
-    m: MutableMorph, soma_pos: np.ndarray, target_length: float
+    m: PositionedMorphology, soma_pos: np.ndarray, target_length: float
 ) -> tuple[list[int], bool]:
     """Find the best axonal branch for simulated-axon position reconstruction.
 
@@ -164,7 +195,7 @@ def _find_best_axon_branch(
 
 
 def _collect_branch_points(
-    m: MutableMorph,
+    m: PositionedMorphology,
     section_ids: list[int],
     soma_pos: np.ndarray,
     target_length: float,
@@ -237,7 +268,7 @@ def _extrapolate_branch(
     return points, running_len
 
 
-def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract 3D positions and cumulative lengths along the simulated axon.
 
     The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
@@ -248,7 +279,7 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
     extrapolated.
 
     Args:
-        m: Mutable morphology with rotated/translated points and section indices.
+        m: PositionedMorphology with points in global coordinates.
         center: Soma position as a 1D array of shape (3,).
 
     Returns:
@@ -270,246 +301,189 @@ def get_axon_points(m: MutableMorph, center: np.ndarray) -> tuple[np.ndarray, np
     return axon_points, np.array(running_len)[indices]
 
 
-def interp_points_axon(axonPoints, runningLens, secName, numCompartments, somaPos):
+def interp_points_axon(
+    axon_points: np.ndarray,
+    running_lens: np.ndarray,
+    sec_name: int,
+    num_compartments: int,
+) -> np.ndarray:
+    """Interpolate segment boundary points for a simulated-axon section.
 
-    segPos = []
+    The simulated axon has three sections identified by *sec_name*:
 
+    * 1 — first AIS section  (0–30 µm)
+    * 2 — second AIS section (30–60 µm)
+    * 3+ — myelinated section (60–1060 µm)
 
-    if secName == 1: # First AIS section
+    For each section the relevant subset of *axon_points* is selected by
+    cumulative arc length, then linearly interpolated to produce equally-spaced
+    segment boundary positions.  When fewer than two morphology points fall
+    inside the section's length window, nearby points are used as fallback
+    anchors so that extrapolation can still proceed.
 
-        secLen = 30 # By construction, has length of 30 um
-        segLen = secLen / numCompartments # Assumes each segment has the same length
+    Args:
+        axon_points: (N, 3) array of 3D positions along the axonal branch.
+        running_lens: (N,) array of cumulative arc lengths aligned with
+            *axon_points*.
+        sec_name: Section identifier (1 = first AIS, 2 = second AIS,
+            ≥3 = myelinated).
+        num_compartments: Number of compartments (segments) in this section.
 
-        startPoint = 0
-        endPoint = 30
+    Returns:
+        (num_compartments + 1, 3) array of interpolated boundary positions.
+    """
 
-        idx = np.where(runningLens <= endPoint) # Finds indices of axon 3d points where cumulative length < 30 um
+    # --- 1. Determine section geometry and select relevant points ---
 
-        axonRelevant = axonPoints[idx]
+    if sec_name == 1:  # First AIS section (0–30 µm)
+        sec_len = 30
+        start, end = 0, 30
 
+        idx = np.where(running_lens <= end)
+        axon_relevant = axon_points[idx]
+        lens_relevant = running_lens[idx] / sec_len
 
-        lensRelevant = runningLens[idx] / secLen # Gets fraction of the total section length for each 3d point
+        if len(axon_relevant) < 2:
+            axon_relevant = axon_points[:2]
+            lens_relevant = running_lens[:2] / sec_len
 
+    elif sec_name == 2:  # Second AIS section (30–60 µm)
+        sec_len = 30
+        start, end = 30, 60
 
-        if len(axonRelevant) < 2: # If there are not enough points, we use the soma position (which would be included in the axon point list) and the first real point in the axon
-            idx = 0
+        idx = np.intersect1d(
+            np.where(running_lens <= end),
+            np.where(running_lens >= start),
+        )
+        axon_relevant = axon_points[idx]
+        lens_relevant = (running_lens[idx] - start) / sec_len
 
-            axonRelevant = axonPoints[:2]
+        if len(axon_relevant) < 2:
+            idx_lo = np.argmin(np.abs(running_lens - start))
+            idx_hi = np.argmin(np.abs(running_lens - end))
 
-            lensRelevant = runningLens[:2] / secLen
-
-
-    elif secName == 2: # Second AIS section
-
-        secLen = 30 # Length is 30 unm, by construction
-        segLen = secLen / numCompartments
-
-        startPoint = 30 # Cumulative length of first AIS section
-        endPoint = 60 # Cumulative length of both AIS sections
-
-        idx = np.intersect1d(np.where(runningLens <= endPoint), np.where(runningLens >= startPoint)) # Finds indices 3d points falling in this length bin
-
-        axonRelevant = axonPoints[idx]
-
-        lensRelevant = (runningLens[idx] - startPoint) / secLen
-
-        if len(axonRelevant) < 2: # If there aren't enough points, we estimate
-
-            idxSmall = np.argmin(np.abs(runningLens - startPoint)) # Index closest to 30 um
-
-            idxBig = np.argmin(np.abs(runningLens - endPoint)) # Index closest to 60 um
-
-            if idxSmall == idxBig: # If these two points are the same, we use different points
-                if idxBig < len(runningLens)-1:
-                    idxBig += 1
+            if idx_lo == idx_hi:
+                if idx_hi < len(running_lens) - 1:
+                    idx_hi += 1
                 else:
-                    idxSmall -= 1 # If the two points are identical, then idxSmall can never be zero, since otherwise this would imply a one-point axon
+                    idx_lo -= 1
 
-            idx = [idxSmall, idxBig]
+            idx = [idx_lo, idx_hi]
+            axon_relevant = axon_points[idx]
+            lens_relevant = (running_lens[idx] - start) / sec_len
 
-            axonRelevant = axonPoints[idx]
-            lensRelevant = (runningLens[idx] - startPoint) / secLen
+    else:  # Myelinated section (60–1060 µm)
+        sec_len = 1000
+        start, end = 60, 1060
 
-
-    else: # Myelinated section
-
-        secLen = 1000
-        segLen = secLen / numCompartments
-
-        startPoint = 60
-        endPoint = 1060
-
-        idx = np.where(runningLens >= startPoint)[0] # Get indices of 3d points that are beyond the AIS
+        idx = np.where(running_lens >= start)[0]
 
         if len(idx) == 1:
             idx = [idx[0] - 1, idx[0]]
 
-        axonRelevant = axonPoints[idx]
+        axon_relevant = axon_points[idx]
+        lens_relevant = (running_lens[idx] - start) / sec_len
 
-        lensRelevant = (runningLens[idx] - startPoint) / secLen
+    # --- 2. Interpolate equally-spaced boundary points ---
 
-    for i in range(numCompartments+1): # Interpolates segment positions
+    seg_len = sec_len / num_compartments
+    targets = np.array([(i * seg_len) / sec_len for i in range(num_compartments + 1)])
 
-        frac = (i * segLen) / secLen
+    seg_pos = np.column_stack([
+        interp1d(lens_relevant, axon_relevant[:, dim], kind='linear',
+                 fill_value='extrapolate')(targets)
+        for dim in range(3)
+    ])
 
+    return seg_pos
 
-        fx = interp1d(lensRelevant, axonRelevant[:, 0], kind='linear', fill_value='extrapolate')
-        fy = interp1d(lensRelevant, axonRelevant[:, 1], kind='linear', fill_value='extrapolate')
-        fz = interp1d(lensRelevant, axonRelevant[:, 2], kind='linear', fill_value='extrapolate')
-
-        newx = fx(frac)
-        newy = fy(frac)
-        newz = fz(frac)
-
-        segPos.append([newx, newy, newz])
-
-
-    segPos = np.array(segPos)
-    return segPos
-
-def tryFileNames(morphName, finalmorphpath):
-
-    asc = finalmorphpath+'/ascii/'+morphName+'.asc'
-    asc1 = finalmorphpath+'/'+morphName+'.asc'
-    asc2 = finalmorphpath+'/morphologies_asc/'+morphName+'.asc'
-
-    swc = finalmorphpath+'/swc/'+morphName+'.swc'
-    swc1 = finalmorphpath+'/'+morphName+'.swc'
-    swc2 = finalmorphpath+'/morphologies_swc/'+morphName+'.swc'
-
-    options = [asc, asc1, asc2, swc, swc1, swc2]
-
-    for option in options:
-        if os.path.exists(option):
-            fileName = option
-            break
-
-    return fileName
-
-def get_morph_path(population, i, morphologies_dir):
-
-    morphName = population.get_attribute('morphology', i) # Gets name of the morphology file for node_id i
-
-    fileName = tryFileNames(morphName, morphologies_dir)
-
-    return fileName
-
-
-def get_morphology(
-    population: libsonata.NodePopulation,
-    i: int,
-    morphologies_dir: str,
-    cell,
-) -> tuple[MutableMorph, np.ndarray]:
-    """Load and transform a morphology into circuit (global) coordinates.
-
-    Args:
-        population: libsonata NodePopulation.
-        i: Node index within the population.
-        morphologies_dir: Fully resolved path to the morphologies directory.
-        cell: Neurodamus cell object with coordinate mapping.
-
-    Returns:
-        m: MutableMorph with points transformed to global coordinates.
-        center: (3,) float32 array — the soma position taken from the sonata
-            node x/y/z (translation column of the transform matrix).  This is
-            the BlueRecording convention (raw placement position), not the
-            neurodamus soma centroid (mean of NEURON soma section boundary
-            points), which can differ by up to ~1.8 µm.
-    """
-
-    finalmorphpath = get_morph_path(population, i, morphologies_dir)
-
-    mImmutable = Morphology(finalmorphpath) # Immutable MorphIO morphology object
-
-    m = MutableMorph(mImmutable) # Mutable version, so that we can change the positions to orient the cell correctly within the circuit
-
-    # Use neurodamus for rotation + translation of morphology points (float32 precision)
-    m.points = cell.local_to_global_coord_mapping(m.points)
-
-    center = cell.local_to_global_matrix[:, 3]
-
-    return m, center
-
-
-def getNewIndex(cols):
+def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
-    Rules:
-    - Every column is kept once.
-    - The last column is repeated to represent the end point.
-    - Columns with section != 0 are duplicated if the next column tuple differs.
+    Each column is kept once.  Non-somatic columns (section != 0) are
+    duplicated when the next column tuple differs, to represent the end
+    point of that section.  The last column is always repeated.
 
-    Returns a pandas MultiIndex with levels ["id", "section"].
+    Args:
+        cols: (N, 2) array of (id, section) pairs.
+
+    Returns:
+        MultiIndex with levels ["id", "section"].
     """
-    newIdx = []
-
-    # Ensure cols is a list of tuples
+    new_idx = []
     cols_list = [tuple(c) for c in cols]
 
     for i, col in enumerate(cols_list):
-        newIdx.append(col)
+        new_idx.append(col)
 
         # Last column: repeat to account for end point
         if i == len(cols_list) - 1:
-            newIdx.append(col)
+            new_idx.append(col)
 
         # Non-somatic segments: add extra entry if next col is different
-        elif col[-1] != 0:  # section != 0
-            if cols_list[i + 1] != col:  # now comparing tuples
-                newIdx.append(col)
+        elif col[-1] != 0:
+            if cols_list[i + 1] != col:
+                new_idx.append(col)
 
-    newCols = pd.MultiIndex.from_tuples(newIdx, names=["id", "section"])
+    return pd.MultiIndex.from_tuples(new_idx, names=["id", "section"])
 
-    return newCols
-
-
-def get_cell_positions(m, center, cols, gid, replace_axons):
+def _get_cell_positions(
+    m: PositionedMorphology,
+    center: np.ndarray,
+    cols: np.ndarray,
+    gid: int,
+    replace_axons: bool,
+) -> np.ndarray:
     """Compute the 3D segment boundary positions for a single cell.
 
-    Returns a (3, N) array where each column is the x/y/z position of a segment
-    boundary (start points, plus the end point of the last segment in each section).
-    """
+    For each section the morphology points are interpolated to produce
+    equally-spaced segment boundaries.  When axon replacement is active,
+    sections 1–2 (AIS) and any section beyond the morphology are
+    interpolated along the simulated axon branch instead.
 
-    soma_pos = center[:,np.newaxis]
+    Args:
+        m: PositionedMorphology with points in global coordinates.
+        center: Soma position, shape (3,).
+        cols: (N, 2) array of (gid, section) pairs for all cells.
+        gid: GID of the cell to process.
+        replace_axons: If True, use the simulated axon for AIS/myelinated
+            sections.
+
+    Returns:
+        (3, M) array where each column is an x/y/z segment boundary position.
+    """
+    soma_pos = center[:, np.newaxis]
+    gid_mask = cols[:, 0] == gid
 
     axon_points, running_lens = None, None
-    if replace_axons: # If the axons are replaced by a stub axon, we need to get the positions thereof
-        axon_points, running_lens = get_axon_points(m,center) # Gets 3d positions and cumulative length of the axon
+    if replace_axons:
+        axon_points, running_lens = get_axon_points(m, center)
 
-    sections = np.unique(cols[np.where(cols[:,0]==gid),1:].flatten()) # List of sections for the given neuron
+    sections = np.unique(cols[np.where(gid_mask), 1:].flatten())
 
-    # Start with soma position(s)
-    xyz = soma_pos.reshape(3,1)
+    # Build soma columns — all somatic segments share the same position
+    num_somas = np.sum(gid_mask & (cols[:, 1] == 0))
+    xyz = np.tile(soma_pos.reshape(3, 1), num_somas)
 
-    num_somas = np.sum((cols[:,0] == gid) & (cols[:,1] == 0))
+    for sec_name in sections[1:]:
+        num_compartments = np.sum(gid_mask & (cols[:, 1] == sec_name))
 
-    if num_somas > 1: # If there is more than one somatic segment, we assume that they all have the same position
-        for k in np.arange(1,num_somas):
-            xyz = np.hstack((xyz,soma_pos.reshape(3,1)))
-
-    for sec_name in list(sections[1:]):
-
-        num_compartments = np.sum((cols[:,0] == gid) & (cols[:,1] == sec_name))
-
-        # Section 1 and 2 are always axonal when axons are replaced (AIS)
         if sec_name < 3 and replace_axons:
-            seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
+            seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
         else:
             sec_id = sec_name - 1
-            if sec_id >= len(m.indices): # Beyond morphology sections → myelinated AIS
-                seg_pos = interp_points_axon(axon_points,running_lens,sec_name,num_compartments,soma_pos)
+            if sec_id >= len(m.indices):
+                # Beyond morphology sections → myelinated AIS
+                seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
             else:
-                sec_pts = np.array(m.points[m.indices[sec_id]])
-                seg_pos = interp_points(sec_pts,num_compartments)
+                sec_pts = np.array(m.section_points(sec_id))
+                seg_pos = interp_points(sec_pts, num_compartments)
 
-        xyz = np.hstack((xyz,seg_pos.T))
+        xyz = np.hstack((xyz, seg_pos.T))
 
     return xyz
 
-
-
-def resolve_neurite_types(cols_for_gid, cell):
+def resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
     """Return an int array of neurite-type codes for one neuron's compartments.
 
     Queries the actual NEURON section via ``cell.get_sec()`` and maps the
@@ -540,7 +514,44 @@ def resolve_neurite_types(cols_for_gid, cell):
     return result
 
 
-def get_positions(node_manager, ids, cols, population, morphologies_dir, replace_axons=True):
+def _find_morph_file(morph_name: str, morph_dir: str) -> str:
+    """Locate a morphology file by trying common subdirectory/extension combos.
+
+    Args:
+        morph_name: Morphology name (without extension) from the population.
+        morph_dir: Absolute path to the morphologies directory (from libsonata).
+
+    Returns:
+        Absolute path to the first existing morphology file found.
+
+    Raises:
+        FileNotFoundError: If no matching file is found.
+    """
+    base = Path(morph_dir)
+    candidates = [
+        base / "ascii" / f"{morph_name}.asc",
+        base / f"{morph_name}.asc",
+        base / "morphologies_asc" / f"{morph_name}.asc",
+        base / "swc" / f"{morph_name}.swc",
+        base / f"{morph_name}.swc",
+        base / "morphologies_swc" / f"{morph_name}.swc",
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path)
+    raise FileNotFoundError(
+        f"Morphology '{morph_name}' not found in {morph_dir}"
+    )
+
+
+def get_positions(
+    node_manager,
+    ids: np.ndarray,
+    cols: np.ndarray,
+    population: libsonata.NodePopulation,
+    morphologies_dir: str,
+    replace_axons: bool = True,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Compute segment boundary positions for all cells on this rank.
 
     Pure computation — no file I/O. Returns the positions DataFrame,
@@ -564,11 +575,22 @@ def get_positions(node_manager, ids, cols, population, morphologies_dir, replace
     """
     cell_arrays = []
     neurite_type_arrays = []
+
     for i in ids:
         cell = node_manager.get_cell(i)
-        m, center = get_morphology(population, cell.raw_gid, morphologies_dir, cell)
+        # Load morphology, transform to global coordinates, extract soma pos.
+        # center is the raw placement position (translation column of the
+        # transform matrix), not the neurodamus soma centroid which can
+        # differ by up to ~1.8 µm.
+        morph_name = population.get_attribute("morphology", cell.raw_gid)
+        morph_path = _find_morph_file(morph_name, morphologies_dir)
+        m = PositionedMorphology(
+            Morphology(morph_path),
+            transform=cell.local_to_global_coord_mapping,
+        )
+        center = cell.local_to_global_matrix[:, 3]
 
-        cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
+        cell_arrays.append(_get_cell_positions(m, center, cols, i, replace_axons))
 
         cols_for_gid = cols[cols[:, 0] == i]
         neurite_type_arrays.append(resolve_neurite_types(cols_for_gid, cell))
@@ -579,16 +601,13 @@ def get_positions(node_manager, ids, cols, population, morphologies_dir, replace
         return positions_df, cols, np.array([], dtype=np.int32)
 
     xyz = np.hstack(cell_arrays)
-    new_cols = getNewIndex(cols)
+    new_cols = get_new_index(cols)
     positions_df = pd.DataFrame(xyz, columns=new_cols)
     neurite_types = np.concatenate(neurite_type_arrays)
 
     return positions_df, cols, neurite_types
 
-
-
-
-def save_positions(positions_df, path_to_positions_folder):
+def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | Path) -> None:
     """Write positions DataFrame to a pickle file for this MPI rank.
 
     Args:

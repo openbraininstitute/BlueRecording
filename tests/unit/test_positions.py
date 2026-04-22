@@ -26,21 +26,21 @@ def _get_sections(data, gid):
 # Morphology structure tests
 # ---------------------------------------------------------------------------
 
-def test_mutable_morph(tmp_path):
+def test_positioned_morphology(tmp_path):
     morph = make_morphology(tmp_path / "morph.h5")
-    m = positions.MutableMorph(morph)
+    m = positions.PositionedMorphology(morph)
     assert m.indices == [[0, 1, 2, 3], [4, 5], [6, 7, 8]]
 
 
 def test_get_axon_points(tmp_path):
-    morph = positions.MutableMorph(make_morphology(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 1073], decimal=2)
     np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 1073]], decimal=2)
 
 
 def test_get_axon_points_extrapolate(tmp_path):
-    morph = positions.MutableMorph(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 4, 1060], decimal=2)
     np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 4], [0, 0, 1060]], decimal=2)
@@ -53,7 +53,7 @@ def test_get_axon_points_picks_longest_branch(tmp_path):
     the longer one (branch A, 100 µm) for extrapolation, not the last one
     visited (branch B, 10 µm).
     """
-    morph = positions.MutableMorph(
+    morph = positions.PositionedMorphology(
         make_morphology_two_axon_branches(tmp_path / "morph.h5")
     )
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
@@ -78,13 +78,13 @@ def test_get_new_idx():
     ]
     expected_idx = list(zip(*expected_columns))
     expected_mi = pd.MultiIndex.from_tuples(expected_idx, names=['id', 'section'])
-    result = positions.getNewIndex(data.columns)
+    result = positions.get_new_index(data.columns)
     pd.testing.assert_index_equal(result, expected_mi)
 
 
 def test_interpolate_dendrite(tmp_path):
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[3]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -95,82 +95,82 @@ def test_interpolate_dendrite(tmp_path):
 
 def test_interpolate_ais(tmp_path):
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
 def test_interpolate_ais_far_axon(tmp_path):
     """Edge case: only the soma is < 30 um from soma."""
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology_far_axon(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology_far_axon(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
 def test_interpolate_ais_short(tmp_path):
     """No point > 30 um from soma."""
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
 
 
 def test_interpolate_ais_2(tmp_path):
     """No point between 30-60 um, but one farther than 60 um."""
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
 
 
 def test_interpolate_ais_2_short(tmp_path):
     """No points > 30 um from soma."""
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
 
 
 def test_interpolate_myelin(tmp_path):
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
 
 
 def test_interpolate_myelin_short(tmp_path):
     data = make_report_data()
-    morph = positions.MutableMorph(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
-    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments, SOMA_POS)
+    seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
     np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
 
 
