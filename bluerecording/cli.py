@@ -93,19 +93,19 @@ def main():
     args = parser.parse_args()
 
     if args.command == "write_positions":
-        node_manager, ids, cols, population, _ = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, _, morphologies_dir = init_circuit(args.path_to_simconfig)
         positions_df, _, _ = positions.get_positions(
             node_manager, ids, cols, population,
-            path_to_simconfig=args.path_to_simconfig,
+            morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
         )
         positions.save_positions(positions_df, args.path_to_positions_folder)
 
     elif args.command == "write_weights":
-        node_manager, ids, cols, population, population_name = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
         positions_df, cols, neurite_types = positions.get_positions(
             node_manager, ids, cols, population,
-            path_to_simconfig=args.path_to_simconfig,
+            morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
         )
         output_file = Path(args.output_path)

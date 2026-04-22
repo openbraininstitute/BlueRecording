@@ -184,8 +184,8 @@ def test_single_cell_get_positions(tmp_path):
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
 
-    nm, ids, cols, pop, _ = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
+    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
@@ -202,8 +202,8 @@ def test_circuit_get_positions(tmp_path):
     simconfig = "examples/sscx_100_cells/simulation_config.json"
     ref_path = "examples/sscx_100_cells/reference/positions0_ref.pkl"
 
-    nm, ids, cols, pop, _ = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, path_to_simconfig=simconfig)
+    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
+    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
     df_ref = pd.read_pickle(ref_path)

@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import json
 import os
 import warnings
 
@@ -11,7 +10,6 @@ from mpi4py import MPI
 from pathlib import Path
 from scipy.interpolate import interp1d
 
-from .utils import *
 from .circuit import init_circuit
 
 rank = MPI.COMM_WORLD.Get_rank()
@@ -369,29 +367,6 @@ def interp_points_axon(axonPoints, runningLens, secName, numCompartments, somaPo
     segPos = np.array(segPos)
     return segPos
 
-def remove_variables(js, finalmorphpath):
-
-    '''
-    Removes references to variables in path to morphology
-    Assumes that all references are in the manifest section
-    '''
-
-    while '$' in finalmorphpath:
-
-        elements = finalmorphpath.split('/')
-
-        for i, element in enumerate(elements):
-
-            if '$' in element:
-                element = js['manifest'][element]
-                
-            if i == 0:
-                finalmorphpath = element
-            else:
-                finalmorphpath = finalmorphpath + '/' + element
-
-    return finalmorphpath
-
 def tryFileNames(morphName, finalmorphpath):
 
     asc = finalmorphpath+'/ascii/'+morphName+'.asc'
@@ -411,27 +386,11 @@ def tryFileNames(morphName, finalmorphpath):
 
     return fileName
 
-def get_morph_path(population, i, path_to_simconfig):
+def get_morph_path(population, i, morphologies_dir):
 
     morphName = population.get_attribute('morphology', i) # Gets name of the morphology file for node_id i
 
-    circuitpath = get_circuit_path(path_to_simconfig) # path to circuit_config file
-
-    with open(circuitpath) as f: # Gets path to morphology file from circuit_config
-
-        js = json.load(f)
-
-        if 'components' in js.keys() and 'morphologies_dir' in js['components'].keys():
-            finalmorphpath = js['components']['morphologies_dir']
-
-        else:
-            finalmorphpath = js['manifest']['$MORPHOLOGIES']
-
-        finalmorphpath = remove_variables(js, finalmorphpath)
-
-        finalmorphpath = str((Path(circuitpath).parent / finalmorphpath).resolve())
-
-    fileName = tryFileNames(morphName, finalmorphpath)
+    fileName = tryFileNames(morphName, morphologies_dir)
 
     return fileName
 
@@ -439,7 +398,7 @@ def get_morph_path(population, i, path_to_simconfig):
 def get_morphology(
     population: libsonata.NodePopulation,
     i: int,
-    path_to_simconfig: str,
+    morphologies_dir: str,
     cell,
 ) -> tuple[MutableMorph, np.ndarray]:
     """Load and transform a morphology into circuit (global) coordinates.
@@ -447,7 +406,7 @@ def get_morphology(
     Args:
         population: libsonata NodePopulation.
         i: Node index within the population.
-        path_to_simconfig: Path to the SONATA simulation configuration file.
+        morphologies_dir: Fully resolved path to the morphologies directory.
         cell: Neurodamus cell object with coordinate mapping.
 
     Returns:
@@ -459,7 +418,7 @@ def get_morphology(
             points), which can differ by up to ~1.8 µm.
     """
 
-    finalmorphpath = get_morph_path(population, i, path_to_simconfig)
+    finalmorphpath = get_morph_path(population, i, morphologies_dir)
 
     mImmutable = Morphology(finalmorphpath) # Immutable MorphIO morphology object
 
@@ -581,7 +540,7 @@ def resolve_neurite_types(cols_for_gid, cell):
     return result
 
 
-def get_positions(node_manager, ids, cols, population, path_to_simconfig, replace_axons=True):
+def get_positions(node_manager, ids, cols, population, morphologies_dir, replace_axons=True):
     """Compute segment boundary positions for all cells on this rank.
 
     Pure computation — no file I/O. Returns the positions DataFrame,
@@ -592,7 +551,7 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
         ids: GIDs assigned to this MPI rank.
         cols: (N, 2) int64 array of (gid, section) pairs.
         population: libsonata NodePopulation for morphology resolution.
-        path_to_simconfig: Path to the SONATA simulation config.
+        morphologies_dir: Fully resolved path to the morphologies directory.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).
 
@@ -607,7 +566,7 @@ def get_positions(node_manager, ids, cols, population, path_to_simconfig, replac
     neurite_type_arrays = []
     for i in ids:
         cell = node_manager.get_cell(i)
-        m, center = get_morphology(population, i, path_to_simconfig, cell)
+        m, center = get_morphology(population, i, morphologies_dir, cell)
 
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 

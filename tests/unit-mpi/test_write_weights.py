@@ -28,10 +28,10 @@ def test_circuit_write_weights_mpi(tmp_path):
     output_dir = comm.bcast(tmp_path, root=0)
     output_path = str(output_dir / "weights.h5")
 
-    node_manager, ids, cols, population, population_name = init_circuit(path_to_simconfig)
+    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
     positions_df, cols, _ = positions.get_positions(
         node_manager, ids, cols, population,
-        path_to_simconfig=path_to_simconfig,
+        morphologies_dir=morphologies_dir,
     )
     initialize_h5_file(cols, population_name, output_path, electrode_csv)
     write_h5_file(positions_df, cols, population_name, output_path)

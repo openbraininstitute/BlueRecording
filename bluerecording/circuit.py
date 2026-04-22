@@ -23,6 +23,8 @@ def init_circuit(path_to_simconfig: str):
         population: libsonata NodePopulation, needed for morphology file
             resolution.
         population_name: Name of the SONATA node population.
+        morphologies_dir: Fully resolved path to the morphologies directory,
+            as provided by libsonata.
     """
     # Lazy import: neurodamus pulls in NEURON, which is not available
     # in lightweight installs (e.g. CI with --quick).
@@ -58,5 +60,6 @@ def init_circuit(path_to_simconfig: str):
     sim_conf = libsonata.SimulationConfig.from_file(path_to_simconfig)
     circuit_conf = libsonata.CircuitConfig.from_file(sim_conf.network)
     population = circuit_conf.node_population(population_name)
+    morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
 
-    return node_manager, ids, cols, population, population_name
+    return node_manager, ids, cols, population, population_name, morphologies_dir
