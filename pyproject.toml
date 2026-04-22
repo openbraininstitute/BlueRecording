@@ -3,6 +3,20 @@ name = "bluerecording"
 dynamic = ["version"]
 description = "A tool for calculating extracellular recording lead fields"
 requires-python = ">=3.10"
+# NOTE: The following dependencies are required at runtime but are NOT listed here
+# because they need special build flags or may be built from source depending on
+# the install mode (see setup.sh):
+#
+#   - mpi4py              Must be compiled against the system MPI library
+#   - h5py                Must be compiled with MPI support (HDF5_MPI=ON)
+#   - neuron              May be built from source with libsonatareport (--full mode)
+#   - neurodamus          May be pinned to a specific branch/commit during development
+#   - neurodamus-models   CMake project (not a Python package), provides compiled
+#                         mechanisms (libnrnmech, special) needed at simulation time
+#
+# A runtime check in bluerecording/__init__.py verifies the Python packages are
+# available and provides clear error messages if not. Use 'source setup.sh' for
+# automatic setup.
 dependencies = [
     "pandas",
     "morphio",

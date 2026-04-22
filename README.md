@@ -10,7 +10,19 @@ This branch provides code that produces an electrodes file compatible with the [
 
 ### Dependencies
 
-BlueRecording requires `mpi4py`, `h5py`, and `hdf5` built with MPI support. The provided `setup.sh` script handles all of this automatically, including building NEURON, neurodamus, and libsonatareport from source.
+BlueRecording requires several packages that are **not listed in `pyproject.toml`** because they need special build flags or may be built from source:
+
+| Package | Why it's not in pyproject.toml |
+|---|---|
+| `mpi4py` | Must be compiled against the system MPI library |
+| `h5py` | Must be compiled with MPI support (`HDF5_MPI=ON`) |
+| `neuron` | May be built from source with reporting support (`--full` mode) |
+| `neurodamus` | May be pinned to a specific branch/commit during development |
+| `neurodamus-models` | CMake project (not a Python package), provides compiled mechanisms needed at simulation time |
+
+If any of these are missing or misconfigured, bluerecording will raise a clear error on import with installation instructions.
+
+The provided `setup.sh` script handles all of this automatically, including building NEURON, neurodamus, and libsonatareport from source when needed.
 
 `setup.sh` works for both macOS (with `brew`) and Linux (with `apt`) systems. There are three install modes:
 
