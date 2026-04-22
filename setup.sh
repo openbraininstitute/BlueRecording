@@ -173,7 +173,7 @@ else
 
     echo "=== Installing base dependencies ==="
 
-    pip install --no-binary=mpi4py mpi4py
+    pip install mpi4py
     pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 fi
 
@@ -247,7 +247,7 @@ pip install git+https://github.com/openbraininstitute/neurodamus.git@main
 #   light: without reporting
 # -------------------------
 if [ ! -d "neurodamus-models" ]; then
-    git clone https://github.com/openbraininstitute/neurodamus-models.git
+    git clone --depth=1 https://github.com/openbraininstitute/neurodamus-models.git
     NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
     NEURODAMUS_CMAKE_ARGS=(

@@ -16,9 +16,9 @@ def _check_dependencies():
         from mpi4py import MPI  # noqa: F401
     except ImportError:
         raise ImportError(
-            "bluerecording requires mpi4py built against your system's MPI library.\n"
-            "It is not listed in pyproject.toml because it must be compiled with MPI support.\n"
-            "Install it with: pip install --no-binary=mpi4py mpi4py\n"
+            "bluerecording requires mpi4py.\n"
+            "It is not listed in pyproject.toml because it must match your system's MPI.\n"
+            "Install it with: pip install mpi4py\n"
             "Or use 'source setup.sh' which handles this automatically."
         )
 
@@ -61,8 +61,8 @@ def _check_dependencies():
     except ImportError:
         raise ImportError(
             "bluerecording requires neurodamus.\n"
-            "It is not listed in pyproject.toml because it may need to be pinned to a\n"
-            "specific branch or commit during development.\n"
+            "It is not listed in pyproject.toml because setup.sh installs it from\n"
+            "a Git branch/commit (see the 'neurodamus' section in setup.sh).\n"
             "Install it with: pip install neurodamus\n"
             "Or use 'source setup.sh' which handles this automatically."
         )
