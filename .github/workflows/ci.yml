@@ -72,15 +72,17 @@ jobs:
       - name: Run tests
         env:
           HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
-          PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:${{ env.PATH }}
           CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
           NRNMECH_LIB_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libnrnmech.so
-        run: pytest -v -m "not skip_in_ci" tests/unit
+        run: |
+          export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
+          pytest -v -m "not skip_in_ci" tests/unit
 
       - name: Run MPI tests
         env:
           HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
-          PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:${{ env.PATH }}
           CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
           NRNMECH_LIB_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libnrnmech.so
-        run: mpirun --oversubscribe -n 2 pytest -v -m "not skip_in_ci" tests/unit-mpi --with-mpi
+        run: |
+          export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
+          mpirun --oversubscribe -n 2 pytest -v -m "not skip_in_ci" tests/unit-mpi --with-mpi
