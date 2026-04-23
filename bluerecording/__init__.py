@@ -7,10 +7,8 @@ __version__ = version("bluerecording")
 def _check_dependencies():
     """Verify runtime dependencies that need special attention.
 
-    - h5py is declared in pyproject.toml but must be the MPI-enabled build.
-      The default pip wheel lacks MPI support.
-    - neuron is an optional dependency (in the [neuron] extra). It is required
-      at runtime but kept optional because it may be built from source.
+    h5py is declared in pyproject.toml but must be the MPI-enabled build.
+    The default pip wheel lacks MPI support.
     """
     import h5py
 
@@ -23,15 +21,6 @@ def _check_dependencies():
             "  HDF5_MPI=ON pip install --no-cache-dir --no-binary=h5py h5py "
             "--no-build-isolation\n"
             "Or use 'source setup.sh' which handles this automatically."
-        )
-
-    try:
-        import neuron  # noqa: F401
-    except ImportError:
-        raise ImportError(
-            "bluerecording requires NEURON.\n"
-            "Install it with: pip install bluerecording[neuron]\n"
-            "Or use 'source setup.sh' to build it from source."
         )
 
 
