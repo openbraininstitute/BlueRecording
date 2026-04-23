@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 # because they need special build flags or may be built from source depending on
 # the install mode (see setup.sh):
 #
-#   - mpi4py              Must be compiled against the system MPI library
+#   - mpi4py              Installed from PyPI wheel; works with system MPI
 #   - h5py                Must be compiled with MPI support (HDF5_MPI=ON)
 #   - neuron              May be built from source with libsonatareport (--full mode)
 #   - neurodamus          May be pinned to a specific branch/commit during development
@@ -18,6 +18,7 @@ requires-python = ">=3.10"
 # available and provides clear error messages if not. Use 'source setup.sh' for
 # automatic setup.
 dependencies = [
+    "mpi4py",
     "pandas",
     "morphio",
     "libsonata",

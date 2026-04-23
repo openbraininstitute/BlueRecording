@@ -7,21 +7,11 @@ __version__ = version("bluerecording")
 def _check_dependencies():
     """Verify that runtime dependencies not declared in pyproject.toml are available.
 
-    bluerecording requires mpi4py, h5py (with MPI support), NEURON, and neurodamus.
+    bluerecording requires h5py (with MPI support), NEURON, and neurodamus.
     These are not listed in pyproject.toml because they need special build flags
     or must be built from source depending on the install mode. See setup.sh and
     the README for installation instructions.
     """
-    try:
-        from mpi4py import MPI  # noqa: F401
-    except ImportError:
-        raise ImportError(
-            "bluerecording requires mpi4py.\n"
-            "It is not listed in pyproject.toml because it must match your system's MPI.\n"
-            "Install it with: pip install mpi4py\n"
-            "Or use 'source setup.sh' which handles this automatically."
-        )
-
     try:
         import h5py
     except ImportError:
@@ -50,10 +40,10 @@ def _check_dependencies():
     except ImportError:
         raise ImportError(
             "bluerecording requires NEURON (neuron).\n"
-            "It is not listed in pyproject.toml because in some install modes it must be\n"
-            "built from source (e.g. with libsonatareport support for SONATA reporting).\n"
-            "Install it with: pip install neuron\n"
-            "Or use 'source setup.sh' which handles this automatically."
+            "It is not listed in pyproject.toml because in --full mode it must be\n"
+            "built from source with libsonatareport. See the NEURON section in\n"
+            "setup.sh for details.\n"
+            "Run 'source setup.sh --light' to install it from pip automatically."
         )
 
     try:
@@ -61,10 +51,10 @@ def _check_dependencies():
     except ImportError:
         raise ImportError(
             "bluerecording requires neurodamus.\n"
-            "It is not listed in pyproject.toml because setup.sh installs it from\n"
-            "a Git branch/commit (see the 'neurodamus' section in setup.sh).\n"
-            "Install it with: pip install neurodamus\n"
-            "Or use 'source setup.sh' which handles this automatically."
+            "It is not listed in pyproject.toml because it is installed from a\n"
+            "specific Git branch/commit. See the neurodamus section in setup.sh\n"
+            "for the current pinned version.\n"
+            "Run 'source setup.sh --light' to install it automatically."
         )
 
 
