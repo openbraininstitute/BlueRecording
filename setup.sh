@@ -13,7 +13,7 @@ fi
 INSTALL_MODE="light"
 SKIP_SYSTEM=0
 DOWNLOAD_DATA=0
-NO_CACHE=0
+CLEAN_INSTALL=0
 
 # -------------------------
 # Parse arguments
@@ -22,7 +22,7 @@ for arg in "$@"; do
     case $arg in
         --no-system) SKIP_SYSTEM=1 ;;
         --data) DOWNLOAD_DATA=1 ;;
-        --no-cache) NO_CACHE=1 ;;
+        --clean-install) CLEAN_INSTALL=1 ;;
         --full) INSTALL_MODE="full" ;;
         --dev) INSTALL_MODE="dev" ;;
         --light) INSTALL_MODE="light" ;;
@@ -44,7 +44,7 @@ for arg in "$@"; do
             echo "Other options:"
             echo "  --no-system   Skip system package installation (brew/apt)"
             echo "  --data        Download and unpack example datasets (atlas, networks, FEM)"
-            echo "  --no-cache    Remove venv, cloned repos, and build artifacts (keeps data)"
+            echo "  --clean-install Remove venv, cloned repos, and build artifacts (keeps data)"
             echo "  --help, -h    Show this help message"
             return 0 2>/dev/null || exit 0
             ;;
@@ -60,7 +60,7 @@ done
 # -------------------------
 # No-cache mode
 # -------------------------
-if [[ $NO_CACHE -eq 1 ]]; then
+if [[ $CLEAN_INSTALL -eq 1 ]]; then
     echo "This will remove:"
     echo "  - venv/"
     echo "  - nrn/"
