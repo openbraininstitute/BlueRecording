@@ -3,43 +3,51 @@ name = "bluerecording"
 dynamic = ["version"]
 description = "A tool for calculating extracellular recording lead fields"
 requires-python = ">=3.10"
-# NOTE: The following dependencies are required at runtime but are NOT listed here
-# because they need special build flags or may be built from source depending on
-# the install mode (see setup.sh):
+# NOTE on special dependencies:
 #
-#   - mpi4py              Installed from PyPI wheel; works with system MPI
-#   - h5py                Must be compiled with MPI support (HDF5_MPI=ON)
-#   - neuron              May be built from source with libsonatareport (--full mode)
-#   - neurodamus          May be pinned to a specific branch/commit during development
-#   - neurodamus-models   CMake project (not a Python package), provides compiled
-#                         mechanisms (libnrnmech, special) needed at simulation time
+#   - h5py        Requires MPI support (HDF5_MPI=ON). setup.sh pre-installs
+#                 the MPI-enabled build so pip skips it. __init__.py verifies
+#                 MPI support at runtime.
+#   - neurodamus  Declared below. setup.sh may install from a specific Git
+#                 branch/commit; pip skips if already satisfied.
+#   - neuron      Optional (in [neuron] extra). pip install bluerecording[neuron]
+#                 gets the pip wheel, which is enough to compute weights.
+#                 For simulations with SONATA reporting, neuron must be built
+#                 from source with libsonatareport — use setup.sh --sim.
+#   - neurodamus-models  CMake project (not a Python package). Required in all
+#                 cases — needed to generate weights or run simulations.
+#                 Built by setup.sh.
 #
-# A runtime check in bluerecording/__init__.py verifies the Python packages are
-# available and provides clear error messages if not. Use 'source setup.sh' for
-# automatic setup.
+# Use 'source setup.sh' for automatic setup. See README for details.
 dependencies = [
     "mpi4py",
+    "h5py",
+    "neurodamus",
     "pandas",
     "morphio",
     "libsonata",
     "voxcell",
-    "scikit-learn"
+    "scikit-learn",
 ]
 
 [project.optional-dependencies]
+neuron = [
+    "neuron",
+]
 test = [
     "pytest",
     "pytest-forked",
-    "pytest-mpi"
+    "pytest-mpi",
 ]
 notebooks = [
     "jupyterlab",
     "ipympl",
-    "bluepysnap"
+    "bluepysnap",
 ]
 all = [
+    "bluerecording[neuron]",
     "bluerecording[test]",
-    "bluerecording[notebooks]"
+    "bluerecording[notebooks]",
 ]
 
 [build-system]

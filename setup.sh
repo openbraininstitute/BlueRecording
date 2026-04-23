@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# setup.sh — MPI-enabled Python environment setup for BlueRecording
+# setup.sh — Full development environment setup for BlueRecording
+#
+# Builds everything from source: libsonatareport, NEURON, neurodamus-models
+# with reporting enabled. Editable install with test + notebook dependencies.
+#
+# For platform use (without this script):
+#   pip install bluerecording[neuron]   — weights only, neuron from pip
+#   pip install bluerecording           — simulations, neuron already from source
+# See pyproject.toml for notes on dependencies not declared there
+# (e.g. neurodamus-models).
 
 # -------------------------
 # Pinned versions (edit here to update)
 # -------------------------
-NEURON_VERSION="9.0.1"
+NEURON_COMMIT="9.0.1"
+NEURODAMUS_COMMIT="main"
 
-INSTALL_MODE="light"
 SKIP_SYSTEM=0
 DOWNLOAD_DATA=0
 CLEAN_INSTALL=0
@@ -19,29 +28,18 @@ for arg in "$@"; do
         --no-system) SKIP_SYSTEM=1 ;;
         --data) DOWNLOAD_DATA=1 ;;
         --clean-install) CLEAN_INSTALL=1 ;;
-        --full) INSTALL_MODE="full" ;;
-        --dev) INSTALL_MODE="dev" ;;
-        --light) INSTALL_MODE="light" ;;
         --help|-h)
             echo "Usage: source setup.sh [OPTIONS]"
             echo ""
-            echo "Install modes (pick one, default: --light):"
-            echo "  --light       Install NEURON from pip, build neurodamus-models without"
-            echo "                reporting. Skips libsonatareport entirely. Regular pip install."
-            echo "                Enough to compute electrode weights (no simulation reports)."
-            echo "  --dev         Same as --light, but with editable install and test"
-            echo "                dependencies (pip install -e '.[all]')."
-            echo "                Use for development and running the test suite."
-            echo "  --full        Build everything from source: libsonatareport, NEURON,"
-            echo "                neurodamus, and neurodamus-models with reporting enabled."
-            echo "                Editable install with test dependencies."
-            echo "                Required to run simulations with SONATA report generation."
+            echo "Sets up a full development environment with NEURON built from"
+            echo "source (with libsonatareport), neurodamus-models, and an editable"
+            echo "install of bluerecording with test and notebook dependencies."
             echo ""
-            echo "Other options:"
-            echo "  --no-system   Skip system package installation (brew/apt)"
-            echo "  --data        Download and unpack example datasets (atlas, networks, FEM)"
-            echo "  --clean-install Remove venv, cloned repos, and build artifacts (keeps data)"
-            echo "  --help, -h    Show this help message"
+            echo "Options:"
+            echo "  --no-system      Skip system package installation (brew/apt)"
+            echo "  --data           Download and unpack example datasets (atlas, networks, FEM)"
+            echo "  --clean-install  Remove venv, cloned repos, and build artifacts (keeps data)"
+            echo "  --help, -h       Show this help message"
             return 0 2>/dev/null || exit 0
             ;;
         *)
@@ -54,7 +52,7 @@ for arg in "$@"; do
 done
 
 # -------------------------
-# Clean install mode
+# Clean install
 # -------------------------
 if [[ $CLEAN_INSTALL -eq 1 ]]; then
     echo "This will remove:"
@@ -82,7 +80,6 @@ if [[ $CLEAN_INSTALL -eq 1 ]]; then
     fi
 fi
 
-echo "=== Install mode: $INSTALL_MODE ==="
 echo "=== Skip system installation: $SKIP_SYSTEM ==="
 
 # -------------------------
@@ -125,11 +122,9 @@ export NEURODAMUS_NEOCORTEX_ROOT="$(pwd)/neurodamus-models/build/install"
 export HOC_LIBRARY_PATH="$NEURODAMUS_NEOCORTEX_ROOT/share/neurodamus_neocortex/hoc"
 export PATH=$NEURODAMUS_NEOCORTEX_ROOT/bin:$PATH
 
-if [[ "$INSTALL_MODE" == "full" ]]; then
-    export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
-    export PATH=$(pwd)/nrn/build/install/bin:$PATH
-    export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
-fi
+export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
+export PATH=$(pwd)/nrn/build/install/bin:$PATH
+export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
 
 if [[ "$OS" == "Darwin" ]]; then
   export CORENEURONLIB="$NEURODAMUS_NEOCORTEX_ROOT/lib/libcorenrnmech.dylib"
@@ -140,7 +135,7 @@ elif [[ "$OS" == "Linux" ]]; then
   export CORENEURONLIB="$NEURODAMUS_NEOCORTEX_ROOT/lib/libcorenrnmech.so"
   export NRNMECH_LIB_PATH="$NEURODAMUS_NEOCORTEX_ROOT/lib/libnrnmech.so"
 else
-  echo "Unsupported platform: PLATFORM=$PLATFORM OS=$OS" >&2
+  echo "Unsupported platform: OS=$OS" >&2
   exit 1
 fi
 
@@ -184,62 +179,53 @@ pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 # =========================================================================
 
 # -------------------------
-# libsonatareport (full only — needed by NEURON for reporting)
+# libsonatareport — needed by NEURON for reporting
 # -------------------------
-if [[ "$INSTALL_MODE" == "full" ]]; then
-    if [ ! -d "libsonatareport" ]; then
-        git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
-        cmake -B libsonatareport/build -S libsonatareport \
-            -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
+if [ ! -d "libsonatareport" ]; then
+    git clone https://github.com/openbraininstitute/libsonatareport.git --recursive --depth=1
+    cmake -B libsonatareport/build -S libsonatareport \
+        -DCMAKE_INSTALL_PREFIX=$SONATAREPORT_DIR -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON -GNinja
 
-        cmake --build libsonatareport/build
-        cmake --install libsonatareport/build
-    fi
+    cmake --build libsonatareport/build
+    cmake --install libsonatareport/build
 fi
 
 # -------------------------
-# NEURON
-#   full:  build from source with reporting support
-#   light: install from pip
+# NEURON — built from source with reporting support
 # -------------------------
-if [[ "$INSTALL_MODE" == "full" ]]; then
-    if pip show neuron &>/dev/null; then
-        echo "Error: NEURON is already installed from pip in this environment."
-        echo "A pip-installed NEURON conflicts with a source build."
-        echo "Run 'pip uninstall neuron' first, or use --clean-install."
-        return 1 2>/dev/null || exit 1
+if pip show neuron &>/dev/null; then
+    echo "Error: NEURON is already installed from pip in this environment."
+    echo "A pip-installed NEURON conflicts with a source build."
+    echo "Run 'pip uninstall neuron' first, or use --clean-install."
+    return 1 2>/dev/null || exit 1
+fi
+if [ ! -d "nrn" ]; then
+    echo "=== Building NEURON from source ==="
+    git clone --branch=master https://github.com/neuronsimulator/nrn.git
+    cd nrn && git checkout $NEURON_COMMIT && cd ..
+    pip install --upgrade pip -r nrn/nrn_requirements.txt
+
+    if [[ "$OS" == "Darwin" ]]; then
+        NRN_C_COMPILER=gcc
+        NRN_CXX_COMPILER=g++
+    else
+        NRN_C_COMPILER=gcc
+        NRN_CXX_COMPILER=g++
     fi
-    if [ ! -d "nrn" ]; then
-        echo "=== Building NEURON from source ==="
-        git clone --branch=master https://github.com/neuronsimulator/nrn.git
-        cd nrn && git checkout $NEURON_VERSION && cd ..
-        pip install --upgrade pip -r nrn/nrn_requirements.txt
 
-        if [[ "$OS" == "Darwin" ]]; then
-            NRN_C_COMPILER=gcc
-            NRN_CXX_COMPILER=g++
-        else
-            NRN_C_COMPILER=gcc
-            NRN_CXX_COMPILER=g++
-        fi
+    cmake -B nrn/build -S nrn -G Ninja \
+        -DPYTHON_EXECUTABLE=$(which python) \
+        -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
+        -DNRN_ENABLE_MPI=ON \
+        -DNRN_ENABLE_INTERVIEWS=OFF \
+        -DNRN_ENABLE_CORENEURON=ON \
+        -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
+        -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
+        -DCORENRN_ENABLE_REPORTING=ON \
+        -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
 
-        cmake -B nrn/build -S nrn -G Ninja \
-            -DPYTHON_EXECUTABLE=$(which python) \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/nrn/build/install \
-            -DNRN_ENABLE_MPI=ON \
-            -DNRN_ENABLE_INTERVIEWS=OFF \
-            -DNRN_ENABLE_CORENEURON=ON \
-            -DCMAKE_C_COMPILER=$NRN_C_COMPILER \
-            -DCMAKE_CXX_COMPILER=$NRN_CXX_COMPILER \
-            -DCORENRN_ENABLE_REPORTING=ON \
-            -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
-
-        cmake --build nrn/build --parallel
-        cmake --build nrn/build --target install
-    fi
-elif [[ "$INSTALL_MODE" == "light" || "$INSTALL_MODE" == "dev" ]]; then
-    echo "=== Installing NEURON from pip ==="
-    pip install neuron==$NEURON_VERSION
+    cmake --build nrn/build --parallel
+    cmake --build nrn/build --target install
 fi
 
 # -------------------------
@@ -247,51 +233,38 @@ fi
 # -------------------------
 # TODO: Switch back to the PyPI release once it includes commit e5abd33
 # (https://github.com/openbraininstitute/neurodamus/commit/e5abd33ad2cc5a4450c2d5190e32afc11ee385d8)
-pip install git+https://github.com/openbraininstitute/neurodamus.git@main
+pip install git+https://github.com/openbraininstitute/neurodamus.git@${NEURODAMUS_COMMIT}
 
 # -------------------------
-# neurodamus-models
-#   full:  with reporting (linked against libsonatareport)
-#   light: without reporting
+# neurodamus-models — with reporting (linked against libsonatareport)
 # -------------------------
 if [ ! -d "neurodamus-models" ]; then
     git clone --depth=1 https://github.com/openbraininstitute/neurodamus-models.git
     NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
-    NEURODAMUS_CMAKE_ARGS=(
-        -DPython_EXECUTABLE=$(which python)
-        -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT
-        -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON
-        -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON}
-        -DNEURODAMUS_MECHANISMS=neocortex
-        -DNEURODAMUS_NCX_V5=ON
-    )
+    cmake -B neurodamus-models/build -S neurodamus-models/ \
+        -DPython_EXECUTABLE=$(which python) \
+        -DCMAKE_INSTALL_PREFIX=$NEURODAMUS_NEOCORTEX_ROOT \
+        -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
+        -DNEURODAMUS_CORE_DIR=${NEURODAMUS_PYTHON} \
+        -DNEURODAMUS_MECHANISMS=neocortex \
+        -DNEURODAMUS_NCX_V5=ON \
+        -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR
 
-    if [[ "$INSTALL_MODE" == "full" ]]; then
-        NEURODAMUS_CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR)
-    else
-        NEURODAMUS_CMAKE_ARGS+=(-DNEURODAMUS_ENABLE_REPORTING=OFF)
-    fi
-
-    cmake -B neurodamus-models/build -S neurodamus-models/ "${NEURODAMUS_CMAKE_ARGS[@]}"
     cmake --build neurodamus-models/build
     cmake --install neurodamus-models/build
 fi
 
 # -------------------------
-# Install project
+# Install project (editable, with test + notebook deps)
 # -------------------------
 echo "=== Installing project ==="
-if [[ "$INSTALL_MODE" == "dev" || "$INSTALL_MODE" == "full" ]]; then
-    pip install -e ".[all]"
-else
-    pip install .
-fi
+pip install -e ".[test,notebooks]"
 
 echo "=== Setup complete ==="
 
 # -------------------------
-# Download atlas data if requested via --data
+# Download data if requested via --data
 # -------------------------
 if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     ATLAS_DIR="examples/data/atlas"
@@ -299,7 +272,7 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
     if [ -d "$ATLAS_DIR" ] && [ "$(ls -A "$ATLAS_DIR")" ]; then
         echo "=== Skipping atlas download — $ATLAS_DIR already exists and is not empty ==="
     else
-        echo "=== Downloading atlas dataset (requested via --atlas) ==="
+        echo "=== Downloading atlas dataset ==="
         mkdir -p examples/data
         curl -L -o examples/data/atlas.zip \
             "https://zenodo.org/record/10927050/files/atlas.zip?download=1"
@@ -313,9 +286,8 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
         echo "=== Atlas dataset ready at $ATLAS_DIR ==="
     fi
 
-
     # -------------------------
-    # Download networks data if requested via --data
+    # Download networks data
     # -------------------------
     CONFIG_DIR="examples/sscx_100_cells/configuration"
     NETWORK_DIR="$CONFIG_DIR/networks"
@@ -338,8 +310,9 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
 
         echo "=== Networks dataset ready at $NETWORK_DIR ==="
     fi
+
     # -------------------------
-    # Download single_cell_l5_tpc FEM field files if requested via --data
+    # Download single_cell_l5_tpc FEM field files
     # -------------------------
     L5_TPC_DIR="examples/single_cell_l5_tpc"
     L5_TPC_FILE1="$L5_TPC_DIR/Infinite_VeryFar_HighRes.h5"
@@ -364,5 +337,5 @@ if [[ "$DOWNLOAD_DATA" == "1" ]]; then
         echo "=== single_cell_l5_tpc FEM field files ready ==="
     fi
 else
-    echo "=== Skipping data download and generation — --data not given ==="
+    echo "=== Skipping data download — --data not given ==="
 fi
