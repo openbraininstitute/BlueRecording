@@ -48,18 +48,21 @@ done
 if [[ "$RUN_SETUP" -eq 1 ]]; then
     echo "=== Running setup.sh --dev --data ==="
     source setup.sh --dev --data
+elif [ -n "$VIRTUAL_ENV" ]; then
+    echo "Using active virtual environment: $VIRTUAL_ENV"
 elif [[ -d "venv" ]]; then
     source venv/bin/activate
 else
-    echo "Error: No venv found. Run with --setup first, or 'source setup.sh --dev --data' manually."
+    echo "Error: No active venv and no ./venv found. Run with --setup first, or 'source setup.sh --dev --data' manually."
     exit 1
 fi
 
 FAILED=0
 
 echo ""
-echo "Note: This script assumes 'source setup.sh --dev --data' was called at least once"
-echo "      and the virtual environment is active."
+echo "Note: This script assumes bluerecording is installed with all dependencies"
+echo "      in place, environment variables set, and test data downloaded."
+echo "      If not, run: source setup.sh --dev --data  (or --full --data)"
 echo ""
 
 # -------------------------

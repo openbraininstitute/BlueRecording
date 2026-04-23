@@ -6,10 +6,6 @@
 # -------------------------
 NEURON_VERSION="9.0.1"
 
-if command -v deactivate &> /dev/null; then
-    deactivate
-fi
-
 INSTALL_MODE="light"
 SKIP_SYSTEM=0
 DOWNLOAD_DATA=0
@@ -58,7 +54,7 @@ for arg in "$@"; do
 done
 
 # -------------------------
-# No-cache mode
+# Clean install mode
 # -------------------------
 if [[ $CLEAN_INSTALL -eq 1 ]]; then
     echo "This will remove:"
@@ -74,6 +70,10 @@ if [[ $CLEAN_INSTALL -eq 1 ]]; then
     printf "Are you sure? [y/N] "
     read -r confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        if [ -n "$VIRTUAL_ENV" ]; then
+            echo "Deactivating active virtual environment..."
+            deactivate
+        fi
         rm -rf venv nrn libsonatareport neurodamus-models bluerecording.egg-info build
         echo "=== Clean complete ==="
     else
@@ -148,34 +148,36 @@ fi
 # Virtual environment
 # -------------------------
 
-echo "=== Checking for existing virtual environment ==="
-if [ -d "venv" ]; then
-    echo "Virtual environment exists — activating."
+echo "=== Checking for virtual environment ==="
+if [ -n "$VIRTUAL_ENV" ]; then
+    echo "Using active virtual environment: $VIRTUAL_ENV"
+elif [ -d "venv" ]; then
+    echo "Activating existing ./venv"
     source venv/bin/activate
 else
     echo "=== Creating virtual environment ==="
     python3 -m venv venv
     source venv/bin/activate
-
-    pip install --upgrade pip setuptools wheel cython numpy
-
-    echo "=== Configuring MPI build environment ==="
-    export CC=$(which mpicc)
-    export CXX=$(which mpicxx)
-    export MPICC=$(which mpicc)
-
-    export HDF5_MPI=ON
-    if [[ "$OS" == "Linux" ]]; then
-        export HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/openmpi
-    else
-        export HDF5_DIR=$(dirname "$(dirname "$(which h5cc)")")
-    fi
-
-    echo "=== Installing base dependencies ==="
-
-    pip install mpi4py
-    pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 fi
+
+pip install --upgrade pip setuptools wheel cython numpy
+
+echo "=== Configuring MPI build environment ==="
+export CC=$(which mpicc)
+export CXX=$(which mpicxx)
+export MPICC=$(which mpicc)
+
+export HDF5_MPI=ON
+if [[ "$OS" == "Linux" ]]; then
+    export HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/openmpi
+else
+    export HDF5_DIR=$(dirname "$(dirname "$(which h5cc)")")
+fi
+
+echo "=== Installing base dependencies ==="
+
+pip install mpi4py
+pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 
 # =========================================================================
 # Build components
@@ -201,6 +203,12 @@ fi
 #   light: install from pip
 # -------------------------
 if [[ "$INSTALL_MODE" == "full" ]]; then
+    if pip show neuron &>/dev/null; then
+        echo "Error: NEURON is already installed from pip in this environment."
+        echo "A pip-installed NEURON conflicts with a source build."
+        echo "Run 'pip uninstall neuron' first, or use --clean-install."
+        return 1 2>/dev/null || exit 1
+    fi
     if [ ! -d "nrn" ]; then
         echo "=== Building NEURON from source ==="
         git clone --branch=master https://github.com/neuronsimulator/nrn.git
