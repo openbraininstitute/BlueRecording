@@ -10,50 +10,46 @@ This branch provides code that produces an electrodes file compatible with the [
 
 ### Dependencies
 
-BlueRecording requires several packages that are **not listed in `pyproject.toml`** because they need special build flags or may be built from source:
+BlueRecording declares most of its dependencies in `pyproject.toml`. A few need special attention:
 
-| Package | Why it's not in pyproject.toml |
+| Package | Notes |
 |---|---|
-| `mpi4py` | Must be compiled against the system MPI library |
-| `h5py` | Must be compiled with MPI support (`HDF5_MPI=ON`) |
-| `neuron` | May be built from source with reporting support (`--full` mode) |
-| `neurodamus` | May be pinned to a specific branch/commit during development |
-| `neurodamus-models` | CMake project (not a Python package), provides compiled mechanisms needed at simulation time |
+| `h5py` | Declared in pyproject.toml, but must be the MPI-enabled build (`HDF5_MPI=ON`). The default pip wheel lacks MPI support. |
+| `neuron` | Optional extra (`pip install bluerecording[neuron]`). For simulations with reporting, build from source instead. |
+| `neurodamus` | Declared in pyproject.toml. `setup.sh` may install from a specific Git commit. |
+| `neurodamus-models` | CMake project (not a Python package). Required in all cases — needed to generate weights or run simulations. Built by `setup.sh`. |
 
-If any of these are missing or misconfigured, bluerecording will raise a clear error on import with installation instructions.
+If h5py lacks MPI support or neuron is missing, bluerecording will raise a clear error on import.
 
-The provided `setup.sh` script handles all of this automatically, including building NEURON, neurodamus, and libsonatareport from source when needed.
+The provided `setup.sh` script handles all of this automatically, building NEURON and libsonatareport from source. It works on macOS (with `brew`) and Linux (with `apt`).
 
-`setup.sh` works for both macOS (with `brew`) and Linux (with `apt`) systems. There are three install modes:
-
-**Default (`--light`)** — install NEURON from pip, build neurodamus-models without reporting. Enough to compute electrode weights:
+**Development setup** — builds everything from source with test and notebook dependencies:
 
 ```bash
 source setup.sh
 ```
 
-**`--dev`** — same as light, but with editable install and test dependencies. Use for development and running the test suite:
-
-```bash
-source setup.sh --dev
-```
-
-**`--full`** — build everything from source (libsonatareport, NEURON, neurodamus-models with reporting). Required to run simulations with SONATA report generation:
-
-```bash
-source setup.sh --full
-```
-
 Append `--no-system` to skip system package installation (brew/apt).
 
-Use `--no-cache` to wipe the virtual environment and all build artifacts before reinstalling from scratch (downloaded data is preserved):
+Use `--clean-install` to wipe the virtual environment and all build artifacts before reinstalling from scratch (downloaded data is preserved):
 
 ```bash
-source setup.sh --no-cache
+source setup.sh --clean-install
+```
+
+**Platform / weights-only use** — no `setup.sh` needed:
+
+```bash
+pip install bluerecording[neuron]
+```
+
+**Platform / simulations** — neuron already built from source:
+
+```bash
+pip install bluerecording
 ```
 
 Finally, if you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
-
 
 This is required only once to set up your python virtual environment. In future sessions you still need to run once:
 
@@ -69,24 +65,15 @@ The initial input data of `BlueRecording` includes a [compartment report](https:
 
 ### Neurodamus
 
-`setup.sh` can install the full simulation stack or a lighter version depending on the install mode:
-
-**`--full` mode** (for simulations with reports):
+`setup.sh` builds the full simulation stack:
 1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
 2. Clone and build `libsonatareport`
 3. Clone and build NEURON from source (with `libsonatareport` support)
 4. Install `neurodamus` from source
 5. Clone and build `neurodamus-models` (neocortex, with reporting)
-6. Install the `bluerecording` package (editable)
+6. Install the `bluerecording` package (editable, with test + notebook deps)
 
-**`--light` / `--dev` mode** (for electrode weights without reports):
-1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
-2. Install NEURON from pip
-3. Install `neurodamus` from source
-4. Clone and build `neurodamus-models` (neocortex, without reporting)
-5. Install the `bluerecording` package (`--dev` adds editable install + test deps)
-
-In subsequent sessions, running `source setup.sh` again will simply activate the existing environment.
+In subsequent sessions, running `source setup.sh` again will simply activate the existing environment and ensure dependencies are up to date.
 
 ---
 # Testing
@@ -94,7 +81,7 @@ In subsequent sessions, running `source setup.sh` again will simply activate the
 First, make sure you have set up the development environment with test data:
 
 ```bash
-source setup.sh --dev --data
+source setup.sh --data
 ```
 
 This only needs to be done once. It will download a few hundreds of Mb of data and run a few short simulations.
@@ -127,14 +114,14 @@ mpirun -n 2 python -m pytest tests/unit-mpi/test_h5py_MPI.py --with-mpi -v
 mpirun -n 2 python -m pytest tests/unit-mpi/test_get_positions.py --with-mpi -v
 ```
 
-If you want to run only the base tests (without downloading data), after `source setup.sh --dev`:
+If you want to run only the base tests (without downloading data), after `source setup.sh`:
 
 ```bash
 mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
 pytest -v -m "not skip_in_ci" tests/unit
 ```
 
-This is also what runs in CI (with `--light` mode), where we avoid building the full simulation stack to keep pipelines fast and lightweight.
+This is also what runs in CI, where we avoid downloading large datasets to keep pipelines fast.
 
 To run only the slow, data-intensive tests (e.g., single cell and 100-cell integration tests):
 
