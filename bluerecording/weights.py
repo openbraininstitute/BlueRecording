@@ -325,7 +325,10 @@ def get_line_coeffs(
 
     line_source_term = line_source_cases(h, r2, l)
 
-    return 1e-9 / (4 * np.pi * sigma * seg_length) * line_source_term
+    seg_coeff = 1 / (4 * np.pi * sigma * seg_length) * line_source_term
+    seg_coeff *= 1e-9
+
+    return seg_coeff
 
 
 def get_coeffs_line_source(
@@ -351,7 +354,9 @@ def get_coeffs_line_source(
         if positions.columns[i][-1] == 0:
             soma_pos = positions.iloc[:, i]
             dist = np.linalg.norm(soma_pos - electrode_pos) * 1e-6
-            coeff_list.append(1e-9 / (4 * np.pi * sigma * dist))
+            soma_coeff = 1 / (4 * np.pi * sigma * dist)
+            soma_coeff *= 1e-9
+            coeff_list.append(soma_coeff)
 
         elif positions.columns[i][-1] == positions.columns[i + 1][-1]:
             coeff_list.append(
@@ -362,25 +367,25 @@ def get_coeffs_line_source(
     coeffs.columns = columns
     return coeffs
 
-def get_coeffs_pointSource(positions,electrodePos,sigma):
+def get_coeffs_point_source(
+    positions: pd.DataFrame,
+    electrode_pos: np.ndarray,
+    sigma: float,
+) -> pd.DataFrame:
     """Compute point-source coefficients for all segments.
 
     Each segment is treated as a point source. Distances are converted
-    from um to m and currents from nA to A.
+    from µm to m and currents from nA to A.
+
+    Args:
+        positions: DataFrame of segment midpoint positions (µm).
+        electrode_pos: Electrode position (µm).
+        sigma: Extracellular conductivity (S/m).
     """
-    distances = np.linalg.norm(positions.values-electrodePos[:,np.newaxis],axis=0)
-
-    distances *= 1e-6
-
-    coeffs = 1/(4*np.pi*sigma*distances)
-
+    distances = np.linalg.norm(positions.values - electrode_pos[:, np.newaxis], axis=0) * 1e-6
+    coeffs = 1 / (4 * np.pi * sigma * distances)
     coeffs *= 1e-9
-
-    coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
-
-    coeffs.columns = positions.columns
-
-    return coeffs
+    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
 
 def get_array_spacing(allEpos):
     """Compute the main axis and inter-electrode spacing of an array.
@@ -784,7 +789,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
 
             if electrodeType is ElectrodeType.POINT_SOURCE:
 
-                coeffs = get_coeffs_pointSource(newPositions, epos, sigma[sigmaIdx])
+                coeffs = get_coeffs_point_source(newPositions, epos, sigma[sigmaIdx])
 
                 if len(sigma) > 1:
                     sigmaIdx += 1
