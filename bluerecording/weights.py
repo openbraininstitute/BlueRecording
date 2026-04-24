@@ -387,25 +387,30 @@ def get_coeffs_point_source(
     coeffs *= 1e-9
     return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
 
-def get_array_spacing(allEpos):
+def get_array_spacing(all_epos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Compute the main axis and inter-electrode spacing of an array.
 
     Uses PCA to find the principal axis, projects electrode positions
     onto it, and returns the axis and the spacing between consecutive
     projections (ignoring co-planar electrodes).
+
+    Args:
+        all_epos: Electrode positions, shape ``(n_electrodes, 3)``.
+
+    Returns:
+        main_axis: Unit vector along the principal axis, shape ``(3, 1)``.
+        array_spacing: Distances between consecutive projections (> 1e-3).
     """
     pca = PCA(n_components=1)
-    pca.fit(allEpos)
-    main_axis = pca.components_[0]/np.linalg.norm(pca.components_[0])
-    main_axis = main_axis[:,np.newaxis]
+    pca.fit(all_epos)
+    main_axis = pca.components_[0] / np.linalg.norm(pca.components_[0])
+    main_axis = main_axis[:, np.newaxis]
 
-    allEpos_projected = np.matmul(allEpos,main_axis).flatten()
+    projected = np.matmul(all_epos, main_axis).flatten()
+    spacing = np.abs(np.diff(projected))
+    spacing = spacing[spacing > 1e-3]
 
-    arraySpacing = np.abs(np.diff(allEpos_projected))
-
-    arraySpacing = arraySpacing[arraySpacing >1e-3]
-
-    return main_axis, arraySpacing
+    return main_axis, spacing
 
 def get_coeffs_objectiveCSD_Sphere(positions,electrodePos,allEpos,radius=None):
     """Compute objective CSD coefficients using a spherical region.
