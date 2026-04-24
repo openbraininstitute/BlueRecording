@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Callable
+from pathlib import Path
+
 import libsonata
 import numpy as np
 import pandas as pd
-from collections.abc import Callable
 from morphio import Morphology, SectionType
 from mpi4py import MPI
-from pathlib import Path
 from scipy.interpolate import interp1d
-
-from .circuit import init_circuit
 
 rank = MPI.COMM_WORLD.Get_rank()
 
@@ -65,7 +64,7 @@ class PositionedMorphology:
     def section_points(self, sec_id: int) -> np.ndarray:
         """Return the (possibly transformed) points for a given section."""
         o = self.offsets
-        return self._points[o[sec_id]:o[sec_id + 1]]
+        return self._points[o[sec_id] : o[sec_id + 1]]
 
 
 def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
@@ -95,17 +94,12 @@ def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
     arc /= arc[-1]  # normalise to [0, 1]
 
     targets = np.linspace(0, 1, ncomps + 1)
-    xyz = np.column_stack([
-        interp1d(arc, coords[:, dim], kind='linear')(targets)
-        for dim in range(coords.shape[1])
-    ])
+    xyz = np.column_stack([interp1d(arc, coords[:, dim], kind="linear")(targets) for dim in range(coords.shape[1])])
 
     return xyz
 
 
-def _get_cumulative_length(
-    m: PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]
-) -> float:
+def _get_cumulative_length(m: PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]) -> float:
     """Return cumulative arc length from soma to the end of a section.
 
     Computes lazily and caches results so each section is measured at most once.
@@ -297,7 +291,7 @@ def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.nda
 
     if need_extension:
         points, running_len = _extrapolate_branch(points, running_len, current_len, target_length)
-    
+
     # Remove duplicate points (morphology formats may repeat section boundaries)
     axon_points, indices = np.unique(np.array(points), axis=0, return_index=True)
     return axon_points, np.array(running_len)[indices]
@@ -382,13 +376,15 @@ def interp_points_axon(
     seg_len = sec_len / num_compartments
     targets = np.array([(i * seg_len) / sec_len for i in range(num_compartments + 1)])
 
-    seg_pos = np.column_stack([
-        interp1d(lens_relevant, axon_relevant[:, dim], kind='linear',
-                 fill_value='extrapolate')(targets)
-        for dim in range(3)
-    ])
+    seg_pos = np.column_stack(
+        [
+            interp1d(lens_relevant, axon_relevant[:, dim], kind="linear", fill_value="extrapolate")(targets)
+            for dim in range(3)
+        ]
+    )
 
     return seg_pos
+
 
 def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
@@ -410,15 +406,12 @@ def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
         new_idx.append(col)
 
         # Last column: repeat to account for end point
-        if i == len(cols_list) - 1:
+        # Non-somatic segments: add extra entry if next col is different
+        if i == len(cols_list) - 1 or (col[-1] != 0 and cols_list[i + 1] != col):
             new_idx.append(col)
 
-        # Non-somatic segments: add extra entry if next col is different
-        elif col[-1] != 0:
-            if cols_list[i + 1] != col:
-                new_idx.append(col)
-
     return pd.MultiIndex.from_tuples(new_idx, names=["id", "section"])
+
 
 def _get_cell_positions(
     m: PositionedMorphology,
@@ -476,6 +469,7 @@ def _get_cell_positions(
 
     return xyz
 
+
 def resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
     """Return an int array of neurite-type codes for one neuron's compartments.
 
@@ -532,9 +526,7 @@ def _find_morph_file(morph_name: str, morph_dir: str) -> str:
     for path in candidates:
         if path.exists():
             return str(path)
-    raise FileNotFoundError(
-        f"Morphology '{morph_name}' not found in {morph_dir}"
-    )
+    raise FileNotFoundError(f"Morphology '{morph_name}' not found in {morph_dir}")
 
 
 def get_positions(
@@ -599,6 +591,7 @@ def get_positions(
     neurite_types = np.concatenate(neurite_type_arrays)
 
     return positions_df, cols, neurite_types
+
 
 def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | Path) -> None:
     """Write positions DataFrame to a pickle file for this MPI rank.

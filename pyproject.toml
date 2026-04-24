@@ -38,6 +38,7 @@ test = [
     "pytest",
     "pytest-forked",
     "pytest-mpi",
+    "ruff",
 ]
 notebooks = [
     "jupyterlab",
@@ -68,3 +69,29 @@ packages = ["bluerecording"]
 
 [project.scripts]
 bluerecording = "bluerecording.cli:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "E741",   # ambiguous variable name (l is standard in line-source math)
+    "SIM108", # ternary operator (not always clearer)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bluerecording"]
+
+[tool.ruff.format]
+quote-style = "double"

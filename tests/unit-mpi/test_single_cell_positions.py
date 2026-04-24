@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from mpi4py import MPI
-import numpy as np
 import pandas as pd
 import pytest
+from mpi4py import MPI
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
@@ -24,7 +23,10 @@ def test_single_cell_get_positions_mpi(tmp_path):
 
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(path_to_simconfig)
     positions_df, _, _ = positions.get_positions(
-        node_manager, ids, cols, population,
+        node_manager,
+        ids,
+        cols,
+        population,
         morphologies_dir=morphologies_dir,
     )
     positions.save_positions(positions_df, str(output_dir))
@@ -41,13 +43,10 @@ def test_single_cell_get_positions_mpi(tmp_path):
             dfs.append(pd.read_pickle(str(pkl_path)))
         df_new = pd.concat(dfs, axis=1)
 
-        assert df_ref.shape == df_new.shape, (
-            f"Shape mismatch: ref {df_ref.shape} vs new {df_new.shape}"
-        )
+        assert df_ref.shape == df_new.shape, f"Shape mismatch: ref {df_ref.shape} vs new {df_new.shape}"
 
         ref_gid_order = df_ref.columns.get_level_values("id").unique()
-        reordered = pd.concat([df_new.xs(gid, level="id", axis=1, drop_level=False)
-                               for gid in ref_gid_order], axis=1)
+        reordered = pd.concat([df_new.xs(gid, level="id", axis=1, drop_level=False) for gid in ref_gid_order], axis=1)
 
         pd.testing.assert_frame_equal(
             df_ref,

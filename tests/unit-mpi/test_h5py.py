@@ -1,12 +1,12 @@
-from mpi4py import MPI
-import pytest
 import h5py
 import numpy as np
-from pathlib import Path
+import pytest
+from mpi4py import MPI
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
+
 
 @pytest.mark.mpi(ranks=2)
 def test_mpi_ranks():
@@ -44,7 +44,7 @@ def test_h5py_mpio(tmp_path):
 
     # Collective open for parallel write
     with h5py.File(str(file_path), "r+", driver="mpio", comm=comm) as f:
-        f["data"][rank*n_elems_per_rank:(rank+1)*n_elems_per_rank] = local_data
+        f["data"][rank * n_elems_per_rank : (rank + 1) * n_elems_per_rank] = local_data
 
     comm.Barrier()
 

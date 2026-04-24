@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import pytest
-import pandas as pd
-import numpy as np
 from pathlib import Path
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Path constants
