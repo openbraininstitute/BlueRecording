@@ -438,60 +438,70 @@ def get_coeffs_objective_csd_sphere(
     return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
 
 
-def get_coeffs_objectiveCSD_Plane(compartment_positions,electrodePos,allEpos,planeThickness=None):
+def get_coeffs_objective_csd_plane(
+    compartment_positions: pd.DataFrame,
+    electrode_pos: np.ndarray,
+    all_epos: np.ndarray,
+    plane_thickness: float | None = None,
+) -> pd.DataFrame:
     """Compute objective CSD coefficients using an infinite plane.
 
     A segment's coefficient is 1 if its axial distance from the electrode
     plane is within the thickness, 0 otherwise. If no thickness is given,
     it is estimated from the inter-electrode spacing.
+
+    Args:
+        compartment_positions: DataFrame of segment midpoint positions (µm).
+        electrode_pos: Electrode position (µm).
+        all_epos: All electrode positions in the array.
+        plane_thickness: Half-thickness of the plane in µm (default:
+            estimated from electrode spacing).
     """
-    main_axis, arraySpacing = get_array_spacing(allEpos)
+    main_axis, spacing = get_array_spacing(all_epos)
 
-    if planeThickness is None:
-        planeThickness = get_thickness(arraySpacing)
+    if plane_thickness is None:
+        plane_thickness = get_thickness(spacing)
 
-    axialDistances, _ = distances_in_planar_coords(compartment_positions,electrodePos,main_axis)
+    axial_distances, _ = distances_in_planar_coords(compartment_positions, electrode_pos, main_axis)
+    coeffs = (axial_distances <= plane_thickness).astype(int).flatten()
+    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=compartment_positions.columns)
 
-    coeffs = np.array((axialDistances <= planeThickness).astype(int)).flatten()
-
-    coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
-
-    coeffs.columns = compartment_positions.columns
-
-    return coeffs
-
-def get_thickness(arraySpacing):
+def get_thickness(spacing: np.ndarray) -> float:
     """Estimate plane/disk thickness as half the mean electrode spacing."""
-    return np.abs(np.mean(arraySpacing)/2)
+    return np.abs(np.mean(spacing) / 2)
 
-def calculate_axial_vectors(axialDistances,main_axis):
+def calculate_axial_vectors(
+    axial_distances: np.ndarray,
+    main_axis: np.ndarray,
+) -> np.ndarray:
     """Build per-compartment axial displacement vectors along the main axis."""
-    axialVectors = main_axis.T
-    for i in range(len(axialDistances)-1):
-        axialVectors = np.vstack((axialVectors,main_axis.T))
+    return np.tile(main_axis.T, (len(axial_distances), 1)) * axial_distances
 
-    axialVectors = axialVectors * axialDistances
-
-    return axialVectors
-
-
-def distances_in_planar_coords(compartment_positions, electrodePos, main_axis):
+def distances_in_planar_coords(
+    compartment_positions: pd.DataFrame,
+    electrode_pos: np.ndarray,
+    main_axis: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     """Decompose compartment positions into axial and radial distances.
 
     Projects each compartment's displacement from the electrode onto the
     array's main axis (axial) and the perpendicular plane (radial).
+
+    Args:
+        compartment_positions: DataFrame of segment midpoint positions (µm).
+        electrode_pos: Electrode position (µm).
+        main_axis: Unit vector along the array axis, shape ``(3, 1)``.
+
+    Returns:
+        axial_distances: Absolute axial distances, shape ``(n_segments, 1)``.
+        radial_distances: Radial distances, shape ``(n_segments,)``.
     """
-    differenceVectors = compartment_positions.values - electrodePos[:,np.newaxis]
-
-    axialDistances = np.matmul(differenceVectors.T,main_axis)
-
-    axialVectors = calculate_axial_vectors(axialDistances,main_axis)
-
-    radialVectors = differenceVectors - axialVectors.T
-
-    radialDistances = np.linalg.norm(radialVectors,axis=0)
-
-    return np.abs(axialDistances), radialDistances
+    diff_vectors = compartment_positions.values - electrode_pos[:, np.newaxis]
+    axial_distances = np.matmul(diff_vectors.T, main_axis)
+    axial_vectors = calculate_axial_vectors(axial_distances, main_axis)
+    radial_vectors = diff_vectors - axial_vectors.T
+    radial_distances = np.linalg.norm(radial_vectors, axis=0)
+    return np.abs(axial_distances), radial_distances
 
 
 def get_coeffs_objectiveCSD_Disk(compartment_positions,electrodePos,allEpos,radius=None,diskThickness=None):
@@ -822,7 +832,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
                     coeffs = get_coeffs_objectiveCSD_Disk(newPositions,epos,allEpos,radius,thickness)
 
                 elif electrodeType is ElectrodeType.OBJECTIVE_CSD_PLANE:
-                    coeffs = get_coeffs_objectiveCSD_Plane(newPositions,epos,allEpos,thickness)
+                    coeffs = get_coeffs_objective_csd_plane(newPositions,epos,allEpos,thickness)
 
 
             else:
