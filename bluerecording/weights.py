@@ -654,41 +654,35 @@ def get_coeffs_reciprocity(
 
     return pd.DataFrame(data=(potential / current_applied), columns=position_columns)
 
-def get_neuron_segment_midpts(position):
-    """Compute segment midpoints for a single neuron."""
+def get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
+    """Compute segment midpoints for a single neuron.
 
+    Soma columns (section id 0) are kept as-is. For other sections,
+    consecutive boundary positions are averaged to produce midpoints.
+    Single-point sections are kept unchanged.
+    """
+    sec_ids = np.array(list(position.columns))[:, 1]
+    unique_sec_ids = np.unique(sec_ids)
 
-    secIds = np.array(list(position.columns))[:,1]
-    uniqueSecIds = np.unique(secIds)
+    parts = []
+    for sid in unique_sec_ids:
+        pos = position.iloc[:, np.where(sid == sec_ids)[0]]
 
-    for sId in uniqueSecIds:
-
-        pos = position.iloc[:,np.where(sId == secIds)[0]]
-
-        if sId == 0:
-
-            newPos = pos
-
-        elif np.shape(pos.values)[-1] == 1:
-            newPos = pd.concat((newPos,pos),axis=1)
-
+        if sid == 0 or pos.shape[1] == 1:
+            parts.append(pos)
         else:
-            pos = (pos.iloc[:,:-1]+pos.iloc[:,1:])/2
+            parts.append((pos.iloc[:, :-1] + pos.iloc[:, 1:]) / 2)
 
-            newPos = pd.concat((newPos,pos),axis=1)
+    return pd.concat(parts, axis=1)
 
-    return newPos
-
-def get_segment_midpts(positions,node_ids):
+def get_segment_midpts(positions: pd.DataFrame, node_ids: np.ndarray) -> pd.DataFrame:
     """Compute segment midpoints for all neurons in the position DataFrame."""
-    newPos = (
-    positions.T
+    return (
+        positions.T
         .groupby(level=0, group_keys=False)
         .apply(lambda g: get_neuron_segment_midpts(g.T).T)
         .T
     )
-
-    return newPos
 
 
 
