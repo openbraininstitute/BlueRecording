@@ -560,66 +560,64 @@ def get_h5_dataset(h5f: str, group_name: str, dataset_name: str) -> np.ndarray:
         k = f[group_name].visit(find_dataset)
         return f[f"{group_name}/{k}"][()]
 
-def get_coeffs_dipoleReciprocity(compartment_positions, path_to_fields,center):
+def get_coeffs_dipole_reciprocity(
+    compartment_positions: pd.DataFrame,
+    path_to_fields: str,
+    center: pd.Series,
+) -> pd.DataFrame:
     """Compute dipole-reciprocity coefficients from a Sim4Life E-field file.
 
     Interpolates the E-field at the neural center and computes the
     transfer coefficient for each compartment via the dipole approximation.
 
     Args:
-        compartment_positions: DataFrame of segment positions (um).
+        compartment_positions: DataFrame of segment positions (µm).
         path_to_fields: Path to the HDF5 file with the E-field.
-        center: Center of the neuron population.
+        center: Center of the neuron population (µm).
     """
-    positionColumns = compartment_positions.columns
+    position_columns = compartment_positions.columns
     compartment_positions = compartment_positions.values
 
     with h5py.File(path_to_fields, 'r') as f:
         for i in f['FieldGroups']:
-            tmp = 'FieldGroups/' + i + '/AllFields/EM E(x,y,z,f0)/_Object/Snapshots/0/'
+            field_group = f"FieldGroups/{i}/AllFields/EM E(x,y,z,f0)/_Object/Snapshots/0/"
 
-        Ex = get_h5_dataset(path_to_fields, tmp, 'comp0')
-        Ey = get_h5_dataset(path_to_fields, tmp, 'comp1')
-        Ez = get_h5_dataset(path_to_fields, tmp, 'comp2')
+        ex = get_h5_dataset(path_to_fields, field_group, 'comp0')
+        ey = get_h5_dataset(path_to_fields, field_group, 'comp1')
+        ez = get_h5_dataset(path_to_fields, field_group, 'comp2')
 
         for i in f['Meshes']:
-            tmp = 'Meshes/'+i
+            mesh_group = f"Meshes/{i}"
             break
-        x = get_h5_dataset(path_to_fields, tmp, 'axis_x')
-        y = get_h5_dataset(path_to_fields, tmp, 'axis_y')
-        z = get_h5_dataset(path_to_fields, tmp, 'axis_z')
+        x = get_h5_dataset(path_to_fields, mesh_group, 'axis_x')
+        y = get_h5_dataset(path_to_fields, mesh_group, 'axis_y')
+        z = get_h5_dataset(path_to_fields, mesh_group, 'axis_z')
 
-        xCenter = (x[:-1]+x[1:])/2
-        yCenter = (y[:-1]+y[1:])/2
-        zCenter = (z[:-1]+z[1:])/2
+        x_center = (x[:-1] + x[1:]) / 2
+        y_center = (y[:-1] + y[1:]) / 2
+        z_center = (z[:-1] + z[1:]) / 2
 
-        currentApplied = f['CurrentApplied'][()]
-
+        current_applied = f['CurrentApplied'][()]
 
     compartment_positions = compartment_positions * 1e-6
-
     center = center * 1e-6
+    relative_positions = compartment_positions - center.values[:, np.newaxis]
 
-    compartment_positions_New = compartment_positions - center.values[:,np.newaxis]
+    interp_x = RegularGridInterpolator((x_center, y, z), ex[:, :, :, 0], method='linear')
+    interp_y = RegularGridInterpolator((x, y_center, z), ey[:, :, :, 0], method='linear')
+    interp_z = RegularGridInterpolator((x, y, z_center), ez[:, :, :, 0], method='linear')
 
+    e_at_center = np.array([
+        interp_x(center)[0],
+        interp_y(center)[0],
+        interp_z(center)[0],
+    ])
 
-    InterpFcnX = RegularGridInterpolator((xCenter, y, z), Ex[:, :, :, 0], method='linear')
-    InterpFcnY = RegularGridInterpolator((x, yCenter, z), Ey[:, :, :, 0], method='linear')
-    InterpFcnZ = RegularGridInterpolator((x, y, zCenter), Ez[:, :, :, 0], method='linear')
+    potential = (relative_positions[0] * e_at_center[0]
+                 + relative_positions[1] * e_at_center[1]
+                 + relative_positions[2] * e_at_center[2])
 
-    XComp = InterpFcnX(center)[np.newaxis]
-
-    YComp = InterpFcnY(center)[np.newaxis]
-
-    ZComp = InterpFcnZ(center)[np.newaxis]
-
-
-    out2rat = compartment_positions_New[0]*XComp + compartment_positions_New[1]*YComp + compartment_positions_New[2]*ZComp
-
-
-    outdf = pd.DataFrame(data=(-out2rat / currentApplied), columns=positionColumns)
-
-    return outdf
+    return pd.DataFrame(data=(-potential / current_applied)[np.newaxis, :], columns=position_columns)
 
 def get_coeffs_reciprocity(compartment_positions, path_to_fields):
     """Compute reciprocity coefficients from a Sim4Life potential field.
@@ -848,7 +846,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
 
                     center = newPositions.mean(axis=1)
 
-                    coeffs = get_coeffs_dipoleReciprocity(newPositions,path_to_fields[reciprocityIdx],center)
+                    coeffs = get_coeffs_dipole_reciprocity(newPositions,path_to_fields[reciprocityIdx],center)
 
                 else:
 
