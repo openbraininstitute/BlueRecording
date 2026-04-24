@@ -6,7 +6,7 @@ import h5py
 
 from bluerecording.weights import (
     write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams, Electrode,
-    add_data, get_coeffs_lineSource, get_coeffs_pointSource,
+    add_data, get_coeffs_line_source, get_coeffs_pointSource,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
     get_coeffs_objectiveCSD_Plane, get_line_coeffs,
@@ -82,7 +82,7 @@ def test_get_coeffs_line_source():
     electrode_pos = np.array([10, 10, 10])
     sigma = 1
 
-    coeffs = get_coeffs_lineSource(positions, data.columns, electrode_pos, sigma)
+    coeffs = get_coeffs_line_source(positions, data.columns, electrode_pos, sigma)
 
     soma_dist = np.sqrt(3 * 10**2) * 1e-6
     expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
