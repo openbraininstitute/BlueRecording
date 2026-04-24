@@ -6,7 +6,7 @@ import pandas as pd
 import h5py
 from morphio import Morphology
 
-from bluerecording.weights import write_electrode_metadata_to_h5, write_all_neuron, ObjectiveCSDParams, ElectrodeType
+from bluerecording.weights import write_electrode_metadata_to_h5, _init_scaling_factors_and_offsets, ObjectiveCSDParams, ElectrodeType
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ def create_neuron_file(path, electrodes=None, gids=GIDS, population=POPULATION_N
     path = create_electrode_file(path, electrodes, gids, population)
     sec_counts = make_sec_counts()
     h5file = h5py.File(path, "r+")
-    write_all_neuron(sec_counts, population, h5file, electrodes)
+    _init_scaling_factors_and_offsets(sec_counts, population, h5file, electrodes)
     h5file.close()
     return path
 
