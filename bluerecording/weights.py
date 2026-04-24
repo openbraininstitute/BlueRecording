@@ -739,7 +739,112 @@ def get_objective_csd_array(
 
     return array_idx, objective_csd_count
 
-def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None, neurite_types=None):
+def _compute_electrode_coeffs(
+    h5: h5py.File,
+    positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    node_ids: np.ndarray,
+    population_name: str,
+    sigma: list[float],
+    path_to_fields: list[str] | None,
+    objective_csd_array_indices: list[str] | None,
+) -> pd.DataFrame:
+    """Compute coefficients for every electrode in the H5 file.
+
+    Dispatches to the appropriate coefficient function based on each
+    electrode's type and returns the concatenated result.
+    """
+    coeff_list = []
+    electrode_names = sort_electrode_names(h5['electrodes'].keys(), population_name)
+
+    reciprocity_idx = 0
+    sigma_idx = 0
+    objective_csd_count = 0
+
+    for electrode_idx, electrode in enumerate(electrode_names):
+        epos = h5['electrodes'][str(electrode)]['position'][:]
+        electrode_type = ElectrodeType(h5['electrodes'][str(electrode)]['type'][()].decode())
+
+        if electrode_type is ElectrodeType.LINE_SOURCE:
+            coeffs = get_coeffs_line_source(positions, columns, epos, sigma[sigma_idx])
+            if len(sigma) > 1:
+                sigma_idx += 1
+
+        else:
+            mid_positions = get_segment_midpts(positions, node_ids)
+
+            if electrode_type is ElectrodeType.POINT_SOURCE:
+                coeffs = get_coeffs_point_source(mid_positions, epos, sigma[sigma_idx])
+                if len(sigma) > 1:
+                    sigma_idx += 1
+
+            elif 'ObjectiveCSD' in electrode_type:
+                array_idx, objective_csd_count = get_objective_csd_array(
+                    electrode_type, objective_csd_array_indices,
+                    objective_csd_count, electrode_names, h5, electrode_idx,
+                )
+                all_epos = [
+                    h5['electrodes'][str(e)]['position'][:]
+                    for e in electrode_names[array_idx]
+                ]
+                radius = h5['electrodes'][str(electrode)]['type'].attrs.get('radius', None)
+                thickness = h5['electrodes'][str(electrode)]['type'].attrs.get('thickness', None)
+
+                if electrode_type is ElectrodeType.OBJECTIVE_CSD_SPHERE:
+                    coeffs = get_coeffs_objective_csd_sphere(mid_positions, epos, all_epos, radius)
+                elif electrode_type is ElectrodeType.OBJECTIVE_CSD_DISK:
+                    coeffs = get_coeffs_objective_csd_disk(mid_positions, epos, all_epos, radius, thickness)
+                elif electrode_type is ElectrodeType.OBJECTIVE_CSD_PLANE:
+                    coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
+
+            else:
+                if electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
+                    center = mid_positions.mean(axis=1)
+                    coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
+                else:
+                    coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
+                reciprocity_idx += 1
+
+        coeff_list.append(coeffs)
+
+    return pd.concat(coeff_list) if len(coeff_list) > 1 else coeff_list[0]
+
+
+def _write_neurite_types(
+    h5: h5py.File,
+    cols: np.ndarray,
+    node_ids: np.ndarray,
+    neurite_types: np.ndarray,
+    population_name: str,
+) -> None:
+    """Write neurite type codes into the H5 file for each node."""
+    offsets = h5[f"{population_name}/offsets"][:]
+    all_node_ids = h5[f"{population_name}/node_ids"][:]
+
+    for gid in node_ids:
+        gid_mask = cols[:, 0] == gid
+        ntypes = neurite_types[gid_mask]
+
+        id_index = np.where(all_node_ids == gid)[0][0]
+        offset0 = offsets[id_index]
+        if id_index == len(offsets) - 1:
+            offset1 = h5[f"electrodes/{population_name}/scaling_factors"].shape[0]
+        else:
+            offset1 = offsets[id_index + 1]
+
+        h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
+
+
+def write_h5_file(
+    positions: pd.DataFrame,
+    cols: np.ndarray,
+    population_name: str,
+    outputfile: str,
+    sigma: list[float] | None = None,
+    path_to_fields: list[str] | None = None,
+    objective_csd_array_indices: list[str] | None = None,
+    neurite_types: np.ndarray | None = None,
+) -> None:
     """Compute and write electrode coefficients to the HDF5 weights file.
 
     Args:
@@ -753,118 +858,34 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
         neurite_types: (N,) int32 array from get_positions; if provided,
             populates the neurite_types dataset.
     """
-
     if sigma is None:
         sigma = [DEFAULT_SIGMA]
 
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
 
-    h5 = h5py.File(outputfile, 'a',driver='mpio',comm=MPI.COMM_WORLD)
+    comm = MPI.COMM_WORLD
+    if comm.Get_size() > 1:
+        h5 = h5py.File(outputfile, 'a', driver='mpio', comm=comm)
+    else:
+        h5 = h5py.File(outputfile, 'a')
 
-    if len(node_ids)==0:
-
-        warnings.warn('No nodes are processed on rank '+str(MPI.COMM_WORLD.Get_rank())+' Either increase or reduce the number of ranks such that it is an integer multiple of the number of position files')
-
+    if len(node_ids) == 0:
+        warnings.warn(
+            f"No nodes are processed on rank {comm.Get_rank()}. "
+            "Either increase or reduce the number of ranks such that it is "
+            "an integer multiple of the number of position files"
+        )
         h5.close()
+        return
 
-        return 1
-
-
-    coeffList = []
-
-    electrodeNames = sort_electrode_names(h5['electrodes'].keys(),population_name)
-
-    reciprocityIdx = 0
-    sigmaIdx = 0
-    objectiveCSD_count = 0
-
-    for electrodeIdx, electrode in enumerate(electrodeNames):
-
-        epos = h5['electrodes'][str(electrode)]['position'][:]
-
-        electrodeType = ElectrodeType(h5['electrodes'][str(electrode)]['type'][()].decode())
-
-        if electrodeType is ElectrodeType.LINE_SOURCE:
-
-            coeffs = get_coeffs_line_source(positions,columns,epos,sigma[sigmaIdx])
-
-            if len(sigma) > 1:
-                sigmaIdx += 1
-
-        else:
-
-            newPositions = get_segment_midpts(positions,node_ids) # For other methods, we need the segment centers, not the endpoints
-
-
-            if electrodeType is ElectrodeType.POINT_SOURCE:
-
-                coeffs = get_coeffs_point_source(newPositions, epos, sigma[sigmaIdx])
-
-                if len(sigma) > 1:
-                    sigmaIdx += 1
-
-            elif 'ObjectiveCSD' in electrodeType:
-
-                arrayIdx, objectiveCSD_count = get_objective_csd_array(electrodeType, objective_csd_array_indices, objectiveCSD_count, electrodeNames, h5, electrodeIdx)
-
-                allEpos = []
-
-                for e in electrodeNames[arrayIdx]:
-                    allEpos.append( h5['electrodes'][str(e)]['position'][:] )
-
-                radius = h5['electrodes'][str(electrode)]['type'].attrs.get('radius',None)
-                thickness = h5['electrodes'][str(electrode)]['type'].attrs.get('thickness', None)
-
-                if electrodeType is ElectrodeType.OBJECTIVE_CSD_SPHERE:
-                    coeffs = get_coeffs_objective_csd_sphere(newPositions,epos,allEpos,radius)
-
-                elif electrodeType is ElectrodeType.OBJECTIVE_CSD_DISK:
-                    coeffs = get_coeffs_objective_csd_disk(newPositions,epos,allEpos,radius,thickness)
-
-                elif electrodeType is ElectrodeType.OBJECTIVE_CSD_PLANE:
-                    coeffs = get_coeffs_objective_csd_plane(newPositions,epos,allEpos,thickness)
-
-
-            else:
-
-                if electrodeType is ElectrodeType.DIPOLE_RECIPROCITY:
-
-                    center = newPositions.mean(axis=1)
-
-                    coeffs = get_coeffs_dipole_reciprocity(newPositions,path_to_fields[reciprocityIdx],center)
-
-                else:
-
-                    coeffs = get_coeffs_reciprocity(newPositions,path_to_fields[reciprocityIdx])
-
-                reciprocityIdx += 1
-
-
-        if electrodeIdx == 0:
-            coeffList = coeffs
-        else:
-            coeffList = pd.concat((coeffList,coeffs))
-
-    add_data(h5,node_ids,coeffList,population_name)
+    all_coeffs = _compute_electrode_coeffs(
+        h5, positions, columns, node_ids, population_name,
+        sigma, path_to_fields, objective_csd_array_indices,
+    )
+    add_data(h5, node_ids, all_coeffs, population_name)
 
     if neurite_types is not None:
-        offsets = h5[population_name + '/offsets'][:]
-        all_node_ids = h5[population_name + '/node_ids'][:]
-
-        for gid in node_ids:
-            gid_mask = cols[:, 0] == gid
-            ntypes = neurite_types[gid_mask]
-
-            id_index = np.where(all_node_ids == gid)[0][0]
-            offset0 = offsets[id_index]
-            if id_index == len(offsets) - 1:
-                offset1 = h5[f"electrodes/{population_name}/scaling_factors"].shape[0]
-            else:
-                offset1 = offsets[id_index + 1]
-
-            h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
+        _write_neurite_types(h5, cols, node_ids, neurite_types, population_name)
 
     h5.close()
-
-    return 0
