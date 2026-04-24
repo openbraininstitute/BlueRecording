@@ -122,8 +122,6 @@ def write_electrode_metadata_to_h5(
         prefix = f"electrodes/{key}"
         h5.create_dataset(f"{prefix}/{population_name}", data=index)
         h5.create_dataset(f"{prefix}/position", data=electrode.position)
-        h5.create_dataset(f"{prefix}/region", data=electrode.region)
-        h5.create_dataset(f"{prefix}/layer", data=electrode.layer)
 
         if isinstance(electrode.type, ObjectiveCSDParams):
             dset = h5.create_dataset(f"{prefix}/type", data=electrode.type.type.value)
@@ -133,6 +131,9 @@ def write_electrode_metadata_to_h5(
                 dset.attrs.create("thickness", electrode.type.thickness)
         else:
             h5.create_dataset(f"{prefix}/type", data=electrode.type.value)
+
+        h5.create_dataset(f"{prefix}/region", data=electrode.region)
+        h5.create_dataset(f"{prefix}/layer", data=electrode.layer)
 
 def get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     """Compute per-node offsets into the flat segment array.
@@ -169,7 +170,13 @@ def _init_scaling_factors_and_offsets(
     )
 
 
-def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_neurite_type=False):
+def initialize_h5_file(
+    cols: np.ndarray,
+    population_name: str,
+    outputfile: str,
+    electrode_csv: str,
+    with_neurite_type: bool = False,
+) -> None:
     """Initialize the HDF5 electrode weights file on rank 0.
 
     Gathers rank-local cols via MPI, builds the global structure, and
@@ -183,7 +190,6 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_ne
         electrode_csv: Path to the electrode CSV file.
         with_neurite_type: If True, pre-allocate a neurite_types dataset.
     """
-
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
@@ -198,27 +204,24 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_ne
 
         electrodes = Electrode.from_csv(electrode_csv)
 
-        h5file = h5py.File(outputfile, 'w')
+        with h5py.File(outputfile, 'w') as h5file:
+            # Tune HDF5 metadata cache for faster writes
+            h5id = h5file.id
+            cc = h5id.get_mdc_config()
+            cc.max_size = 1024 * 1024 * 124  # 124 MiB
+            h5id.set_mdc_config(cc)
 
-        # Tune HDF5 metadata cache for faster writes
-        h5id = h5file.id
-        cc = h5id.get_mdc_config()
-        cc.max_size = 1024 * 1024 * 124
-        h5id.set_mdc_config(cc)
+            write_electrode_metadata_to_h5(h5file, node_ids, electrodes, population_name)
 
-        write_electrode_metadata_to_h5(h5file, node_ids, electrodes, population_name)
+            _init_scaling_factors_and_offsets(section_ids_frame, population_name, h5file, electrodes)
 
-        _init_scaling_factors_and_offsets(section_ids_frame, population_name, h5file, electrodes)
-
-        if with_neurite_type:
-            n_compartments = len(all_cols)
-            h5file.create_dataset(
-                f"{population_name}/neurite_types",
-                shape=(n_compartments,),
-                dtype=np.int32,
-            )
-
-        h5file.close()
+            if with_neurite_type:
+                n_compartments = len(all_cols)
+                h5file.create_dataset(
+                    f"{population_name}/neurite_types",
+                    shape=(n_compartments,),
+                    dtype=np.int32,
+                )
 
     comm.Barrier()
 
