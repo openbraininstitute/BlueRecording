@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 
 from bluerecording.weights import (
-    write_electrode_metadata_to_h5, electrode_type,
+    write_electrode_metadata_to_h5, ElectrodeType,
     add_data, get_coeffs_lineSource, get_coeffs_pointSource,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
@@ -180,9 +180,9 @@ def test_electrode_type():
     valid = ['PointSource', 'LineSource', 'Reciprocity', 'DipoleReciprocity',
              'ObjectiveCSD_Sphere', 'ObjectiveCSD_Disk']
     for t in valid:
-        assert electrode_type(t) == 0
-    with pytest.raises(AssertionError):
-        electrode_type('sadasd')
+        ElectrodeType(t)
+    with pytest.raises(ValueError):
+        ElectrodeType('sadasd')
 
 
 def test_objective_csd_sphere():
