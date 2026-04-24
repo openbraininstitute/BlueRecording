@@ -412,26 +412,30 @@ def get_array_spacing(all_epos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     return main_axis, spacing
 
-def get_coeffs_objectiveCSD_Sphere(positions,electrodePos,allEpos,radius=None):
+def get_coeffs_objective_csd_sphere(
+    positions: pd.DataFrame,
+    electrode_pos: np.ndarray,
+    all_epos: np.ndarray,
+    radius: float | None = None,
+) -> pd.DataFrame:
     """Compute objective CSD coefficients using a spherical region.
 
     A segment's coefficient is 1 if it lies within the given radius
-    of the electrode, 0 otherwise. Default radius is 10 um.
-    """
-    _, arraySpacing = get_array_spacing(allEpos)
+    of the electrode, 0 otherwise.
 
+    Args:
+        positions: DataFrame of segment midpoint positions (µm).
+        electrode_pos: Electrode position (µm).
+        all_epos: All electrode positions in the array (unused for sphere,
+            kept for API consistency with disk/plane).
+        radius: Sphere radius in µm (default: 10).
+    """
     if radius is None:
         radius = 10
 
-    distances = np.linalg.norm(positions.values-electrodePos[:,np.newaxis],axis=0)
-
-    coeffs = np.array((distances <= radius).astype(int))
-
-    coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
-
-    coeffs.columns = positions.columns
-
-    return coeffs
+    distances = np.linalg.norm(positions.values - electrode_pos[:, np.newaxis], axis=0)
+    coeffs = (distances <= radius).astype(int)
+    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
 
 
 def get_coeffs_objectiveCSD_Plane(compartment_positions,electrodePos,allEpos,planeThickness=None):
@@ -812,7 +816,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
                 thickness = h5['electrodes'][str(electrode)]['type'].attrs.get('thickness', None)
 
                 if electrodeType is ElectrodeType.OBJECTIVE_CSD_SPHERE:
-                    coeffs = get_coeffs_objectiveCSD_Sphere(newPositions,epos,allEpos,radius)
+                    coeffs = get_coeffs_objective_csd_sphere(newPositions,epos,allEpos,radius)
 
                 elif electrodeType is ElectrodeType.OBJECTIVE_CSD_DISK:
                     coeffs = get_coeffs_objectiveCSD_Disk(newPositions,epos,allEpos,radius,thickness)

@@ -8,7 +8,7 @@ from bluerecording.weights import (
     write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams, Electrode,
     add_data, get_coeffs_line_source, get_coeffs_point_source,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
-    get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
+    get_coeffs_objective_csd_sphere, get_coeffs_objectiveCSD_Disk,
     get_coeffs_objectiveCSD_Plane, get_line_coeffs,
     get_segment_midpts, get_array_spacing, get_thickness,
     distances_in_planar_coords, sort_electrode_names,
@@ -189,11 +189,11 @@ def test_objective_csd_sphere():
     all_epos = np.array([[0, 0, 0], [2, 0, 0]])
     midpts = get_segment_midpts(positions, GIDS)
 
-    coeffs = get_coeffs_objectiveCSD_Sphere(midpts, all_epos[0], all_epos)
+    coeffs = get_coeffs_objective_csd_sphere(midpts, all_epos[0], all_epos)
     expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
-    coeffs = get_coeffs_objectiveCSD_Sphere(midpts, all_epos[0], all_epos, radius=.1)
+    coeffs = get_coeffs_objective_csd_sphere(midpts, all_epos[0], all_epos, radius=.1)
     expected = pd.DataFrame(data=np.array([[1, 0]]), columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
