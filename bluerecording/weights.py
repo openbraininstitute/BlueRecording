@@ -328,43 +328,38 @@ def get_line_coeffs(
     return 1e-9 / (4 * np.pi * sigma * seg_length) * line_source_term
 
 
-def get_coeffs_lineSource(positions,columns,electrodePos,sigma):
+def get_coeffs_line_source(
+    positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    electrode_pos: np.ndarray,
+    sigma: float,
+) -> pd.DataFrame:
     """Compute line-source coefficients for all segments.
 
     Soma segments are treated as point sources; other segments use the
     line-source approximation between consecutive position endpoints.
+
+    Args:
+        positions: DataFrame of segment boundary positions.
+        columns: MultiIndex of (gid, section) pairs for the output.
+        electrode_pos: Electrode position (µm).
+        sigma: Extracellular conductivity (S/m).
     """
-    for i in range(len(positions.columns)-1):
+    coeff_list = []
 
-        if positions.columns[i][-1]==0:
+    for i in range(len(positions.columns) - 1):
+        if positions.columns[i][-1] == 0:
+            soma_pos = positions.iloc[:, i]
+            dist = np.linalg.norm(soma_pos - electrode_pos) * 1e-6
+            coeff_list.append(1e-9 / (4 * np.pi * sigma * dist))
 
-            somaPos = positions.iloc[:,i]
+        elif positions.columns[i][-1] == positions.columns[i + 1][-1]:
+            coeff_list.append(
+                get_line_coeffs(positions.iloc[:, i], positions.iloc[:, i + 1], electrode_pos, sigma)
+            )
 
-            distance = np.linalg.norm(somaPos-electrodePos)
-
-            distance *= 1e-6
-
-            somaCoeff = 1/(4*np.pi*sigma*distance)
-
-            somaCoeff *= 1e-9
-
-            if i == 0:
-                coeffs = somaCoeff
-            else:
-
-                coeffs = np.hstack((coeffs,somaCoeff))
-
-        elif positions.columns[i][-1]==positions.columns[i+1][-1]:
-
-            segCoeff = get_line_coeffs(positions.iloc[:,i],positions.iloc[:,i+1],electrodePos,sigma)
-
-            coeffs = np.hstack((coeffs,segCoeff))
-
-
-    coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
-
+    coeffs = pd.DataFrame(data=np.array(coeff_list)[np.newaxis, :])
     coeffs.columns = columns
-
     return coeffs
 
 def get_coeffs_pointSource(positions,electrodePos,sigma):
@@ -777,7 +772,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
 
         if electrodeType is ElectrodeType.LINE_SOURCE:
 
-            coeffs = get_coeffs_lineSource(positions,columns,epos,sigma[sigmaIdx])
+            coeffs = get_coeffs_line_source(positions,columns,epos,sigma[sigmaIdx])
 
             if len(sigma) > 1:
                 sigmaIdx += 1
