@@ -9,7 +9,7 @@ from bluerecording.weights import (
     add_data, get_coeffs_line_source, get_coeffs_point_source,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objective_csd_sphere, get_coeffs_objectiveCSD_Disk,
-    get_coeffs_objectiveCSD_Plane, get_line_coeffs,
+    get_coeffs_objective_csd_plane, get_line_coeffs,
     get_segment_midpts, get_array_spacing, get_thickness,
     distances_in_planar_coords, sort_electrode_names,
     get_objectiveCSD_array, get_offsets,
@@ -225,11 +225,11 @@ def test_objective_csd_plane():
     all_epos = np.array([[0, 0, 0], [1, 0, 0]])
     midpts = get_segment_midpts(positions, GIDS)
 
-    coeffs = get_coeffs_objectiveCSD_Plane(midpts, all_epos[0], all_epos)
+    coeffs = get_coeffs_objective_csd_plane(midpts, all_epos[0], all_epos)
     expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
-    coeffs = get_coeffs_objectiveCSD_Plane(midpts, all_epos[1], all_epos)
+    coeffs = get_coeffs_objective_csd_plane(midpts, all_epos[1], all_epos)
     expected = pd.DataFrame(data=np.array([[0, 0]]), columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
