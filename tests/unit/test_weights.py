@@ -7,7 +7,7 @@ import h5py
 from bluerecording.weights import (
     write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams, Electrode,
     add_data, get_coeffs_line_source, get_coeffs_point_source,
-    get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
+    get_coeffs_reciprocity, get_coeffs_dipole_reciprocity,
     get_coeffs_objective_csd_sphere, get_coeffs_objective_csd_disk,
     get_coeffs_objective_csd_plane, get_line_coeffs,
     get_segment_midpts, get_array_spacing, get_thickness,
@@ -161,7 +161,7 @@ def test_get_coeffs_dipole_reciprocity(tmp_path):
     field_path = create_e_field(tmp_path / "efield.h5")
     midpts = get_segment_midpts(positions, GIDS)
     center = midpts.mean(axis=1)
-    potentials = get_coeffs_dipoleReciprocity(midpts, field_path, center)
+    potentials = get_coeffs_dipole_reciprocity(midpts, field_path, center)
 
     columns = [[1, 1], [0, 1]]
     mi = pd.MultiIndex.from_tuples(list(zip(*columns)), names=['id', 'section'])
