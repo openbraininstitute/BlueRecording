@@ -264,70 +264,68 @@ def add_data(
     for i, node_id in enumerate(nodes_in_input):
         h5[dset][offset0[i]:offset1[i], :-1] = coeffs.loc[:, node_id].values.T
 
-def line_source_cases(h,r2,l):
+def line_source_cases(h: float, r2: float, l: float) -> float:
     """Return the line-source potential term for the given geometry case.
 
-    Selects the appropriate formula depending on the signs of h and l.
-    """
-    if h < 0 and l < 0:
-
-        lineSourceTerm = np.log(((h**2+r2)**.5-h)/((l**2+r2)**.5-l))
-
-    elif h < 0 and l > 0:
-
-        lineSourceTerm = np.log( ( ((h**2+r2)**.5-h)* (l + (l**2+r2)**.5 ) ) / r2  )
-
-    elif h > 0 and l > 0:
-
-        lineSourceTerm = np.log( ( (l + (l**2+r2)**.5 ) ) / ( (r2+h**2)**.5 + h)  )
-
-
-    return lineSourceTerm
-
-def get_line_coeffs(startPos,endPos,electrodePos,sigma):
-    """Compute the line-source coefficient for a single segment.
+    Selects the appropriate logarithmic formula depending on the signs
+    of the axial projections *h* (segment end) and *l* (segment start).
 
     Args:
-        startPos: Starting position of the segment (um).
-        endPos: Ending position of the segment (um).
-        electrodePos: Electrode position (um).
+        h: Axial projection of the electrode onto the segment direction
+            relative to the segment end (m).
+        r2: Squared perpendicular distance from the electrode to the
+            segment axis (m²).
+        l: Axial projection relative to the segment start; always
+            ``h + segment_length``, so ``l > h``.
+    """
+    if h < 0 and l < 0:
+        return np.log(((h**2 + r2)**0.5 - h) / ((l**2 + r2)**0.5 - l))
+    elif h < 0 and l > 0:
+        return np.log(((h**2 + r2)**0.5 - h) * (l + (l**2 + r2)**0.5) / r2)
+    elif h > 0 and l > 0:
+        return np.log((l + (l**2 + r2)**0.5) / ((r2 + h**2)**0.5 + h))
+    else:
+        raise ValueError(
+            f"Unhandled line-source geometry: h={h}, l={l} "
+            "(expected l > h with segment_length > 0)"
+        )
+
+def get_line_coeffs(
+    start_pos: np.ndarray,
+    end_pos: np.ndarray,
+    electrode_pos: np.ndarray,
+    sigma: float,
+) -> float:
+    """Compute the line-source coefficient for a single segment.
+
+    All positions are in µm and are converted to m internally.
+    The returned coefficient converts a current in nA to a potential in V.
+
+    Args:
+        start_pos: Starting position of the segment (µm).
+        end_pos: Ending position of the segment (µm).
+        electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    startPos = startPos * 1e-6
-    endPos = endPos * 1e-6
-    electrodePos = electrodePos * 1e-6
+    start_pos = start_pos * 1e-6
+    end_pos = end_pos * 1e-6
+    electrode_pos = electrode_pos * 1e-6
 
-    segLength = np.linalg.norm(startPos-endPos)
+    seg_length = np.linalg.norm(start_pos - end_pos)
 
-    x1 = electrodePos[0]-endPos[0]
-    y1 = electrodePos[1]-endPos[1]
-    z1 = electrodePos[2]-endPos[2]
+    # Vector from segment end to electrode
+    delta = electrode_pos - end_pos
+    # Segment direction (end - start)
+    seg_dir = end_pos - start_pos
 
+    h = np.dot(delta, seg_dir) / seg_length
+    l = h + seg_length
 
+    r2 = np.abs(np.dot(delta, delta) - h**2)
 
-    xdiff = endPos[0]-startPos[0]
-    ydiff = endPos[1]-startPos[1]
-    zdiff = endPos[2]-startPos[2]
+    line_source_term = line_source_cases(h, r2, l)
 
-
-    h = 1/segLength * (x1*xdiff + y1*ydiff + z1*zdiff)
-
-    l = h + segLength
-
-    subtractionTerm = h**2
-
-    r2 = (electrodePos[0]-endPos[0])**2 + (electrodePos[1]-endPos[1])**2 + (electrodePos[2]-endPos[2])**2 - subtractionTerm
-
-    r2 = np.abs(r2)
-
-
-    lineSourceTerm = line_source_cases(h,r2,l)
-
-    segCoeff = 1/(4*np.pi*sigma*segLength)*lineSourceTerm
-
-    segCoeff *= 1e-9
-
-    return segCoeff
+    return 1e-9 / (4 * np.pi * sigma * seg_length) * line_source_term
 
 
 def get_coeffs_lineSource(positions,columns,electrodePos,sigma):
