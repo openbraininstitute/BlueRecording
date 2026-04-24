@@ -504,33 +504,42 @@ def distances_in_planar_coords(
     return np.abs(axial_distances), radial_distances
 
 
-def get_coeffs_objectiveCSD_Disk(compartment_positions,electrodePos,allEpos,radius=None,diskThickness=None):
+def get_coeffs_objective_csd_disk(
+    compartment_positions: pd.DataFrame,
+    electrode_pos: np.ndarray,
+    all_epos: np.ndarray,
+    radius: float | None = None,
+    diskThickness: float | None = None,
+) -> pd.DataFrame:
     """Compute objective CSD coefficients using a disk region.
 
     A segment's coefficient is 1 if it lies within both the disk radius
-    and thickness, 0 otherwise. Default radius is 500 um; thickness is
-    estimated from electrode spacing if not provided.
+    and thickness, 0 otherwise.
+
+    Args:
+        compartment_positions: DataFrame of segment midpoint positions (µm).
+        electrode_pos: Electrode position (µm).
+        all_epos: All electrode positions in the array.
+        radius: Disk radius in µm (default: 500).
+        diskThickness: Half-thickness of the disk in µm (default:
+            estimated from electrode spacing).
     """
     if radius is None:
         radius = 500
 
-    main_axis, arraySpacing = get_array_spacing(allEpos)
+    main_axis, spacing = get_array_spacing(all_epos)
 
     if diskThickness is None:
-        diskThickness = get_thickness(arraySpacing)
+        diskThickness = get_thickness(spacing)
 
-    axialDistances, radialDistances = distances_in_planar_coords(compartment_positions,electrodePos,main_axis)
+    axial_distances, radial_distances = distances_in_planar_coords(
+        compartment_positions, electrode_pos, main_axis,
+    )
 
-    coeffs1 = np.array((radialDistances <= radius).astype(int)).flatten()
-    coeffs2 = np.array((axialDistances <= diskThickness).astype(int)).flatten()
-
-    coeffs = coeffs1 * coeffs2
-
-    coeffs = pd.DataFrame(data=coeffs[np.newaxis,:])
-
-    coeffs.columns = compartment_positions.columns
-
-    return coeffs
+    radial_mask = (radial_distances <= radius).astype(int).flatten()
+    axial_mask = (axial_distances <= diskThickness).astype(int).flatten()
+    coeffs = radial_mask * axial_mask
+    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=compartment_positions.columns)
 
 def get_h5_dataset(h5f, group_name, dataset_name):
     """Find and return a dataset from an HDF5 file.
@@ -829,7 +838,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
                     coeffs = get_coeffs_objective_csd_sphere(newPositions,epos,allEpos,radius)
 
                 elif electrodeType is ElectrodeType.OBJECTIVE_CSD_DISK:
-                    coeffs = get_coeffs_objectiveCSD_Disk(newPositions,epos,allEpos,radius,thickness)
+                    coeffs = get_coeffs_objective_csd_disk(newPositions,epos,allEpos,radius,thickness)
 
                 elif electrodeType is ElectrodeType.OBJECTIVE_CSD_PLANE:
                     coeffs = get_coeffs_objective_csd_plane(newPositions,epos,allEpos,thickness)
