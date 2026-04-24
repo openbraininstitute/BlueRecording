@@ -702,14 +702,20 @@ def sort_electrode_names(electrode_keys, population_name: str):
     return np.sort(electrode_list)
 
 
-def _parse_index_range(spec):
+def _parse_index_range(spec: str) -> range:
     """Parse a 'start:end' string into a range."""
     start, end = spec.split(':')
     return range(int(start), int(end))
 
 
-def get_objectiveCSD_array(electrodeType, objective_csd_array_indices,
-                           objectiveCSD_count, electrodeNames, h5, electrodeIdx):
+def get_objective_csd_array(
+    electrode_type: ElectrodeType,
+    objective_csd_array_indices: list[str] | None,
+    objective_csd_count: int,
+    electrode_names: np.ndarray,
+    h5: h5py.File,
+    electrode_idx: int,
+) -> tuple[list[int] | range, int]:
     """Determine which electrodes belong to the objective CSD array.
 
     If no explicit indices are given, all electrodes matching the type
@@ -718,20 +724,20 @@ def get_objectiveCSD_array(electrodeType, objective_csd_array_indices,
     if objective_csd_array_indices is None:
         all_types = [
             h5['electrodes'][str(e)]['type'][()].decode()
-            for e in electrodeNames
+            for e in electrode_names
         ]
-        arrayIdx = [i for i, t in enumerate(all_types) if t == electrodeType]
+        array_idx = [i for i, t in enumerate(all_types) if t == electrode_type]
     else:
-        arrayIdx = _parse_index_range(objective_csd_array_indices[objectiveCSD_count])
-        if electrodeIdx not in arrayIdx:
-            objectiveCSD_count += 1
-            arrayIdx = _parse_index_range(objective_csd_array_indices[objectiveCSD_count])
-            if electrodeIdx not in arrayIdx:
+        array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
+        if electrode_idx not in array_idx:
+            objective_csd_count += 1
+            array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
+            if electrode_idx not in array_idx:
                 raise ValueError(
                     'Electrode arrays used in objective CSD must be sequential in electrode file'
                 )
 
-    return arrayIdx, objectiveCSD_count
+    return array_idx, objective_csd_count
 
 def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path_to_fields=None, objective_csd_array_indices=None, neurite_types=None):
     """Compute and write electrode coefficients to the HDF5 weights file.
@@ -800,7 +806,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
 
             elif 'ObjectiveCSD' in electrodeType:
 
-                arrayIdx, objectiveCSD_count = get_objectiveCSD_array(electrodeType, objective_csd_array_indices, objectiveCSD_count, electrodeNames, h5, electrodeIdx)
+                arrayIdx, objectiveCSD_count = get_objective_csd_array(electrodeType, objective_csd_array_indices, objectiveCSD_count, electrodeNames, h5, electrodeIdx)
 
                 allEpos = []
 
