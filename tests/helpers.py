@@ -6,7 +6,7 @@ import pandas as pd
 import h5py
 from morphio import Morphology
 
-from bluerecording.weights import write_electrode_metadata_to_h5, _init_scaling_factors_and_offsets, ObjectiveCSDParams, ElectrodeType
+from bluerecording.weights import write_electrode_metadata_to_h5, _init_scaling_factors_and_offsets, ObjectiveCSDParams, ElectrodeType, Electrode
 
 
 # ---------------------------------------------------------------------------
@@ -54,36 +54,36 @@ def make_sec_counts():
 
 def make_electrodes():
     return {
-        "name": {
-            "position": np.array([1, 2, 3]),
-            "type": ElectrodeType.RECIPROCITY,
-            "region": "Outside",
-            "layer": "Outside",
-        }
+        "name": Electrode(
+            position=np.array([1, 2, 3]),
+            type=ElectrodeType.RECIPROCITY,
+            region="Outside",
+            layer="Outside",
+        )
     }
 
 
 def make_electrodes_objective():
     return {
-        "name": {
-            "position": np.array([1, 2, 3]),
-            "type": ObjectiveCSDParams(
+        "name": Electrode(
+            position=np.array([1, 2, 3]),
+            type=ObjectiveCSDParams(
                 type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500, thickness=10
             ),
-            "region": "Outside",
-            "layer": "Outside",
-        }
+            region="Outside",
+            layer="Outside",
+        )
     }
 
 
 def make_electrodes_objective_array():
     return {
-        'a': {'position': np.array([1, 0, 0]), 'type': 'Reciprocity', 'region': 'Outside', 'layer': 'Outside'},
-        'b': {'position': np.array([1, 0, 0]), 'type': 'Reciprocity', 'region': 'Outside', 'layer': 'Outside'},
-        'name': {'position': np.array([1, 0, 0]), 'type': 'ObjectiveCSD_Disk', 'region': 'Outside', 'layer': 'Outside'},
-        'name1': {'position': np.array([2, 0, 0]), 'type': 'ObjectiveCSD_Disk', 'region': 'Outside', 'layer': 'Outside'},
-        'name2': {'position': np.array([1, 0, 0]), 'type': 'ObjectiveCSD_Disk', 'region': 'Outside', 'layer': 'Outside'},
-        'name3': {'position': np.array([2, 0, 0]), 'type': 'ObjectiveCSD_Disk', 'region': 'Outside', 'layer': 'Outside'},
+        'a': Electrode(position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region='Outside', layer='Outside'),
+        'b': Electrode(position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region='Outside', layer='Outside'),
+        'name': Electrode(position=np.array([1, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region='Outside', layer='Outside'),
+        'name1': Electrode(position=np.array([2, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region='Outside', layer='Outside'),
+        'name2': Electrode(position=np.array([1, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region='Outside', layer='Outside'),
+        'name3': Electrode(position=np.array([2, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region='Outside', layer='Outside'),
     }
 
 

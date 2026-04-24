@@ -10,6 +10,8 @@ from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
 
+DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
+
 class ElectrodeType(StrEnum):
     """Recognized electrode types."""
 
@@ -31,7 +33,66 @@ class ObjectiveCSDParams:
     thickness: float | None = None
 
 
-DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
+@dataclass
+class Electrode:
+    """Metadata for a single electrode."""
+
+    position: np.ndarray
+    type: ElectrodeType | ObjectiveCSDParams
+    region: str = "NA"
+    layer: str = "NA"
+
+    @classmethod
+    def from_csv(cls, electrode_csv: str) -> dict[str, "Electrode"]:
+        """Read electrode metadata from a CSV file.
+
+        The CSV must have columns ``x``, ``y``, ``z``.  Optional columns:
+        ``type`` (default ``LineSource``), ``layer``, ``region``,
+        ``radius``, ``thickness``.  The last two are only used for
+        ObjectiveCSD electrode types.
+        """
+        electrode_df = pd.read_csv(electrode_csv, header=0, index_col=0)
+
+        electrodes: dict[str, Electrode] = {}
+
+        for i in range(len(electrode_df)):
+            name = electrode_df.index.values[i]
+            position = np.array([
+                electrode_df['x'].iloc[i],
+                electrode_df['y'].iloc[i],
+                electrode_df['z'].iloc[i],
+            ])
+            layer = electrode_df['layer'].iloc[i] if 'layer' in electrode_df.columns else "NA"
+            region = electrode_df['region'].iloc[i] if 'region' in electrode_df.columns else "NA"
+
+            if 'type' in electrode_df.columns:
+                etype = ElectrodeType(electrode_df['type'].iloc[i])
+            else:
+                etype = ElectrodeType.LINE_SOURCE
+
+            if 'ObjectiveCSD' in etype:
+                radius = (
+                    float(electrode_df['radius'].iloc[i])
+                    if 'radius' in electrode_df.columns and pd.notna(electrode_df['radius'].iloc[i])
+                    else None
+                )
+                thickness = (
+                    float(electrode_df['thickness'].iloc[i])
+                    if 'thickness' in electrode_df.columns and pd.notna(electrode_df['thickness'].iloc[i])
+                    else None
+                )
+                electrodes[name] = cls(
+                    position=position,
+                    type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
+                    region=region,
+                    layer=layer,
+                )
+            else:
+                electrodes[name] = cls(
+                    position=position, type=etype, region=region, layer=layer,
+                )
+
+        return electrodes
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +102,7 @@ DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 def write_electrode_metadata_to_h5(
     h5: h5py.File,
     node_ids: np.ndarray,
-    electrodes: dict,
+    electrodes: dict[str, Electrode],
     population_name: str,
 ) -> None:
     """Write electrode metadata into an HDF5 file.
@@ -52,7 +113,7 @@ def write_electrode_metadata_to_h5(
     Args:
         h5: HDF5 file handle opened for writing.
         node_ids: Node IDs.
-        electrodes: Dictionary with metadata about electrodes.
+        electrodes: Mapping of electrode name to ``Electrode``.
         population_name: SONATA population name.
     """
     h5.create_dataset(f"{population_name}/node_ids", data=sorted(node_ids))
@@ -60,19 +121,18 @@ def write_electrode_metadata_to_h5(
     for index, (key, electrode) in enumerate(electrodes.items()):
         prefix = f"electrodes/{key}"
         h5.create_dataset(f"{prefix}/{population_name}", data=index)
+        h5.create_dataset(f"{prefix}/position", data=electrode.position)
+        h5.create_dataset(f"{prefix}/region", data=electrode.region)
+        h5.create_dataset(f"{prefix}/layer", data=electrode.layer)
 
-        for attr_name, attr_value in electrode.items():
-            if attr_name == "type" and isinstance(attr_value, ObjectiveCSDParams):
-                dset = h5.create_dataset(
-                    f"{prefix}/{attr_name}", data=attr_value.type.value
-                )
-                if attr_value.radius is not None:
-                    dset.attrs.create("radius", attr_value.radius)
-                if attr_value.thickness is not None:
-                    dset.attrs.create("thickness", attr_value.thickness)
-            else:
-                data = attr_value.value if isinstance(attr_value, ElectrodeType) else attr_value
-                h5.create_dataset(f"{prefix}/{attr_name}", data=data)
+        if isinstance(electrode.type, ObjectiveCSDParams):
+            dset = h5.create_dataset(f"{prefix}/type", data=electrode.type.type.value)
+            if electrode.type.radius is not None:
+                dset.attrs.create("radius", electrode.type.radius)
+            if electrode.type.thickness is not None:
+                dset.attrs.create("thickness", electrode.type.thickness)
+        else:
+            h5.create_dataset(f"{prefix}/type", data=electrode.type.value)
 
 def get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     """Compute per-node offsets into the flat segment array.
@@ -109,57 +169,6 @@ def _init_scaling_factors_and_offsets(
     )
 
 
-def make_electrode_dict(electrode_csv):
-    """Read electrode metadata from a CSV file and return it as a dictionary.
-
-    The CSV must have columns ``x``, ``y``, ``z``.  Optional columns:
-    ``type`` (default ``LineSource``), ``layer``, ``region``,
-    ``radius``, ``thickness``.  The last two are only used for
-    ObjectiveCSD electrode types.
-    """
-    electrode_df = pd.read_csv(electrode_csv, header=0, index_col=0)
-
-    electrodes = {}
-
-    for i in range(len(electrode_df)):
-        name = electrode_df.index.values[i]
-        position = np.array([
-            electrode_df['x'].iloc[i],
-            electrode_df['y'].iloc[i],
-            electrode_df['z'].iloc[i],
-        ])
-        layer = electrode_df['layer'].iloc[i] if 'layer' in electrode_df.columns else "NA"
-        region = electrode_df['region'].iloc[i] if 'region' in electrode_df.columns else "NA"
-
-        if 'type' in electrode_df.columns:
-            electrode_type = ElectrodeType(electrode_df['type'].iloc[i])
-        else:
-            electrode_type = ElectrodeType.LINE_SOURCE
-
-        if 'ObjectiveCSD' in electrode_type:
-            radius = (
-                float(electrode_df['radius'].iloc[i])
-                if 'radius' in electrode_df.columns and pd.notna(electrode_df['radius'].iloc[i])
-                else None
-            )
-            thickness = (
-                float(electrode_df['thickness'].iloc[i])
-                if 'thickness' in electrode_df.columns and pd.notna(electrode_df['thickness'].iloc[i])
-                else None
-            )
-            electrode_type = ObjectiveCSDParams(
-                type=electrode_type, radius=radius, thickness=thickness,
-            )
-
-        electrodes[name] = {
-            'position': position,
-            'type': electrode_type,
-            'region': region,
-            'layer': layer,
-        }
-
-    return electrodes
-
 def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_neurite_type=False):
     """Initialize the HDF5 electrode weights file on rank 0.
 
@@ -187,7 +196,7 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_ne
 
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
 
-        electrodes = make_electrode_dict(electrode_csv)
+        electrodes = Electrode.from_csv(electrode_csv)
 
         h5file = h5py.File(outputfile, 'w')
 
