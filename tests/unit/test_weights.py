@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 
 from bluerecording.weights import (
-    write_electrode_metadata_to_h5, ElectrodeType,
+    write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams,
     add_data, get_coeffs_lineSource, get_coeffs_pointSource,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
@@ -13,7 +13,7 @@ from bluerecording.weights import (
     get_segment_midpts, get_array_spacing, get_thickness,
     distances_in_planar_coords, sort_electrode_names,
     get_objectiveCSD_array, get_offsets,
-    make_electrode_dict, check_input_type_objectiveCSD, process_objectiveCSD,
+    make_electrode_dict,
     initialize_h5_file, write_h5_file,
 )
 
@@ -286,6 +286,27 @@ def test_make_electrode_dict():
     np.testing.assert_equal(make_electrode_dict('tests/data/electrode.csv')['name'], electrodes['name'])
 
 
+def test_make_electrode_dict_objective_csd():
+    result = make_electrode_dict('tests/data/electrode_objective.csv')
+
+    assert result['sphere']['type'] == ObjectiveCSDParams(
+        type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=15.0, thickness=None)
+    assert result['disk']['type'] == ObjectiveCSDParams(
+        type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=25.0)
+    assert result['plane']['type'] == ObjectiveCSDParams(
+        type=ElectrodeType.OBJECTIVE_CSD_PLANE, radius=None, thickness=30.0)
+    # Missing radius/thickness → None
+    assert result['disk_defaults']['type'] == ObjectiveCSDParams(
+        type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=None, thickness=None)
+
+
+def test_make_electrode_dict_invalid_type(tmp_path):
+    csv_path = tmp_path / "bad.csv"
+    csv_path.write_text(",x,y,z,type\nbad,1,2,3,TotallyInvalid\n")
+    with pytest.raises(ValueError):
+        make_electrode_dict(str(csv_path))
+
+
 def test_electrode_file_structure(tmp_path):
     electrodes = make_electrodes()
     path = create_electrode_file(tmp_path / "test.h5", electrodes)
@@ -293,6 +314,8 @@ def test_electrode_file_structure(tmp_path):
         for key, value in electrodes['name'].items():
             if key == 'position':
                 np.testing.assert_equal(f['electrodes/name/' + key][:], value)
+            elif key == 'type':
+                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value.value)
             else:
                 np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
         np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
@@ -306,9 +329,9 @@ def test_electrode_file_structure_objective(tmp_path):
             if key == 'position':
                 np.testing.assert_equal(f['electrodes/name/' + key][:], value)
             elif key == 'type':
-                np.testing.assert_equal(f['electrodes/name/type'][()].decode(), value['type'])
-                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('radius'), value['radius'])
-                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('thickness'), value['thickness'])
+                np.testing.assert_equal(f['electrodes/name/type'][()].decode(), value.type.value)
+                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('radius'), value.radius)
+                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('thickness'), value.thickness)
             else:
                 np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
         np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
@@ -320,36 +343,6 @@ def test_offset():
     np.testing.assert_equal(offsets, np.array([0, 19, 25]))
 
 
-def test_check_input_type_objective_csd():
-    assert check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_4'.split('_')) == 0
-
-    with pytest.raises(ValueError, match='must provide either no numerical'):
-        check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_4_2'.split('_'))
-
-    with pytest.raises(ValueError, match='Invalid numerical parameter'):
-        check_input_type_objectiveCSD('ObjectiveCSD_Sphere', 'ObjectiveCSD_Sphere_twss'.split('_'))
-
-    assert check_input_type_objectiveCSD('ObjectiveCSD_Plane', 'ObjectiveCSD_Plane_4'.split('_')) == 0
-
-    with pytest.raises(ValueError, match='must provide either no numerical'):
-        check_input_type_objectiveCSD('ObjectiveCSD_Plane', 'ObjectiveCSD_Plane_4_2'.split('_'))
-
-    assert check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4'.split('_')) == 0
-    assert check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4.1_200'.split('_')) == 0
-
-    with pytest.raises(ValueError, match='Invalid numerical parameter'):
-        check_input_type_objectiveCSD('ObjectiveCSD_Disk', 'ObjectiveCSD_Disk_4.1_2as'.split('_'))
-
-
-def test_process_objective_csd():
-    with pytest.raises(ValueError, match='is an invalid objective electrode type'):
-        process_objectiveCSD('LineSource')
-
-    assert process_objectiveCSD('ObjectiveCSD_Disk') == 'ObjectiveCSD_Disk'
-    assert process_objectiveCSD('ObjectiveCSD_Sphere_2') == {'type': 'ObjectiveCSD_Sphere', 'radius': 2.0}
-    assert process_objectiveCSD('ObjectiveCSD_Disk_2') == {'type': 'ObjectiveCSD_Disk', 'radius': 2.0}
-    assert process_objectiveCSD('ObjectiveCSD_Disk_2.1_44') == {'type': 'ObjectiveCSD_Disk', 'radius': 2.1, 'thickness': 44.}
-    assert process_objectiveCSD('ObjectiveCSD_Plane_44') == {'type': 'ObjectiveCSD_Plane', 'thickness': 44.}
 
 
 # ---------------------------------------------------------------------------

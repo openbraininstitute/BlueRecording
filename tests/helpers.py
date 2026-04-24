@@ -6,7 +6,7 @@ import pandas as pd
 import h5py
 from morphio import Morphology
 
-from bluerecording.weights import write_electrode_metadata_to_h5, write_all_neuron
+from bluerecording.weights import write_electrode_metadata_to_h5, write_all_neuron, ObjectiveCSDParams, ElectrodeType
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def make_electrodes():
     return {
         "name": {
             "position": np.array([1, 2, 3]),
-            "type": "Reciprocity",
+            "type": ElectrodeType.RECIPROCITY,
             "region": "Outside",
             "layer": "Outside",
         }
@@ -67,7 +67,9 @@ def make_electrodes_objective():
     return {
         "name": {
             "position": np.array([1, 2, 3]),
-            "type": {"type": "ObjectiveCSD_Disk", "radius": 500, "thickness": 10},
+            "type": ObjectiveCSDParams(
+                type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500, thickness=10
+            ),
             "region": "Outside",
             "layer": "Outside",
         }

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import warnings
+from dataclasses import dataclass
 from enum import StrEnum
 
 import h5py
@@ -8,6 +9,27 @@ import pandas as pd
 from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
+
+class ElectrodeType(StrEnum):
+    """Recognized electrode types."""
+
+    LINE_SOURCE = "LineSource"
+    POINT_SOURCE = "PointSource"
+    DIPOLE_RECIPROCITY = "DipoleReciprocity"
+    RECIPROCITY = "Reciprocity"
+    OBJECTIVE_CSD_SPHERE = "ObjectiveCSD_Sphere"
+    OBJECTIVE_CSD_DISK = "ObjectiveCSD_Disk"
+    OBJECTIVE_CSD_PLANE = "ObjectiveCSD_Plane"
+
+
+@dataclass
+class ObjectiveCSDParams:
+    """Parameters for an objective CSD electrode type."""
+
+    type: ElectrodeType
+    radius: float | None = None
+    thickness: float | None = None
+
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
@@ -40,15 +62,17 @@ def write_electrode_metadata_to_h5(
         h5.create_dataset(f"{prefix}/{population_name}", data=index)
 
         for attr_name, attr_value in electrode.items():
-            if attr_name == "type" and isinstance(attr_value, dict):
+            if attr_name == "type" and isinstance(attr_value, ObjectiveCSDParams):
                 dset = h5.create_dataset(
-                    f"{prefix}/{attr_name}", data=attr_value["type"]
+                    f"{prefix}/{attr_name}", data=attr_value.type.value
                 )
-                for k, v in attr_value.items():
-                    if k != "type":
-                        dset.attrs.create(k, v)
+                if attr_value.radius is not None:
+                    dset.attrs.create("radius", attr_value.radius)
+                if attr_value.thickness is not None:
+                    dset.attrs.create("thickness", attr_value.thickness)
             else:
-                h5.create_dataset(f"{prefix}/{attr_name}", data=attr_value)
+                data = attr_value.value if isinstance(attr_value, ElectrodeType) else attr_value
+                h5.create_dataset(f"{prefix}/{attr_name}", data=data)
 
 def get_offsets(sectionIdsFrame):
     """Compute per-node offsets into the flat segment array.
@@ -76,121 +100,55 @@ def write_all_neuron(sectionIdsFrame, population_name, h5file, electrode_struc):
 
 
 def make_electrode_dict(electrode_csv):
-    """Read electrode metadata from a CSV file and return it as a dictionary."""
+    """Read electrode metadata from a CSV file and return it as a dictionary.
 
-    electrode_df = pd.read_csv(electrode_csv,header=0,index_col=0)
+    The CSV must have columns ``x``, ``y``, ``z``.  Optional columns:
+    ``type`` (default ``LineSource``), ``layer``, ``region``,
+    ``radius``, ``thickness``.  The last two are only used for
+    ObjectiveCSD electrode types.
+    """
+    electrode_df = pd.read_csv(electrode_csv, header=0, index_col=0)
 
     electrodes = {}
 
-    for i in range(len(electrode_df.values)):
-
+    for i in range(len(electrode_df)):
         name = electrode_df.index.values[i]
-
-        position = np.array([electrode_df['x'].iloc[i],electrode_df['y'].iloc[i],electrode_df['z'].iloc[i]])
-
-        if 'layer' in electrode_df.columns:
-
-            layer = electrode_df['layer'].iloc[i]
-
-        else:
-
-            layer = "NA"
-
-        if 'region' in electrode_df.columns:
-            region = electrode_df['region'].iloc[i]
-        else:
-            region = 'NA'
+        position = np.array([
+            electrode_df['x'].iloc[i],
+            electrode_df['y'].iloc[i],
+            electrode_df['z'].iloc[i],
+        ])
+        layer = electrode_df['layer'].iloc[i] if 'layer' in electrode_df.columns else "NA"
+        region = electrode_df['region'].iloc[i] if 'region' in electrode_df.columns else "NA"
 
         if 'type' in electrode_df.columns:
-            electrodeType = electrode_df['type'].iloc[i]
-
-            if 'ObjectiveCSD' in electrodeType:
-
-                electrodeType = process_objectiveCSD(electrodeType)
-
+            electrode_type = ElectrodeType(electrode_df['type'].iloc[i])
         else:
-            electrodeType = 'LineSource'
+            electrode_type = ElectrodeType.LINE_SOURCE
 
-        electrodes[name] = {'position': position,'type': electrodeType,
-        'region':region,'layer':layer}
+        if 'ObjectiveCSD' in electrode_type:
+            radius = (
+                float(electrode_df['radius'].iloc[i])
+                if 'radius' in electrode_df.columns and pd.notna(electrode_df['radius'].iloc[i])
+                else None
+            )
+            thickness = (
+                float(electrode_df['thickness'].iloc[i])
+                if 'thickness' in electrode_df.columns and pd.notna(electrode_df['thickness'].iloc[i])
+                else None
+            )
+            electrode_type = ObjectiveCSDParams(
+                type=electrode_type, radius=radius, thickness=thickness,
+            )
 
+        electrodes[name] = {
+            'position': position,
+            'type': electrode_type,
+            'region': region,
+            'layer': layer,
+        }
 
     return electrodes
-
-def check_input_type_objectiveCSD(objectiveType,input):
-    """Validate the numerical parameters for an objective CSD electrode type."""
-    if objectiveType == 'ObjectiveCSD_Sphere' or objectiveType == 'ObjectiveCSD_Plane':
-        try:
-            assert len(input) == 3
-        except:
-            raise ValueError(objectiveType + ' must provide either no numerical parameters or exactly one')
-    elif objectiveType =='ObjectiveCSD_Disk':
-        try:
-            assert len(input) == 3 or len(input)==4
-        except:
-            raise ValueError(objectiveType + ' must provide one or two numerical parameters')
-    else:
-        raise ValueError('Invalid electrode type')
-
-    for numericalParameter in input[2:]:
-        try:
-            float(numericalParameter)
-        except:
-            raise ValueError('Invalid numerical parameter provided to objective CSD electrode')
-
-    return 0
-
-def process_objectiveCSD(electrodeType):
-    """Process an objective CSD electrode type string.
-
-    Parses the electrode type to extract geometry parameters (radius,
-    thickness) when provided. Returns a dict with the parameters, or
-    the plain type string for backwards compatibility.
-
-    Format: ``ObjectiveCSD_Method[_X[_Y]]``
-      - Sphere: X = radius (um)
-      - Plane:  X = thickness (um)
-      - Disk:   X = radius (um), Y = thickness (um)
-    """
-
-
-    input = electrodeType.split('_')
-
-    if len(input) < 2:
-        raise ValueError(electrodeType + ' is an invalid objective electrode type')
-
-    elif len(input)==2: # If no other options are provided, returns string, for backwards compatibility with previous versions
-        return electrodeType
-
-    else:
-
-        objectiveType = input[0] + '_' + input[1]
-        objectiveDict = {'type':objectiveType}
-
-        check_input_type_objectiveCSD(objectiveType, input)
-
-        if objectiveType == 'ObjectiveCSD_Sphere':
-
-            radius = float(input[2])
-            objectiveDict['radius'] = radius
-
-        elif objectiveType == 'ObjectiveCSD_Plane':
-
-            thickness = float(input[2])
-            objectiveDict['thickness'] = thickness
-
-        elif objectiveType == 'ObjectiveCSD_Disk':
-
-            radius = float(input[2])
-            objectiveDict['radius'] = radius
-
-            if len(input)==4:
-                thickness = float(input[3])
-                objectiveDict['thickness'] = thickness
-        else:
-            raise ValueError("Invalid electrode type value")
-
-        return objectiveDict
 
 def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_neurite_type=False):
     """Initialize the HDF5 electrode weights file on rank 0.
@@ -714,18 +672,6 @@ def sort_electrode_names(electrodeKeys,population_name):
     electrode_list = np.sort(electrode_list)
 
     return electrode_list
-
-class ElectrodeType(StrEnum):
-    """Recognized electrode types."""
-
-    LINE_SOURCE = "LineSource"
-    POINT_SOURCE = "PointSource"
-    DIPOLE_RECIPROCITY = "DipoleReciprocity"
-    RECIPROCITY = "Reciprocity"
-    OBJECTIVE_CSD_SPHERE = "ObjectiveCSD_Sphere"
-    OBJECTIVE_CSD_DISK = "ObjectiveCSD_Disk"
-    OBJECTIVE_CSD_PLANE = "ObjectiveCSD_Plane"
-
 
 
 def _parse_index_range(spec):
