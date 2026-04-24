@@ -1,0 +1,5 @@
+,x,y,z,layer,region,type,radius,thickness
+sphere,1,2,3,Outside,Outside,ObjectiveCSD_Sphere,15,
+disk,4,5,6,L5,S1FL,ObjectiveCSD_Disk,500,25
+plane,7,8,9,L3,S1FL,ObjectiveCSD_Plane,,30
+disk_defaults,10,11,12,Outside,Outside,ObjectiveCSD_Disk,,
