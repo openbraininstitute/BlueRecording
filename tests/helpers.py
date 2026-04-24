@@ -6,7 +6,7 @@ import pandas as pd
 import h5py
 from morphio import Morphology
 
-from bluerecording.weights import ElectrodeFileStructure, write_all_neuron
+from bluerecording.weights import write_electrode_metadata_to_h5, write_all_neuron
 
 
 # ---------------------------------------------------------------------------
@@ -106,23 +106,22 @@ def make_two_section_data():
 # ---------------------------------------------------------------------------
 
 def create_electrode_file(path, electrodes, gids=GIDS, population=POPULATION_NAME):
-    """Create an initialized electrode H5 file. Returns (path, ElectrodeFileStructure)."""
-    h5file = h5py.File(path, "w")
-    h5 = ElectrodeFileStructure(h5file, gids, electrodes, population)
-    h5file.close()
-    return path, h5
+    """Create an initialized electrode H5 file."""
+    with h5py.File(path, "w") as h5file:
+        write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
+    return path
 
 
 def create_neuron_file(path, electrodes=None, gids=GIDS, population=POPULATION_NAME):
     """Create electrode file with neuron weights initialized to ones."""
     if electrodes is None:
         electrodes = make_electrodes()
-    path, h5 = create_electrode_file(path, electrodes, gids, population)
+    path = create_electrode_file(path, electrodes, gids, population)
     sec_counts = make_sec_counts()
     h5file = h5py.File(path, "r+")
     write_all_neuron(sec_counts, population, h5file, electrodes)
     h5file.close()
-    return path, h5
+    return path
 
 
 # ---------------------------------------------------------------------------

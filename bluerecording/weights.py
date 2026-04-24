@@ -1,20 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import numpy as np
-import h5py
-import os
-import pandas as pd
-import sys
-import json
-import datetime
 import warnings
 
+import h5py
+import numpy as np
+import pandas as pd
 from mpi4py import MPI
-from scipy.spatial import distance
-from scipy.spatial.transform import Rotation
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
-
-from .utils import *
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
@@ -23,38 +15,39 @@ DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 # H5 file initialization (formerly writeH5_prelim.py)
 # ---------------------------------------------------------------------------
 
-class ElectrodeFileStructure(object):
+def write_electrode_metadata_to_h5(
+    h5: h5py.File,
+    node_ids: np.ndarray,
+    electrodes: dict,
+    population_name: str,
+) -> None:
+    """Write electrode metadata into an HDF5 file.
 
-    """Write datasets to the HDF5 electrode file."""
+    Creates the ``node_ids`` dataset and one group per electrode containing
+    its position, type, region, and layer.
 
-    def __init__(self, h5, lst_ids, electrodes, population_name):
-        """Initialize electrode file structure and write metadata to HDF5.
+    Args:
+        h5: HDF5 file handle opened for writing.
+        node_ids: Node IDs.
+        electrodes: Dictionary with metadata about electrodes.
+        population_name: SONATA population name.
+    """
+    h5.create_dataset(f"{population_name}/node_ids", data=sorted(node_ids))
 
-        Args:
-            h5: HDF5 file handle returned by h5py.File(filename, 'w').
-            lst_ids: Node IDs.
-            electrodes: Dictionary with metadata about electrodes.
-            population_name: SONATA population name.
-        """
-        dset = h5.create_dataset(population_name+"/node_ids", data=sorted(lst_ids))
+    for index, (key, electrode) in enumerate(electrodes.items()):
+        prefix = f"electrodes/{key}"
+        h5.create_dataset(f"{prefix}/{population_name}", data=index)
 
-        for index, (key, electrode) in enumerate(electrodes.items()):
-            h5.create_dataset("electrodes/" + str(key) + '/'+population_name,data=index)
-
-            for item in electrode.items():
-                if item[0] == 'type' and isinstance(item[1],dict):
-                    dset = h5.create_dataset("electrodes/" + str(key) + '/' + item[0],
-                                      data=item[1]['type'])
-
-                    for entry in item[1].items():
-                        if entry[0] !='type':
-                            dset.attrs.create(entry[0],entry[1])
-
-                else:
-                    h5.create_dataset("electrodes/" + str(key) + '/' + item[0],
-                              data=item[1])
-
-        self._ids = np.array(lst_ids)
+        for attr_name, attr_value in electrode.items():
+            if attr_name == "type" and isinstance(attr_value, dict):
+                dset = h5.create_dataset(
+                    f"{prefix}/{attr_name}", data=attr_value["type"]
+                )
+                for k, v in attr_value.items():
+                    if k != "type":
+                        dset.attrs.create(k, v)
+            else:
+                h5.create_dataset(f"{prefix}/{attr_name}", data=attr_value)
 
 def get_offsets(sectionIdsFrame):
     """Compute per-node offsets into the flat segment array.
@@ -235,7 +228,7 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_ne
         cc.max_size = 1024 * 1024 * 124
         h5id.set_mdc_config(cc)
 
-        h5 = ElectrodeFileStructure(h5file, node_ids, electrodes, population_name)
+        write_electrode_metadata_to_h5(h5file, node_ids, electrodes, population_name)
 
         write_all_neuron(section_ids_frame, population_name, h5file, electrodes)
 
