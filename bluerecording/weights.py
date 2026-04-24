@@ -619,47 +619,40 @@ def get_coeffs_dipole_reciprocity(
 
     return pd.DataFrame(data=(-potential / current_applied)[np.newaxis, :], columns=position_columns)
 
-def get_coeffs_reciprocity(compartment_positions, path_to_fields):
+def get_coeffs_reciprocity(
+    compartment_positions: pd.DataFrame,
+    path_to_fields: str,
+) -> pd.DataFrame:
     """Compute reciprocity coefficients from a Sim4Life potential field.
 
     Interpolates the potential at each compartment position and scales
     by the applied current.
 
     Args:
-        compartment_positions: DataFrame of segment positions (um).
+        compartment_positions: DataFrame of segment positions (µm).
         path_to_fields: Path to the HDF5 file with the potential field.
     """
+    position_columns = compartment_positions.columns
+    positions_m = compartment_positions.values * 1e-6
 
     with h5py.File(path_to_fields, 'r') as f:
         for i in f['FieldGroups']:
-            tmp = 'FieldGroups/' + i + '/AllFields/EM Potential(x,y,z,f0)/_Object/Snapshots/0/'
-        pot = get_h5_dataset(path_to_fields, tmp, 'comp0')
+            field_group = f"FieldGroups/{i}/AllFields/EM Potential(x,y,z,f0)/_Object/Snapshots/0/"
+        pot = get_h5_dataset(path_to_fields, field_group, 'comp0')
         for i in f['Meshes']:
-            tmp = 'Meshes/'+i
+            mesh_group = f"Meshes/{i}"
             break
-        x = get_h5_dataset(path_to_fields, tmp, 'axis_x')
-        y = get_h5_dataset(path_to_fields, tmp, 'axis_y')
-        z = get_h5_dataset(path_to_fields, tmp, 'axis_z')
+        x = get_h5_dataset(path_to_fields, mesh_group, 'axis_x')
+        y = get_h5_dataset(path_to_fields, mesh_group, 'axis_y')
+        z = get_h5_dataset(path_to_fields, mesh_group, 'axis_z')
 
-        currentApplied = f['CurrentApplied'][()]
+        current_applied = f['CurrentApplied'][()]
 
-    compartment_positions *= 1e-6
+    selections = positions_m.T
+    interp = RegularGridInterpolator((x, y, z), pot[:, :, :, 0], method='linear')
+    potential = interp(selections)[np.newaxis]
 
-    xSelect = compartment_positions.values[0]
-    ySelect = compartment_positions.values[1]
-    zSelect = compartment_positions.values[2]
-
-
-    selections = np.array([xSelect, ySelect, zSelect]).T
-
-
-    InterpFcn = RegularGridInterpolator((x, y, z), pot[:, :, :, 0], method='linear')
-
-    out2rat = InterpFcn(selections)[np.newaxis]
-
-    outdf = pd.DataFrame(data=(out2rat / currentApplied), columns=compartment_positions.columns)
-
-    return outdf
+    return pd.DataFrame(data=(potential / current_applied), columns=position_columns)
 
 def get_neuron_segment_midpts(position):
     """Compute segment midpoints for a single neuron."""
