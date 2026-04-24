@@ -686,27 +686,20 @@ def get_segment_midpts(positions: pd.DataFrame, node_ids: np.ndarray) -> pd.Data
 
 
 
-def sort_electrode_names(electrodeKeys,population_name):
+def sort_electrode_names(electrode_keys, population_name: str):
     """Return electrode names sorted, excluding the population's scaling_factors key."""
-    electrodeNames = np.array(list(electrodeKeys))
-
-    electrodeNames = electrodeNames[np.where(electrodeNames!=population_name)]
+    electrode_names = np.array(list(electrode_keys))
+    electrode_names = electrode_names[electrode_names != population_name]
 
     electrode_list = []
-
-    for e in electrodeNames:
-
+    for e in electrode_names:
         try:
             name = int(e)
-
-        except:
+        except ValueError:
             name = e
-
         electrode_list.append(name)
 
-    electrode_list = np.sort(electrode_list)
-
-    return electrode_list
+    return np.sort(electrode_list)
 
 
 def _parse_index_range(spec):
