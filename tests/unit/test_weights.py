@@ -12,7 +12,7 @@ from bluerecording.weights import (
     get_coeffs_objective_csd_plane, get_line_coeffs,
     get_segment_midpts, get_array_spacing, get_thickness,
     distances_in_planar_coords, sort_electrode_names,
-    get_objectiveCSD_array, get_offsets,
+    get_objective_csd_array, get_offsets,
     initialize_h5_file, write_h5_file,
 )
 
@@ -266,11 +266,11 @@ def test_get_objective_csd_array(tmp_path):
     h5 = h5py.File(path, 'r+')
     names = ['a', 'b', 'name', 'name1', 'name2', 'name3']
 
-    idx, count = get_objectiveCSD_array('ObjectiveCSD_Disk', None, 0, names, h5, 0)
+    idx, count = get_objective_csd_array('ObjectiveCSD_Disk', None, 0, names, h5, 0)
     assert idx == [2, 3, 4, 5]
     assert count == 0
 
-    idx, count = get_objectiveCSD_array('ObjectiveCSD_Disk', ['2:3', '4:5'], 0, names, h5, 4)
+    idx, count = get_objective_csd_array('ObjectiveCSD_Disk', ['2:3', '4:5'], 0, names, h5, 4)
     np.testing.assert_equal(idx, np.arange(4, 5))
     assert count == 1
     h5.close()
