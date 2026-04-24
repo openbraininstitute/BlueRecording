@@ -74,17 +74,16 @@ def write_electrode_metadata_to_h5(
                 data = attr_value.value if isinstance(attr_value, ElectrodeType) else attr_value
                 h5.create_dataset(f"{prefix}/{attr_name}", data=data)
 
-def get_offsets(sectionIdsFrame):
+def get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     """Compute per-node offsets into the flat segment array.
 
-    Returns an array where entry *i* is the index of the first segment
-    belonging to the *i*-th unique node ID.
+    Counts segments per node and returns their prefix sum (partial sum),
+    with a leading zero.  The result has length ``n_nodes + 1``: entry *i*
+    is the index of the first segment for the *i*-th node, and the last
+    entry is the total number of segments.
     """
-    _unique, counts = np.unique(sectionIdsFrame['id'].values,return_counts=True)
-
-    out_offsets = np.hstack((np.array([0]),np.cumsum(counts)))
-
-    return out_offsets
+    _, counts = np.unique(section_ids_frame['id'].values, return_counts=True)
+    return np.hstack(([0], np.cumsum(counts)))
 
 def write_all_neuron(sectionIdsFrame, population_name, h5file, electrode_struc):
     """Initialize scaling_factors with ones and write per-node offsets.
