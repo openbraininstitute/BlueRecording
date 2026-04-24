@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import warnings
+from enum import StrEnum
 
 import h5py
 import numpy as np
@@ -714,12 +715,18 @@ def sort_electrode_names(electrodeKeys,population_name):
 
     return electrode_list
 
-def electrode_type(electrodeType):
-    """Validate that the electrode type is recognized."""
-    if electrodeType == 'LineSource' or electrodeType == 'PointSource' or electrodeType == 'DipoleReciprocity' or electrodeType == 'Reciprocity' or electrodeType == 'ObjectiveCSD_Sphere' or electrodeType == 'ObjectiveCSD_Disk' or electrodeType == 'ObjectiveCSD_Plane':
-        return 0
-    else:
-        raise AssertionError("Electrode type not recognized")
+class ElectrodeType(StrEnum):
+    """Recognized electrode types."""
+
+    LINE_SOURCE = "LineSource"
+    POINT_SOURCE = "PointSource"
+    DIPOLE_RECIPROCITY = "DipoleReciprocity"
+    RECIPROCITY = "Reciprocity"
+    OBJECTIVE_CSD_SPHERE = "ObjectiveCSD_Sphere"
+    OBJECTIVE_CSD_DISK = "ObjectiveCSD_Disk"
+    OBJECTIVE_CSD_PLANE = "ObjectiveCSD_Plane"
+
+
 
 def _parse_index_range(spec):
     """Parse a 'start:end' string into a range."""
@@ -796,12 +803,9 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
 
         epos = h5['electrodes'][str(electrode)]['position'][:]
 
-        electrodeType = h5['electrodes'][str(electrode)]['type'][()].decode()
+        electrodeType = ElectrodeType(h5['electrodes'][str(electrode)]['type'][()].decode())
 
-
-        electrode_type(electrodeType)
-
-        if electrodeType == 'LineSource':
+        if electrodeType is ElectrodeType.LINE_SOURCE:
 
             coeffs = get_coeffs_lineSource(positions,columns,epos,sigma[sigmaIdx])
 
@@ -813,7 +817,7 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
             newPositions = get_segment_midpts(positions,node_ids) # For other methods, we need the segment centers, not the endpoints
 
 
-            if electrodeType == 'PointSource':
+            if electrodeType is ElectrodeType.POINT_SOURCE:
 
                 coeffs = get_coeffs_pointSource(newPositions, epos, sigma[sigmaIdx])
 
@@ -832,19 +836,19 @@ def write_h5_file(positions, cols, population_name, outputfile, sigma=None, path
                 radius = h5['electrodes'][str(electrode)]['type'].attrs.get('radius',None)
                 thickness = h5['electrodes'][str(electrode)]['type'].attrs.get('thickness', None)
 
-                if electrodeType == 'ObjectiveCSD_Sphere':
+                if electrodeType is ElectrodeType.OBJECTIVE_CSD_SPHERE:
                     coeffs = get_coeffs_objectiveCSD_Sphere(newPositions,epos,allEpos,radius)
 
-                elif electrodeType == 'ObjectiveCSD_Disk':
+                elif electrodeType is ElectrodeType.OBJECTIVE_CSD_DISK:
                     coeffs = get_coeffs_objectiveCSD_Disk(newPositions,epos,allEpos,radius,thickness)
 
-                elif electrodeType == 'ObjectiveCSD_Plane':
+                elif electrodeType is ElectrodeType.OBJECTIVE_CSD_PLANE:
                     coeffs = get_coeffs_objectiveCSD_Plane(newPositions,epos,allEpos,thickness)
 
 
             else:
 
-                if electrodeType == 'DipoleReciprocity':
+                if electrodeType is ElectrodeType.DIPOLE_RECIPROCITY:
 
                     center = newPositions.mean(axis=1)
 
