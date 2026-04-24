@@ -85,17 +85,28 @@ def get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     _, counts = np.unique(section_ids_frame['id'].values, return_counts=True)
     return np.hstack(([0], np.cumsum(counts)))
 
-def write_all_neuron(sectionIdsFrame, population_name, h5file, electrode_struc):
-    """Initialize scaling_factors with ones and write per-node offsets.
+def _init_scaling_factors_and_offsets(
+    section_ids_frame: pd.DataFrame,
+    population_name: str,
+    h5file: h5py.File,
+    electrodes: dict,
+) -> None:
+    """Create the scaling_factors and offsets datasets in the H5 file.
 
-    Creates a dataset of shape (nSegments, nElectrodes+1) filled with ones,
-    plus the offset array that maps each node to its range in scaling_factors.
+    ``scaling_factors`` is initialized to ones with shape
+    ``(n_segments, n_electrodes + 1)``.  ``offsets`` maps each node to
+    its segment range inside ``scaling_factors``.
     """
-    h5file.create_dataset('/electrodes/'+population_name+'/scaling_factors', data=np.ones([len(sectionIdsFrame['id'].values),len(electrode_struc.items())+1]))
-
-    out_offsets = get_offsets(sectionIdsFrame)
-
-    h5file.create_dataset(population_name+"/offsets", data=out_offsets)
+    n_segments = len(section_ids_frame)
+    n_electrodes = len(electrodes)
+    h5file.create_dataset(
+        f"electrodes/{population_name}/scaling_factors",
+        data=np.ones((n_segments, n_electrodes + 1)),
+    )
+    h5file.create_dataset(
+        f"{population_name}/offsets",
+        data=get_offsets(section_ids_frame),
+    )
 
 
 def make_electrode_dict(electrode_csv):
@@ -188,7 +199,7 @@ def initialize_h5_file(cols, population_name, outputfile, electrode_csv, with_ne
 
         write_electrode_metadata_to_h5(h5file, node_ids, electrodes, population_name)
 
-        write_all_neuron(section_ids_frame, population_name, h5file, electrodes)
+        _init_scaling_factors_and_offsets(section_ids_frame, population_name, h5file, electrodes)
 
         if with_neurite_type:
             n_compartments = len(all_cols)
