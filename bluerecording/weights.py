@@ -541,26 +541,24 @@ def get_coeffs_objective_csd_disk(
     coeffs = radial_mask * axial_mask
     return pd.DataFrame(data=coeffs[np.newaxis, :], columns=compartment_positions.columns)
 
-def get_h5_dataset(h5f, group_name, dataset_name):
+def get_h5_dataset(h5f: str, group_name: str, dataset_name: str) -> np.ndarray:
     """Find and return a dataset from an HDF5 file.
+
+    Searches recursively under *group_name* for the first object whose
+    path contains *dataset_name*.
 
     Args:
         h5f: Path to the HDF5 file.
         group_name: Group to search from (``'/'`` for root).
         dataset_name: Name of the dataset to find.
-
-    Returns:
-        numpy.ndarray: The dataset contents.
     """
-
     def find_dataset(name):
-        """Find first object with dataset_name anywhere in the name."""
         if dataset_name in name:
             return name
 
     with h5py.File(h5f, 'r') as f:
         k = f[group_name].visit(find_dataset)
-        return f[group_name + '/' + k][()]
+        return f[f"{group_name}/{k}"][()]
 
 def get_coeffs_dipoleReciprocity(compartment_positions, path_to_fields,center):
     """Compute dipole-reciprocity coefficients from a Sim4Life E-field file.
