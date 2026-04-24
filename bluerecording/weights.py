@@ -230,35 +230,39 @@ def initialize_h5_file(
 # Weight computation (formerly writeH5.py)
 # ---------------------------------------------------------------------------
 
-def add_data(h5, ids, coeffs, population_name):
+def add_data(
+    h5: h5py.File,
+    ids: np.ndarray,
+    coeffs: pd.DataFrame,
+    population_name: str,
+) -> None:
     """Write computed coefficients into the scaling_factors dataset.
 
     Looks up each node's offset range and writes the corresponding
     coefficient rows into the HDF5 dataset.
     """
-    dset = 'electrodes/'+population_name+'/scaling_factors'
+    dset = f"electrodes/{population_name}/scaling_factors"
+    node_ids = h5[f"{population_name}/node_ids"][:]
+    offsets = h5[f"{population_name}/offsets"][:]
 
-    node_ids = h5[population_name+'/node_ids'][:]
+    is_in_input = np.isin(node_ids, ids)
+    nodes_in_input = node_ids[is_in_input]
+    id_index = np.where(is_in_input)[0]
 
-    isInInput = np.isin(node_ids,ids)
-    nodesInInput = node_ids[isInInput]
-    idIndex = np.where(isInInput)[0]
-
-    offset0 = h5[population_name+'/offsets'][idIndex]
-
+    offset0 = offsets[id_index]
     offset1 = np.zeros_like(offset0)
 
-    if np.any(idIndex ==  len(h5[population_name+'/offsets'][:])-1):
+    last_offset_idx = len(offsets) - 1
 
-        lastNodeIdx =  np.where(idIndex == len(h5[population_name+'/offsets'][:])-1)[0]
-        offset1[lastNodeIdx] = len(h5[dset][:])
+    if np.any(id_index == last_offset_idx):
+        last_node_idx = np.where(id_index == last_offset_idx)[0]
+        offset1[last_node_idx] = len(h5[dset])
 
-    notLastNodeIdx = np.where(idIndex != len(h5[population_name+'/offsets'][:])-1)[0]
-    offset1[notLastNodeIdx] =  h5[population_name+'/offsets'][idIndex[notLastNodeIdx]+1]
+    not_last = np.where(id_index != last_offset_idx)[0]
+    offset1[not_last] = offsets[id_index[not_last] + 1]
 
-    for i, id in enumerate(nodesInInput):
-
-        h5[dset][offset0[i]:offset1[i],:-1] = coeffs.loc[:,id].values.T
+    for i, node_id in enumerate(nodes_in_input):
+        h5[dset][offset0[i]:offset1[i], :-1] = coeffs.loc[:, node_id].values.T
 
 def line_source_cases(h,r2,l):
     """Return the line-source potential term for the given geometry case.
