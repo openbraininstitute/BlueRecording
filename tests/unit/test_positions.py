@@ -5,17 +5,19 @@ import pytest
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-
 from tests.helpers import (
-    SOMA_POS, make_report_data,
-    make_morphology, make_morphology_short, make_morphology_far_axon,
+    SOMA_POS,
+    make_morphology,
+    make_morphology_far_axon,
+    make_morphology_short,
     make_morphology_two_axon_branches,
+    make_report_data,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper to extract section info from report data
 # ---------------------------------------------------------------------------
+
 
 def _get_sections(data, gid):
     cols = np.array(list(data.columns))
@@ -25,6 +27,7 @@ def _get_sections(data, gid):
 # ---------------------------------------------------------------------------
 # Morphology structure tests
 # ---------------------------------------------------------------------------
+
 
 def test_positioned_morphology(tmp_path):
     morph = make_morphology(tmp_path / "morph.h5")
@@ -44,7 +47,9 @@ def test_get_axon_points_extrapolate(tmp_path):
     morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 4, 1060], decimal=2)
-    np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 4], [0, 0, 1060]], decimal=2)
+    np.testing.assert_almost_equal(
+        points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 4], [0, 0, 1060]], decimal=2
+    )
 
 
 def test_get_axon_points_picks_longest_branch(tmp_path):
@@ -54,31 +59,24 @@ def test_get_axon_points_picks_longest_branch(tmp_path):
     the longer one (branch A, 100 µm) for extrapolation, not the last one
     visited (branch B, 10 µm).
     """
-    morph = positions.PositionedMorphology(
-        make_morphology_two_axon_branches(tmp_path / "morph.h5")
-    )
+    morph = positions.PositionedMorphology(make_morphology_two_axon_branches(tmp_path / "morph.h5"))
     points, lengths = positions.get_axon_points(morph, SOMA_POS)
 
     # Longest branch: soma(0,0,0) → root tip(0,0,5) → branch A tip(0,0,100)
     # then extrapolated to 1060 µm along z.
     # With the bug we'd get branch B: soma → root tip → (0,0,10) → extrapolated
-    np.testing.assert_almost_equal(
-        points, [[0, 0, 0], [0, 0, 5], [0, 0, 100], [0, 0, 1060]], decimal=2
-    )
-    np.testing.assert_almost_equal(
-        lengths, [0, 5, 100, 1060], decimal=2
-    )
+    np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 5], [0, 0, 100], [0, 0, 1060]], decimal=2)
+    np.testing.assert_almost_equal(lengths, [0, 5, 100, 1060], decimal=2)
 
 
 def test_get_new_idx():
     data = make_report_data()
     expected_columns = [
-        [1]*23 + [2]*7,
-        [0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10,
-         0, 1, 1, 1, 1, 1, 1],
+        [1] * 23 + [2] * 7,
+        [0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10, 0, 1, 1, 1, 1, 1, 1],
     ]
-    expected_idx = list(zip(*expected_columns))
-    expected_mi = pd.MultiIndex.from_tuples(expected_idx, names=['id', 'section'])
+    expected_idx = list(zip(*expected_columns, strict=False))
+    expected_mi = pd.MultiIndex.from_tuples(expected_idx, names=["id", "section"])
     result = positions.get_new_index(data.columns)
     pd.testing.assert_index_equal(result, expected_mi)
 
@@ -102,7 +100,9 @@ def test_interpolate_ais(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2
+    )
 
 
 def test_interpolate_ais_far_axon(tmp_path):
@@ -114,7 +114,9 @@ def test_interpolate_ais_far_axon(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2
+    )
 
 
 def test_interpolate_ais_short(tmp_path):
@@ -126,7 +128,9 @@ def test_interpolate_ais_short(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 0], [0, 0, 6], [0, 0, 12], [0, 0, 18], [0, 0, 24], [0, 0, 30]], decimal=2
+    )
 
 
 def test_interpolate_ais_2(tmp_path):
@@ -138,7 +142,9 @@ def test_interpolate_ais_2(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2
+    )
 
 
 def test_interpolate_ais_2_short(tmp_path):
@@ -150,7 +156,9 @@ def test_interpolate_ais_2_short(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 30], [0, 0, 36], [0, 0, 42], [0, 0, 48], [0, 0, 54], [0, 0, 60]], decimal=2
+    )
 
 
 def test_interpolate_myelin(tmp_path):
@@ -161,7 +169,9 @@ def test_interpolate_myelin(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2
+    )
 
 
 def test_interpolate_myelin_short(tmp_path):
@@ -172,12 +182,15 @@ def test_interpolate_myelin_short(tmp_path):
     num_compartments = np.shape(data[1][sec_name])[-1]
     axon_pts, running_lens = positions.get_axon_points(morph, SOMA_POS)
     seg_pos = positions.interp_points_axon(axon_pts, running_lens, sec_name, num_compartments)
-    np.testing.assert_almost_equal(seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2)
+    np.testing.assert_almost_equal(
+        seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2
+    )
 
 
 # ---------------------------------------------------------------------------
 # Integration tests (require data)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skip_in_ci
 def test_single_cell_get_positions(tmp_path):

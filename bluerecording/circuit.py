@@ -5,6 +5,7 @@ Provides the entry point for loading a circuit model and extracting
 the discretization info (node IDs, compartment structure, morphology access)
 needed by both get_positions and write_weights.
 """
+
 import libsonata
 import numpy as np
 
@@ -41,9 +42,7 @@ def init_circuit(path_to_simconfig: str):
         keep_build=False,
         simulator="NEURON",
     )
-    assert len(nd.circuits.node_managers) == 1, (
-        "Multiple or no node managers are not allowed for the moment"
-    )
+    assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
     node_manager = next(iter(nd.circuits.node_managers.values()))
 
     ids = node_manager.get_final_gids()
@@ -59,9 +58,7 @@ def init_circuit(path_to_simconfig: str):
 
     population_name = node_manager.population_name
 
-    circuit_conf = libsonata.CircuitConfig.from_file(
-        get_circuit_path(path_to_simconfig)
-    )
+    circuit_conf = libsonata.CircuitConfig.from_file(get_circuit_path(path_to_simconfig))
     population = circuit_conf.node_population(population_name)
     morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
 

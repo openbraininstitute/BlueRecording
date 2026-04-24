@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from mpi4py import MPI
-import numpy as np
 import h5py
+import numpy as np
 import pytest
+from mpi4py import MPI
 
-from bluerecording.circuit import init_circuit
 from bluerecording import positions
-from bluerecording.weights import write_h5_file
-from bluerecording.weights import initialize_h5_file
+from bluerecording.circuit import init_circuit
+from bluerecording.weights import initialize_h5_file, write_h5_file
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -30,12 +29,14 @@ def test_single_cell_write_weights_mpi(tmp_path):
 
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
     positions_df, cols, _ = positions.get_positions(
-        node_manager, ids, cols, population,
+        node_manager,
+        ids,
+        cols,
+        population,
         morphologies_dir=morphologies_dir,
     )
     initialize_h5_file(cols, population_name, output_path, electrode_csv)
-    write_h5_file(positions_df, cols, population_name, output_path,
-                path_to_fields=[field_path, field_path])
+    write_h5_file(positions_df, cols, population_name, output_path, path_to_fields=[field_path, field_path])
 
     comm.Barrier()
 
