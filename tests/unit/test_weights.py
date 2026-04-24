@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 
 from bluerecording.weights import (
-    ElectrodeFileStructure, electrode_type,
+    write_electrode_metadata_to_h5, electrode_type,
     add_data, get_coeffs_lineSource, get_coeffs_pointSource,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
@@ -45,7 +45,7 @@ def test_get_segment_midpts():
 
 
 def test_write_neuron(tmp_path):
-    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    path = create_neuron_file(tmp_path / "weights.h5")
     with h5py.File(path, 'r') as f:
         np.testing.assert_equal(
             f[f'electrodes/{POPULATION_NAME}/scaling_factors'][:],
@@ -56,7 +56,7 @@ def test_write_neuron(tmp_path):
 
 
 def test_add_coeffs(tmp_path):
-    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    path = create_neuron_file(tmp_path / "weights.h5")
     data = make_report_data()
     with h5py.File(path, 'r+') as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data.columns)
@@ -67,7 +67,7 @@ def test_add_coeffs(tmp_path):
 
 
 def test_add_coeffs_backwards(tmp_path):
-    path, _ = create_neuron_file(tmp_path / "weights.h5")
+    path = create_neuron_file(tmp_path / "weights.h5")
     data_bw = make_report_data_backwards()
     with h5py.File(path, 'r+') as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data_bw.columns)
@@ -263,7 +263,7 @@ def test_planar_coords():
 
 def test_get_objective_csd_array(tmp_path):
     electrodes = make_electrodes_objective_array()
-    path, _ = create_electrode_file(tmp_path / "obj.h5", electrodes)
+    path = create_electrode_file(tmp_path / "obj.h5", electrodes)
     h5 = h5py.File(path, 'r+')
     names = ['a', 'b', 'name', 'name1', 'name2', 'name3']
 
@@ -288,7 +288,7 @@ def test_make_electrode_dict():
 
 def test_electrode_file_structure(tmp_path):
     electrodes = make_electrodes()
-    path, _ = create_electrode_file(tmp_path / "test.h5", electrodes)
+    path = create_electrode_file(tmp_path / "test.h5", electrodes)
     with h5py.File(path, 'r') as f:
         for key, value in electrodes['name'].items():
             if key == 'position':
@@ -300,7 +300,7 @@ def test_electrode_file_structure(tmp_path):
 
 def test_electrode_file_structure_objective(tmp_path):
     electrodes = make_electrodes_objective()
-    path, _ = create_electrode_file(tmp_path / "test.h5", electrodes)
+    path = create_electrode_file(tmp_path / "test.h5", electrodes)
     with h5py.File(path, 'r') as f:
         for key, value in electrodes['name'].items():
             if key == 'position':
