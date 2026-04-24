@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 
 from bluerecording.weights import (
-    write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams,
+    write_electrode_metadata_to_h5, ElectrodeType, ObjectiveCSDParams, Electrode,
     add_data, get_coeffs_lineSource, get_coeffs_pointSource,
     get_coeffs_reciprocity, get_coeffs_dipoleReciprocity,
     get_coeffs_objectiveCSD_Sphere, get_coeffs_objectiveCSD_Disk,
@@ -13,7 +13,6 @@ from bluerecording.weights import (
     get_segment_midpts, get_array_spacing, get_thickness,
     distances_in_planar_coords, sort_electrode_names,
     get_objectiveCSD_array, get_offsets,
-    make_electrode_dict,
     initialize_h5_file, write_h5_file,
 )
 
@@ -282,21 +281,26 @@ def test_get_objective_csd_array(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_make_electrode_dict():
-    electrodes = make_electrodes()
-    np.testing.assert_equal(make_electrode_dict('tests/data/electrode.csv')['name'], electrodes['name'])
+    expected = make_electrodes()
+    result = Electrode.from_csv('tests/data/electrode.csv')
+    e = result['name']
+    np.testing.assert_equal(e.position, expected['name'].position)
+    assert e.type == expected['name'].type
+    assert e.region == expected['name'].region
+    assert e.layer == expected['name'].layer
 
 
 def test_make_electrode_dict_objective_csd():
-    result = make_electrode_dict('tests/data/electrode_objective.csv')
+    result = Electrode.from_csv('tests/data/electrode_objective.csv')
 
-    assert result['sphere']['type'] == ObjectiveCSDParams(
+    assert result['sphere'].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=15.0, thickness=None)
-    assert result['disk']['type'] == ObjectiveCSDParams(
+    assert result['disk'].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=25.0)
-    assert result['plane']['type'] == ObjectiveCSDParams(
+    assert result['plane'].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_PLANE, radius=None, thickness=30.0)
     # Missing radius/thickness → None
-    assert result['disk_defaults']['type'] == ObjectiveCSDParams(
+    assert result['disk_defaults'].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=None, thickness=None)
 
 
@@ -304,36 +308,32 @@ def test_make_electrode_dict_invalid_type(tmp_path):
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text(",x,y,z,type\nbad,1,2,3,TotallyInvalid\n")
     with pytest.raises(ValueError):
-        make_electrode_dict(str(csv_path))
+        Electrode.from_csv(str(csv_path))
 
 
 def test_electrode_file_structure(tmp_path):
     electrodes = make_electrodes()
     path = create_electrode_file(tmp_path / "test.h5", electrodes)
+    e = electrodes['name']
     with h5py.File(path, 'r') as f:
-        for key, value in electrodes['name'].items():
-            if key == 'position':
-                np.testing.assert_equal(f['electrodes/name/' + key][:], value)
-            elif key == 'type':
-                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value.value)
-            else:
-                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
+        np.testing.assert_equal(f['electrodes/name/position'][:], e.position)
+        np.testing.assert_equal(f['electrodes/name/type'][()].decode(), e.type.value)
+        np.testing.assert_equal(f['electrodes/name/region'][()].decode(), e.region)
+        np.testing.assert_equal(f['electrodes/name/layer'][()].decode(), e.layer)
         np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
 
 
 def test_electrode_file_structure_objective(tmp_path):
     electrodes = make_electrodes_objective()
     path = create_electrode_file(tmp_path / "test.h5", electrodes)
+    e = electrodes['name']
     with h5py.File(path, 'r') as f:
-        for key, value in electrodes['name'].items():
-            if key == 'position':
-                np.testing.assert_equal(f['electrodes/name/' + key][:], value)
-            elif key == 'type':
-                np.testing.assert_equal(f['electrodes/name/type'][()].decode(), value.type.value)
-                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('radius'), value.radius)
-                np.testing.assert_equal(f['electrodes/name/type'].attrs.get('thickness'), value.thickness)
-            else:
-                np.testing.assert_equal(f['electrodes/name/' + key][()].decode(), value)
+        np.testing.assert_equal(f['electrodes/name/position'][:], e.position)
+        np.testing.assert_equal(f['electrodes/name/type'][()].decode(), e.type.type.value)
+        np.testing.assert_equal(f['electrodes/name/type'].attrs.get('radius'), e.type.radius)
+        np.testing.assert_equal(f['electrodes/name/type'].attrs.get('thickness'), e.type.thickness)
+        np.testing.assert_equal(f['electrodes/name/region'][()].decode(), e.region)
+        np.testing.assert_equal(f['electrodes/name/layer'][()].decode(), e.layer)
         np.testing.assert_equal(f[f'{POPULATION_NAME}/node_ids'][:], GIDS)
 
 
