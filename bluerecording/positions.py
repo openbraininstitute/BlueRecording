@@ -393,7 +393,7 @@ def interp_points_axon(
 def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
-    Each column is kept once.  Non-somatic columns (section != 0) are
+    Each column is kept once. Non-somatic columns (section != 0) are
     duplicated when the next column tuple differs, to represent the end
     point of that section.  The last column is always repeated.
 
@@ -458,18 +458,18 @@ def _get_cell_positions(
     num_somas = np.sum(gid_mask & (cols[:, 1] == 0))
     xyz = np.tile(soma_pos.reshape(3, 1), num_somas)
 
-    for sec_name in sections[1:]:
-        num_compartments = np.sum(gid_mask & (cols[:, 1] == sec_name))
+    for sec_id in sections[1:]:
+        num_compartments = np.sum(gid_mask & (cols[:, 1] == sec_id))
 
-        if sec_name < 3 and replace_axons:
-            seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
+        if sec_id < 3 and replace_axons:
+            seg_pos = interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
         else:
-            sec_id = sec_name - 1
-            if sec_id >= m.num_sections:
+            morpho_sec_id = sec_id - 1
+            if morpho_sec_id >= m.num_sections:
                 # Beyond morphology sections → myelinated AIS
-                seg_pos = interp_points_axon(axon_points, running_lens, sec_name, num_compartments)
+                seg_pos = interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
             else:
-                sec_pts = np.array(m.section_points(sec_id))
+                sec_pts = np.array(m.section_points(morpho_sec_id))
                 seg_pos = interp_points(sec_pts, num_compartments)
 
         xyz = np.hstack((xyz, seg_pos.T))
