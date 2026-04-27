@@ -29,6 +29,15 @@ The provided `setup.sh` script handles all of this automatically, building NEURO
 source setup.sh
 ```
 
+Or, if you prefer to run it as an executable:
+
+```bash
+./setup.sh
+source env.sh
+```
+
+When executed (rather than sourced), `setup.sh` writes an `env.sh` file that you source afterward to activate the environment in your current shell.
+
 Append `--no-system` to skip system package installation (brew/apt).
 
 Use `--clean-install` to wipe the virtual environment and all build artifacts before reinstalling from scratch (downloaded data is preserved):
@@ -51,13 +60,17 @@ pip install bluerecording
 
 Finally, if you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
 
-This is required only once to set up your python virtual environment. In future sessions you still need to run once:
+This is required only once to set up your python virtual environment. In future sessions you still need to activate the environment:
 
 ```bash
 source setup.sh
 ```
 
-But the execution is much faster. 
+Or equivalently:
+
+```bash
+source env.sh
+```
 ---
 # Input data
 
