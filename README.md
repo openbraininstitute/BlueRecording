@@ -21,9 +21,23 @@ BlueRecording declares most of its dependencies in `pyproject.toml`. A few need 
 
 If h5py lacks MPI support or neuron is missing, bluerecording will raise a clear error on import.
 
-The provided `dev_setup.sh` script handles all of this automatically, building NEURON and libsonatareport from source. It works on macOS (with `brew`) and Linux (with `apt`).
+### User installation
 
-**Development setup** — builds everything from source with test and notebook dependencies:
+**Weights-only use** — no `dev_setup.sh` needed:
+
+```bash
+pip install bluerecording[neuron]
+```
+
+**Simulations** — neuron already built from source:
+
+```bash
+pip install bluerecording
+```
+
+### Development setup
+
+The provided `dev_setup.sh` script handles all of this automatically, building NEURON and libsonatareport from source. It works on macOS (with `brew`) and Linux (with `apt`).
 
 ```bash
 ./dev_setup.sh
@@ -39,25 +53,7 @@ Use `--clean-install` to wipe the virtual environment and all build artifacts be
 source env.sh
 ```
 
-**Platform / weights-only use** — no `dev_setup.sh` needed:
-
-```bash
-pip install bluerecording[neuron]
-```
-
-**Platform / simulations** — neuron already built from source:
-
-```bash
-pip install bluerecording
-```
-
-Finally, if you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
-
-This is required only once to set up your python virtual environment. In future sessions you still need to activate the environment:
-
-```bash
-source env.sh
-```
+If you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
 ---
 # Input data
 
