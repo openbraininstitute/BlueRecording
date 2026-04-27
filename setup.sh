@@ -209,13 +209,8 @@ if [ ! -d "nrn" ]; then
     cd nrn && git checkout $NEURON_COMMIT && cd ..
     pip install --upgrade pip -r nrn/nrn_requirements.txt
 
-    if [[ "$OS" == "Darwin" ]]; then
-        NRN_C_COMPILER=gcc
-        NRN_CXX_COMPILER=g++
-    else
-        NRN_C_COMPILER=gcc
-        NRN_CXX_COMPILER=g++
-    fi
+    NRN_C_COMPILER=gcc
+    NRN_CXX_COMPILER=g++
 
     cmake -B nrn/build -S nrn -G Ninja \
         -DPYTHON_EXECUTABLE=$(which python) \

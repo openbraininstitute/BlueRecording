@@ -46,15 +46,7 @@ jobs:
           pip install git+https://github.com/openbraininstitute/neurodamus.git@${{ env.NEURODAMUS_COMMIT }}
           pip install -e ".[neuron,test]"
 
-      - name: Cache neurodamus-models
-        id: cache-ndm
-        uses: actions/cache@v4
-        with:
-          path: neurodamus-models/build/install
-          key: ndm-${{ runner.os }}-${{ env.NEURODAMUS_COMMIT }}-${{ hashFiles('.github/workflows/ci.yml') }}
-
       - name: Build neurodamus-models
-        if: steps.cache-ndm.outputs.cache-hit != 'true'
         run: |
           git clone --depth=1 https://github.com/openbraininstitute/neurodamus-models.git
           NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
