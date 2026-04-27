@@ -15,7 +15,7 @@ def main():
 
     # write_positions command
     gp_parser = subparsers.add_parser("write_positions", help="Compute and save segment positions to disk")
-    gp_parser.add_argument("path_to_simconfig", type=str, help="Path to the simulation configuration file")
+    gp_parser.add_argument("path_to_config", type=str, help="Path to a simulation or circuit configuration file")
     gp_parser.add_argument(
         "path_to_positions_folder", type=str, help="Path to the folder where positions will be stored"
     )
@@ -28,7 +28,7 @@ def main():
 
     # write_weights command
     ww_parser = subparsers.add_parser("write_weights", help="Compute electrode weights for all cells in the circuit")
-    ww_parser.add_argument("path_to_simconfig", type=str, help="Path to the simulation configuration file")
+    ww_parser.add_argument("path_to_config", type=str, help="Path to a simulation or circuit configuration file")
     ww_parser.add_argument("electrode_csv", type=str, help="Path to the electrode CSV file")
     ww_parser.add_argument(
         "output_path",
@@ -73,7 +73,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "write_positions":
-        node_manager, ids, cols, population, _, morphologies_dir = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, _, morphologies_dir = init_circuit(args.path_to_config)
         positions_df, _, _ = positions.get_positions(
             node_manager,
             ids,
@@ -85,7 +85,7 @@ def main():
         positions.save_positions(positions_df, args.path_to_positions_folder)
 
     elif args.command == "write_weights":
-        node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
+        node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_config)
         positions_df, cols, neurite_types = positions.get_positions(
             node_manager,
             ids,
