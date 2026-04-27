@@ -34,11 +34,14 @@ dependencies = [
 neuron = [
     "neuron",
 ]
+lint = [
+    "tox",
+    "ruff",
+]
 test = [
     "pytest",
     "pytest-forked",
     "pytest-mpi",
-    "ruff",
 ]
 notebooks = [
     "jupyterlab",
@@ -47,6 +50,7 @@ notebooks = [
 ]
 all = [
     "bluerecording[neuron]",
+    "bluerecording[lint]",
     "bluerecording[test]",
     "bluerecording[notebooks]",
 ]
