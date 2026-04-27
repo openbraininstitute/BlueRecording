@@ -306,36 +306,22 @@ def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.nda
 def interp_points_axon(
     axon_points: np.ndarray,
     running_lens: np.ndarray,
-    sec_name: int,
+    sec_id: int,
     num_compartments: int,
 ) -> np.ndarray:
     """Interpolate segment boundary points for a simulated-axon section.
 
-    The simulated axon has three sections identified by *sec_name*:
-
-    * 1 — first AIS section  (0–30 µm)
-    * 2 — second AIS section (30–60 µm)
-    * 3+ — myelinated section (60–1060 µm)
-
-    These are global section IDs originating from NEURON's section
-    numbering.  Neurodamus assigns them as offsets into the
-    ``SECTION_TYPES`` ordering (soma, axon, dend, apic, ais, node,
-    myelin).  After axon replacement the first two axon slots (indices 1
-    and 2) hold the AIS stubs.  Because the mapping from ID to type
-    depends on per-cell section counts, a static IntEnum cannot represent
-    them — they are inherently positional, not categorical.
+    These are global section IDs after axon replacement.
 
     For each section the relevant subset of *axon_points* is selected by
     cumulative arc length, then linearly interpolated to produce equally-spaced
-    segment boundary positions.  When fewer than two morphology points fall
-    inside the section's length window, nearby points are used as fallback
-    anchors so that extrapolation can still proceed.
+    segment boundary positions.
 
     Args:
         axon_points: (N, 3) array of 3D positions along the axonal branch.
         running_lens: (N,) array of cumulative arc lengths aligned with
             *axon_points*.
-        sec_name: Section identifier (1 = first AIS, 2 = second AIS,
+        sec_id: Section identifier (1 = first AIS, 2 = second AIS,
             ≥3 = myelinated).
         num_compartments: Number of compartments (segments) in this section.
 
@@ -345,7 +331,7 @@ def interp_points_axon(
 
     # --- 1. Determine section geometry and select relevant points ---
 
-    if sec_name == 1:  # First AIS section (0–30 µm)
+    if sec_id == 1:  # First AIS section (0–30 µm)
         sec_len = 30
         start, end = 0, 30
 
@@ -357,7 +343,7 @@ def interp_points_axon(
             axon_relevant = axon_points[:2]
             lens_relevant = running_lens[:2] / sec_len
 
-    elif sec_name == 2:  # Second AIS section (30–60 µm)
+    elif sec_id == 2:  # Second AIS section (30–60 µm)
         sec_len = 30
         start, end = 30, 60
 
