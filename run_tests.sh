@@ -1,34 +1,29 @@
 #!/usr/bin/env bash
 # run_tests.sh — Run all tests (unit + MPI) in the dev environment.
 #
-# Assumes that 'source setup.sh --data' has been called at least once
-# and the virtual environment is active (i.e. you are in the venv).
+# Assumes that './dev_setup.sh --data' has been called at least once.
 #
 # Usage:
 #   ./run_tests.sh              # run all tests
 #   ./run_tests.sh unit         # run only unit tests
 #   ./run_tests.sh mpi          # run only MPI tests
-#   ./run_tests.sh --setup      # re-run setup before testing
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RUN_SETUP=0
 SUITE="all"
 
 for arg in "$@"; do
     case $arg in
-        --setup)  RUN_SETUP=1 ;;
         unit)     SUITE="unit" ;;
         mpi)      SUITE="mpi" ;;
         all)      SUITE="all" ;;
         ci)       SUITE="ci" ;;
         -h|--help)
-            echo "Usage: ./run_tests.sh [--setup] [unit|mpi|all|ci]"
+            echo "Usage: ./run_tests.sh [unit|mpi|all|ci]"
             echo ""
-            echo "  --setup   Source setup.sh --data before running tests"
             echo "  unit      Run only unit tests"
             echo "  mpi       Run only MPI tests"
             echo "  all       Run all tests (default)"
@@ -45,25 +40,13 @@ done
 # -------------------------
 # Environment setup
 # -------------------------
-if [[ "$RUN_SETUP" -eq 1 ]]; then
-    echo "=== Running setup.sh --data ==="
-    source setup.sh --data
-elif [ -n "$VIRTUAL_ENV" ]; then
-    echo "Using active virtual environment: $VIRTUAL_ENV"
-elif [[ -d "venv" ]]; then
-    source venv/bin/activate
-else
-    echo "Error: No active venv and no ./venv found. Run with --setup first, or 'source setup.sh --data' manually."
+if [ -z "${VIRTUAL_ENV:-}" ]; then
+    echo "Error: Environment not active. Run 'source env.sh' first."
+    echo "(If you haven't set up yet, run './dev_setup.sh' first.)"
     exit 1
 fi
 
 FAILED=0
-
-echo ""
-echo "Note: This script assumes bluerecording is installed with all dependencies"
-echo "      in place, environment variables set, and test data downloaded."
-echo "      If not, run: source setup.sh --data"
-echo ""
 
 # -------------------------
 # Unit tests

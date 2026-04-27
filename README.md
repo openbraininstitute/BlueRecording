@@ -16,37 +16,30 @@ BlueRecording declares most of its dependencies in `pyproject.toml`. A few need 
 |---|---|
 | `h5py` | Declared in pyproject.toml, but must be the MPI-enabled build (`HDF5_MPI=ON`). The default pip wheel lacks MPI support. |
 | `neuron` | Optional extra (`pip install bluerecording[neuron]`). For simulations with reporting, build from source instead. |
-| `neurodamus` | Declared in pyproject.toml. `setup.sh` may install from a specific Git commit. |
-| `neurodamus-models` | CMake project (not a Python package). Required in all cases — needed to generate weights or run simulations. Built by `setup.sh`. |
+| `neurodamus` | Declared in pyproject.toml. `dev_setup.sh` may install from a specific Git commit. |
+| `neurodamus-models` | CMake project (not a Python package). Required in all cases — needed to generate weights or run simulations. Built by `dev_setup.sh`. |
 
 If h5py lacks MPI support or neuron is missing, bluerecording will raise a clear error on import.
 
-The provided `setup.sh` script handles all of this automatically, building NEURON and libsonatareport from source. It works on macOS (with `brew`) and Linux (with `apt`).
+The provided `dev_setup.sh` script handles all of this automatically, building NEURON and libsonatareport from source. It works on macOS (with `brew`) and Linux (with `apt`).
 
 **Development setup** — builds everything from source with test and notebook dependencies:
 
 ```bash
-source setup.sh
-```
-
-Or, if you prefer to run it as an executable:
-
-```bash
-./setup.sh
+./dev_setup.sh
 source env.sh
 ```
-
-When executed (rather than sourced), `setup.sh` writes an `env.sh` file that you source afterward to activate the environment in your current shell.
 
 Append `--no-system` to skip system package installation (brew/apt).
 
 Use `--clean-install` to wipe the virtual environment and all build artifacts before reinstalling from scratch (downloaded data is preserved):
 
 ```bash
-source setup.sh --clean-install
+./dev_setup.sh --clean-install
+source env.sh
 ```
 
-**Platform / weights-only use** — no `setup.sh` needed:
+**Platform / weights-only use** — no `dev_setup.sh` needed:
 
 ```bash
 pip install bluerecording[neuron]
@@ -63,12 +56,6 @@ Finally, if you want to run the full testing suite you need `--data`. See the [T
 This is required only once to set up your python virtual environment. In future sessions you still need to activate the environment:
 
 ```bash
-source setup.sh
-```
-
-Or equivalently:
-
-```bash
 source env.sh
 ```
 ---
@@ -78,7 +65,7 @@ The initial input data of `BlueRecording` includes a [compartment report](https:
 
 ### Neurodamus
 
-`setup.sh` builds the full simulation stack:
+`dev_setup.sh` builds the full simulation stack:
 1. Create a Python virtual environment with MPI-enabled `h5py` and `mpi4py`
 2. Clone and build `libsonatareport`
 3. Clone and build NEURON from source (with `libsonatareport` support)
@@ -86,7 +73,7 @@ The initial input data of `BlueRecording` includes a [compartment report](https:
 5. Clone and build `neurodamus-models` (neocortex, with reporting)
 6. Install the `bluerecording` package (editable, with test + notebook deps)
 
-In subsequent sessions, running `source setup.sh` again will simply activate the existing environment and ensure dependencies are up to date.
+In subsequent sessions, running `source env.sh` will activate the existing environment.
 
 ---
 # Testing
@@ -94,7 +81,8 @@ In subsequent sessions, running `source setup.sh` again will simply activate the
 First, make sure you have set up the development environment with test data:
 
 ```bash
-source setup.sh --data
+./dev_setup.sh --data
+source env.sh
 ```
 
 This only needs to be done once. It will download a few hundreds of Mb of data and run a few short simulations.
@@ -127,7 +115,7 @@ mpirun -n 2 python -m pytest tests/unit-mpi/test_h5py_MPI.py --with-mpi -v
 mpirun -n 2 python -m pytest tests/unit-mpi/test_get_positions.py --with-mpi -v
 ```
 
-If you want to run only the base tests (without downloading data), after `source setup.sh`:
+If you want to run only the base tests (without downloading data), after `source env.sh`:
 
 ```bash
 mpirun -n 2 pytest -v tests/unit-mpi --with-mpi

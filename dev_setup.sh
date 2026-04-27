@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# setup.sh — Full development environment setup for BlueRecording
+# dev_setup.sh — Full development environment setup for BlueRecording
 #
 # Builds everything from source: libsonatareport, NEURON, neurodamus-models
 # with reporting enabled. Editable install with test + notebook dependencies.
+#
+# Usage: ./dev_setup.sh [OPTIONS]
+#
+# This script MUST be executed (not sourced). It generates an env.sh file
+# that you source afterward to activate the environment in your shell.
 #
 # For platform use (without this script):
 #   pip install bluerecording[neuron]   — weights only, neuron from pip
@@ -29,28 +34,26 @@ for arg in "$@"; do
         --data) DOWNLOAD_DATA=1 ;;
         --clean-install) CLEAN_INSTALL=1 ;;
         --help|-h)
-            echo "Usage: source setup.sh [OPTIONS]  or  ./setup.sh [OPTIONS]"
+            echo "Usage: ./dev_setup.sh [OPTIONS]"
             echo ""
             echo "Sets up a full development environment with NEURON built from"
             echo "source (with libsonatareport), neurodamus-models, and an editable"
             echo "install of bluerecording with test and notebook dependencies."
             echo ""
-            echo "If sourced, the environment is activated in the current shell."
-            echo "If executed (./setup.sh), run 'source env.sh' afterward to"
-            echo "activate the environment."
+            echo "After completion, run 'source env.sh' to activate the environment."
             echo ""
             echo "Options:"
             echo "  --no-system      Skip system package installation (brew/apt)"
             echo "  --data           Download and unpack example datasets (atlas, networks, FEM)"
             echo "  --clean-install  Remove venv, cloned repos, and build artifacts (keeps data)"
             echo "  --help, -h       Show this help message"
-            return 0 2>/dev/null || exit 0
+            exit 0
             ;;
         *)
             echo "Error: Unknown option: $arg"
             echo ""
-            echo "Run 'source setup.sh --help' for usage."
-            return 1 2>/dev/null || exit 1
+            echo "Run './dev_setup.sh --help' for usage."
+            exit 1
             ;;
     esac
 done
@@ -72,15 +75,11 @@ if [[ $CLEAN_INSTALL -eq 1 ]]; then
     printf "Are you sure? [y/N] "
     read -r confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        if [ -n "$VIRTUAL_ENV" ]; then
-            echo "Deactivating active virtual environment..."
-            deactivate
-        fi
         rm -rf venv nrn libsonatareport neurodamus-models bluerecording.egg-info build
         echo "=== Clean complete ==="
     else
         echo "=== Clean cancelled ==="
-        return 0 2>/dev/null || exit 0
+        exit 0
     fi
 fi
 
@@ -128,7 +127,7 @@ export PATH=$NEURODAMUS_NEOCORTEX_ROOT/bin:$PATH
 
 export SONATAREPORT_DIR="$(pwd)/libsonatareport/build/install"
 export PATH=$(pwd)/nrn/build/install/bin:$PATH
-export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:$PYTHONPATH
+export PYTHONPATH=$(pwd)/nrn/build/install/lib/python:${PYTHONPATH:-}
 
 if [[ "$OS" == "Darwin" ]]; then
   export CORENEURONLIB="$NEURODAMUS_NEOCORTEX_ROOT/lib/libcorenrnmech.dylib"
@@ -148,18 +147,16 @@ fi
 # -------------------------
 
 echo "=== Checking for virtual environment ==="
-if [ -n "$VIRTUAL_ENV" ]; then
-    echo "Using active virtual environment: $VIRTUAL_ENV"
-elif [ -d "venv" ]; then
+if [ -d "venv" ]; then
     echo "Activating existing ./venv"
     source venv/bin/activate
 else
     echo "=== Creating virtual environment ==="
-    python3 -m venv venv
+    uv venv --python ">=3.10,<3.14" venv
     source venv/bin/activate
 fi
 
-pip install --upgrade pip setuptools wheel cython numpy
+uv pip install --upgrade pip setuptools wheel cython numpy
 
 echo "=== Configuring MPI build environment ==="
 export CC=$(which mpicc)
@@ -175,8 +172,8 @@ fi
 
 echo "=== Installing base dependencies ==="
 
-pip install mpi4py
-pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
+uv pip install mpi4py
+uv pip install --no-cache --no-binary h5py h5py --no-build-isolation
 
 # =========================================================================
 # Build components
@@ -197,17 +194,17 @@ fi
 # -------------------------
 # NEURON — built from source with reporting support
 # -------------------------
-if pip show neuron &>/dev/null; then
+if uv pip show neuron &>/dev/null; then
     echo "Error: NEURON is already installed from pip in this environment."
     echo "A pip-installed NEURON conflicts with a source build."
-    echo "Run 'pip uninstall neuron' first, or use --clean-install."
-    return 1 2>/dev/null || exit 1
+    echo "Run 'uv pip uninstall neuron' first, or use --clean-install."
+    exit 1
 fi
 if [ ! -d "nrn" ]; then
     echo "=== Building NEURON from source ==="
     git clone --branch=master https://github.com/neuronsimulator/nrn.git
     cd nrn && git checkout $NEURON_COMMIT && cd ..
-    pip install --upgrade pip -r nrn/nrn_requirements.txt
+    uv pip install --upgrade pip -r nrn/nrn_requirements.txt
 
     NRN_C_COMPILER=gcc
     NRN_CXX_COMPILER=g++
@@ -232,7 +229,7 @@ fi
 # -------------------------
 # TODO: Switch back to the PyPI release once it includes commit e5abd33
 # (https://github.com/openbraininstitute/neurodamus/commit/e5abd33ad2cc5a4450c2d5190e32afc11ee385d8)
-pip install git+https://github.com/openbraininstitute/neurodamus.git@${NEURODAMUS_COMMIT}
+uv pip install git+https://github.com/openbraininstitute/neurodamus.git@${NEURODAMUS_COMMIT}
 
 # -------------------------
 # neurodamus-models — with reporting (linked against libsonatareport)
@@ -258,18 +255,18 @@ fi
 # Install project (editable, with test + notebook deps)
 # -------------------------
 echo "=== Installing project ==="
-pip install -e ".[test,notebooks]"
+uv pip install -e ".[test,notebooks]"
 
 echo "=== Setup complete ==="
 
 # -------------------------
-# Write env.sh for non-sourced usage
+# Write env.sh for environment activation
 # -------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/env.sh"
 
 cat > "$ENV_FILE" << EOF
-# Auto-generated by setup.sh — source this to activate the environment.
+# Auto-generated by dev_setup.sh — source this to activate the environment.
 # Usage: source env.sh
 source "$SCRIPT_DIR/venv/bin/activate" 2>/dev/null || true
 export NEURODAMUS_NEOCORTEX_ROOT="$NEURODAMUS_NEOCORTEX_ROOT"
@@ -278,21 +275,15 @@ export SONATAREPORT_DIR="$SONATAREPORT_DIR"
 export CORENEURONLIB="$CORENEURONLIB"
 export NRNMECH_LIB_PATH="$NRNMECH_LIB_PATH"
 export PATH="$NEURODAMUS_NEOCORTEX_ROOT/bin:$(pwd)/nrn/build/install/bin:\$PATH"
-export PYTHONPATH="$(pwd)/nrn/build/install/lib/python:\$PYTHONPATH"
+export PYTHONPATH="$(pwd)/nrn/build/install/lib/python:\${PYTHONPATH:-}"
 EOF
 
-# Detect if script was executed (./setup.sh) rather than sourced (source setup.sh)
-# `return` succeeds only when sourced — works in both bash and zsh.
-(return 0 2>/dev/null) && _SOURCED=1 || _SOURCED=0
-if [[ $_SOURCED -eq 0 ]]; then
-    echo ""
-    echo "setup.sh was executed, not sourced."
-    echo "Environment variables are NOT set in your current shell."
-    echo "To activate the environment, run:"
-    echo ""
-    echo "    source env.sh"
-    echo ""
-fi
+echo ""
+echo "=== Environment file written to env.sh ==="
+echo "To activate the environment, run:"
+echo ""
+echo "    source env.sh"
+echo ""
 
 # -------------------------
 # Download data if requested via --data

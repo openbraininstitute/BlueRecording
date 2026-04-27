@@ -22,7 +22,7 @@ def _check_dependencies():
             "  pip uninstall h5py\n"
             "  HDF5_MPI=ON pip install --no-cache-dir --no-binary=h5py h5py "
             "--no-build-isolation\n"
-            "Or use 'source setup.sh' (or './setup.sh' followed by 'source env.sh') "
+            "Or use './dev_setup.sh' followed by 'source env.sh' "
             "which handles this automatically."
         )
 
@@ -32,7 +32,7 @@ def _check_dependencies():
         raise ImportError(
             "bluerecording requires NEURON.\n"
             "Install with: pip install bluerecording[neuron]\n"
-            "Or use 'source setup.sh' (or './setup.sh' followed by 'source env.sh') "
+            "Or use './dev_setup.sh' followed by 'source env.sh' "
             "to build from source."
         )
 

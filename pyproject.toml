@@ -2,23 +2,23 @@
 name = "bluerecording"
 dynamic = ["version"]
 description = "A tool for calculating extracellular recording lead fields"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 # NOTE on special dependencies:
 #
-#   - h5py        Requires MPI support (HDF5_MPI=ON). setup.sh pre-installs
+#   - h5py        Requires MPI support (HDF5_MPI=ON). dev_setup.sh pre-installs
 #                 the MPI-enabled build so pip skips it. __init__.py verifies
 #                 MPI support at runtime.
-#   - neurodamus  Declared below. setup.sh may install from a specific Git
+#   - neurodamus  Declared below. dev_setup.sh may install from a specific Git
 #                 branch/commit; pip skips if already satisfied.
 #   - neuron      Optional (in [neuron] extra). pip install bluerecording[neuron]
 #                 gets the pip wheel, which is enough to compute weights.
 #                 For simulations with SONATA reporting, neuron must be built
-#                 from source with libsonatareport — use setup.sh --sim.
+#                 from source with libsonatareport — use dev_setup.sh.
 #   - neurodamus-models  CMake project (not a Python package). Required in all
 #                 cases — needed to generate weights or run simulations.
-#                 Built by setup.sh.
+#                 Built by dev_setup.sh.
 #
-# Use 'source setup.sh' for automatic setup. See README for details.
+# Use './dev_setup.sh' then 'source env.sh' for automatic setup. See README for details.
 dependencies = [
     "mpi4py",
     "h5py",

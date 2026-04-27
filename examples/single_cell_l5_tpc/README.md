@@ -4,7 +4,7 @@ Extracellular recordings from a single layer 5 thick-tufted pyramidal cell place
 
 ## Prerequisites
 
-Run `source setup.sh --dev --data` from the project root. This installs all dependencies and downloads the required datasets.
+Run `./dev_setup.sh --data` from the project root, then `source env.sh`. This installs all dependencies and downloads the required datasets.
 
 This will download the files `Infinite_VeryFar_HighRes.h5` and `Infinite_Close_HighRes_SmallSphere.h5` from [our Zenodo repository](https://zenodo.org/records/10927050) into this folder.
 
@@ -34,7 +34,7 @@ bluerecording write_weights examples/single_cell_l5_tpc/simulation_config_near.j
 
 ## Running the Simulation
 
-To run the simulation you need NEURON compiled with [libsonatareport](https://github.com/openbraininstitute/libsonatareport) support. The `setup.sh` script builds NEURON from source with this support.
+To run the simulation you need NEURON compiled with [libsonatareport](https://github.com/openbraininstitute/libsonatareport) support. The `dev_setup.sh` script builds NEURON from source with this support.
 
 Once your environment is ready, run:
 
