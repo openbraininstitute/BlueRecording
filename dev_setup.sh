@@ -19,7 +19,7 @@
 # Pinned versions (edit here to update)
 # -------------------------
 NEURON_COMMIT="9.0.1"
-NEURODAMUS_COMMIT="main"
+NEURODAMUS_COMMIT="4.2.1"
 
 SKIP_SYSTEM=0
 DOWNLOAD_DATA=0
