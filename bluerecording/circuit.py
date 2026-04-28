@@ -39,11 +39,8 @@ def _ensure_simconfig(path_to_config: str):
     sim = dict(_MINIMAL_SIM_TEMPLATE)
     sim["network"] = str(path)
 
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix="_sim_config.json", delete=False, dir=path.parent
-    )
-    json.dump(sim, tmp, indent=2)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(mode="w", suffix="_sim_config.json", delete=False, dir=path.parent) as tmp:
+        json.dump(sim, tmp, indent=2)
     try:
         yield tmp.name
     finally:
