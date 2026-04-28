@@ -10,12 +10,12 @@ jobs:
         python_version: ["3.11"]
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
 
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # needed for hatch-vcs to resolve version from tags
 
@@ -25,7 +25,7 @@ jobs:
           python${{ matrix.python_version }} -m pip install --upgrade build
           python${{ matrix.python_version }} -m build .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-artifacts-${{ matrix.python_version }}-${{ strategy.job-index }}
           path: ./dist/*
@@ -37,7 +37,7 @@ jobs:
       id-token: write
     steps:
       - name: Download artifacts produced by the wheel job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-artifacts*
           path: dist/
