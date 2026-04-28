@@ -227,8 +227,6 @@ fi
 # -------------------------
 # neurodamus
 # -------------------------
-# TODO: Switch back to the PyPI release once it includes commit e5abd33
-# (https://github.com/openbraininstitute/neurodamus/commit/e5abd33ad2cc5a4450c2d5190e32afc11ee385d8)
 uv pip install git+https://github.com/openbraininstitute/neurodamus.git@${NEURODAMUS_COMMIT}
 
 # -------------------------
