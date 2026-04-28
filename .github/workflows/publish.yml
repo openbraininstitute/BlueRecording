@@ -1,0 +1,54 @@
+name: Publish to PyPI
+
+on: [pull_request, push, workflow_dispatch]
+
+jobs:
+  wheel:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python_version: ["3.11"]
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python_version }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for hatch-vcs to resolve version from tags
+
+      - name: Build Wheel
+        run: |
+          cd $GITHUB_WORKSPACE
+          python${{ matrix.python_version }} -m pip install --upgrade build
+          python${{ matrix.python_version }} -m build .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ matrix.python_version }}-${{ strategy.job-index }}
+          path: ./dist/*
+
+  pypi-publish:
+    runs-on: ubuntu-22.04
+    needs: [wheel]
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts produced by the wheel job
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-artifacts*
+          path: dist/
+          merge-multiple: true
+
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: dist
+
+      - name: Publish to PyPI
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages_dir: dist/
