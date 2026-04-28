@@ -33,13 +33,13 @@ def _check_dependencies():
         # initialized by the time it loads.
         from mpi4py import MPI  # noqa: F401
         import neuron  # noqa: F401
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "bluerecording requires NEURON.\n"
             "Install with: pip install bluerecording[neuron]\n"
             "Or use './dev_setup.sh' followed by 'source env.sh' "
             "to build from source."
-        )
+        ) from err
 
 
 _check_dependencies()

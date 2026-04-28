@@ -254,7 +254,7 @@ fi
 # Install project (editable, with test + notebook deps)
 # -------------------------
 echo "=== Installing project ==="
-uv pip install -e ".[test,notebooks]"
+uv pip install -e ".[test,notebooks,lint]"
 
 echo "=== Setup complete ==="
 
