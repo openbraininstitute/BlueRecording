@@ -27,10 +27,10 @@ def _check_dependencies():
         )
 
     try:
-        # noqa: F401 — mpi4py must be imported before neuron to ensure MPI is
-        # initialized. This is necessary when NEURON is compiled with
-        # -DNRN_ENABLE_MPI_DYNAMIC=OFF, as NEURON will not dynamically load
-        # MPI support at runtime and expects MPI to already be initialized.
+        # noqa: F401 — mpi4py must be imported before neuron to ensure
+        # MPI_Init has been called. When NEURON is statically linked against
+        # MPI (NRN_ENABLE_MPI_DYNAMIC=OFF), it expects MPI to already be
+        # initialized by the time it loads.
         from mpi4py import MPI  # noqa: F401
         import neuron  # noqa: F401
     except ImportError:
