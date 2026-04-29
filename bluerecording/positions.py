@@ -566,7 +566,7 @@ def get_positions(node_manager, ids, cols, population, morphologies_dir, replace
     neurite_type_arrays = []
     for i in ids:
         cell = node_manager.get_cell(i)
-        m, center = get_morphology(population, i, morphologies_dir, cell)
+        m, center = get_morphology(population, cell.raw_gid, morphologies_dir, cell)
 
         cell_arrays.append(get_cell_positions(m, center, cols, i, replace_axons))
 
