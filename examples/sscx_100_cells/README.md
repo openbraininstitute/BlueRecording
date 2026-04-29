@@ -4,7 +4,7 @@ Extracellular recordings from a network of 100 SSCx cells.
 
 ## Prerequisites
 
-Run `./dev_setup.sh --data` from the project root. This installs all dependencies, downloads the required datasets (networks and atlas) and creates an environment script `env.sh`. Then `source env.sh` to set up the project environment.
+Run `./dev_setup.sh` from the project root to install all dependencies, then `./download_examples_data.sh` to download the required datasets (networks and atlas). Finally, `source env.sh` to set up the project environment.
 
 ## Calculating Segment Positions
 

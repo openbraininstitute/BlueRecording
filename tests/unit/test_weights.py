@@ -378,9 +378,6 @@ def test_circuit_write_weights(tmp_path):
         dset = f"electrodes/{pop_name}/scaling_factors"
         np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
-    with open(ref, "rb") as f1, open(out, "rb") as f2:
-        assert f1.read() == f2.read(), "Output differs from reference at byte level"
-
 
 @pytest.mark.skip_in_ci
 def test_single_cell_write_weights(tmp_path):

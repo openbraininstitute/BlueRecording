@@ -22,7 +22,6 @@ NEURON_COMMIT="9.0.1"
 NEURODAMUS_COMMIT="4.2.1"
 
 SKIP_SYSTEM=0
-DOWNLOAD_DATA=0
 CLEAN_INSTALL=0
 
 # -------------------------
@@ -31,7 +30,6 @@ CLEAN_INSTALL=0
 for arg in "$@"; do
     case $arg in
         --no-system) SKIP_SYSTEM=1 ;;
-        --data) DOWNLOAD_DATA=1 ;;
         --clean-install) CLEAN_INSTALL=1 ;;
         --help|-h)
             echo "Usage: ./dev_setup.sh [OPTIONS]"
@@ -44,7 +42,6 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --no-system      Skip system package installation (brew/apt)"
-            echo "  --data           Download and unpack example datasets (atlas, networks, FEM)"
             echo "  --clean-install  Remove venv, cloned repos, and build artifacts (keeps data)"
             echo "  --help, -h       Show this help message"
             exit 0
@@ -282,80 +279,7 @@ echo "To activate the environment, run:"
 echo ""
 echo "    source env.sh"
 echo ""
-
-# -------------------------
-# Download data if requested via --data
-# -------------------------
-if [[ "$DOWNLOAD_DATA" == "1" ]]; then
-    ATLAS_DIR="examples/data/atlas"
-
-    if [ -d "$ATLAS_DIR" ] && [ "$(ls -A "$ATLAS_DIR")" ]; then
-        echo "=== Skipping atlas download — $ATLAS_DIR already exists and is not empty ==="
-    else
-        echo "=== Downloading atlas dataset ==="
-        mkdir -p examples/data
-        curl -L -o examples/data/atlas.zip \
-            "https://zenodo.org/record/10927050/files/atlas.zip?download=1"
-
-        echo "=== Unpacking atlas dataset ==="
-        unzip -q examples/data/atlas.zip -d examples/data
-
-        echo "=== Cleaning up ==="
-        rm examples/data/atlas.zip
-
-        echo "=== Atlas dataset ready at $ATLAS_DIR ==="
-    fi
-
-    # -------------------------
-    # Download networks data
-    # -------------------------
-    CONFIG_DIR="examples/sscx_100_cells/configuration"
-    NETWORK_DIR="$CONFIG_DIR/networks"
-
-    if [ -d "$NETWORK_DIR" ] && [ "$(ls -A "$NETWORK_DIR")" ]; then
-        echo "=== Skipping networks download — $NETWORK_DIR already exists and is not empty ==="
-    else
-        echo "=== Downloading networks dataset ==="
-
-        mkdir -p "$CONFIG_DIR"
-
-        curl -L -o networks.zip \
-            "https://zenodo.org/record/10927050/files/networks.zip?download=1"
-
-        echo "=== Unpacking networks dataset ==="
-        unzip -q networks.zip -d "$CONFIG_DIR"
-
-        echo "=== Cleaning up ==="
-        rm networks.zip
-
-        echo "=== Networks dataset ready at $NETWORK_DIR ==="
-    fi
-
-    # -------------------------
-    # Download single_cell_l5_tpc FEM field files
-    # -------------------------
-    L5_TPC_DIR="examples/single_cell_l5_tpc"
-    L5_TPC_FILE1="$L5_TPC_DIR/Infinite_VeryFar_HighRes.h5"
-    L5_TPC_FILE2="$L5_TPC_DIR/Infinite_Close_HighRes_SmallSphere.h5"
-
-    if [ -f "$L5_TPC_FILE1" ] && [ -f "$L5_TPC_FILE2" ]; then
-        echo "=== Skipping single_cell_l5_tpc FEM field download — files already exist ==="
-    else
-        echo "=== Downloading single_cell_l5_tpc FEM field files ==="
-        mkdir -p "$L5_TPC_DIR"
-
-        if [ ! -f "$L5_TPC_FILE1" ]; then
-            curl -L -o "$L5_TPC_FILE1" \
-                "https://zenodo.org/record/10927050/files/Infinite_VeryFar_HighRes.h5?download=1"
-        fi
-
-        if [ ! -f "$L5_TPC_FILE2" ]; then
-            curl -L -o "$L5_TPC_FILE2" \
-                "https://zenodo.org/record/10927050/files/Infinite_Close_HighRes_SmallSphere.h5?download=1"
-        fi
-
-        echo "=== single_cell_l5_tpc FEM field files ready ==="
-    fi
-else
-    echo "=== Skipping data download — --data not given ==="
-fi
+echo "To download example datasets (atlas, networks, FEM fields), run:"
+echo ""
+echo "    ./download_examples_data.sh"
+echo ""

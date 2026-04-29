@@ -53,7 +53,7 @@ Use `--clean-install` to wipe the virtual environment and all build artifacts be
 source env.sh
 ```
 
-If you want to run the full testing suite you need `--data`. See the [Testing](#testing) section for details.
+If you want to run the full testing suite you need to download the example data. See the [Testing](#testing) section for details.
 
 ---
 # Input data
@@ -75,10 +75,11 @@ In subsequent sessions, running `source env.sh` will activate the existing envir
 ---
 # Testing
 
-First, make sure you have set up the development environment with test data:
+First, make sure you have set up the development environment and downloaded the test data:
 
 ```bash
-./dev_setup.sh --data
+./dev_setup.sh
+./download_examples_data.sh
 source env.sh
 ```
 

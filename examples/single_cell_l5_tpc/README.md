@@ -4,7 +4,7 @@ Extracellular recordings from a single layer 5 thick-tufted pyramidal cell place
 
 ## Prerequisites
 
-Run `./dev_setup.sh --data` from the project root. This installs all dependencies, downloads the required datasets and creates an environment script `env.sh`. Then `source env.sh` to set up the project environment.
+Run `./dev_setup.sh` from the project root to install all dependencies, then `./download_examples_data.sh` to download the required datasets. Finally, `source env.sh` to set up the project environment.
 
 This will download the files `Infinite_VeryFar_HighRes.h5` and `Infinite_Close_HighRes_SmallSphere.h5` from [our Zenodo repository](https://zenodo.org/records/10927050) into this folder.
 

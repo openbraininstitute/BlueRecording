@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # run_tests.sh — Run all tests (unit + MPI) in the dev environment.
 #
-# Assumes that './dev_setup.sh --data' has been called at least once.
+# Assumes that './dev_setup.sh' and './download_examples_data.sh' have been
+# called at least once.
 #
 # Usage:
 #   ./run_tests.sh              # run all tests
