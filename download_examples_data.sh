@@ -19,8 +19,12 @@ OS="$(uname -s)"
 if ! command -v unzip &>/dev/null; then
     if [[ "$OS" == "Linux" ]]; then
         echo "=== Installing unzip (required for data extraction) ==="
-        sudo apt update
-        sudo apt install -y unzip
+        SUDO=""
+        if [[ $(id -u) -ne 0 ]] && command -v sudo &>/dev/null; then
+            SUDO="sudo"
+        fi
+        $SUDO apt update
+        $SUDO apt install -y unzip
     else
         echo "Error: unzip is not installed and could not be installed automatically."
         exit 1

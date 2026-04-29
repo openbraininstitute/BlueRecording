@@ -99,8 +99,12 @@ if [[ $SKIP_SYSTEM -eq 0 ]]; then
 
     elif [[ "$OS" == "Linux" ]]; then
         echo "Linux detected"
-        sudo apt update
-        sudo apt install -y \
+        SUDO=""
+        if [[ $(id -u) -ne 0 ]] && command -v sudo &>/dev/null; then
+            SUDO="sudo"
+        fi
+        $SUDO apt update
+        $SUDO apt install -y \
             openmpi-bin \
             libopenmpi-dev \
             libhdf5-openmpi-dev \
