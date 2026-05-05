@@ -14,7 +14,7 @@ size = comm.Get_size()
 @pytest.mark.skip_in_ci
 @pytest.mark.mpi(ranks=2)
 def test_single_cell_get_positions_mpi(tmp_path):
-    """Test get_positions for single_cell_l5_tpc split across 2 MPI ranks."""
+    """Test _get_positions for single_cell_l5_tpc split across 2 MPI ranks."""
     assert size == 2
 
     output_dir = comm.bcast(tmp_path, root=0)
@@ -22,7 +22,7 @@ def test_single_cell_get_positions_mpi(tmp_path):
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
 
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(path_to_simconfig)
-    positions_df, _, _ = positions.get_positions(
+    positions_df, _, _ = positions._get_positions(
         node_manager,
         ids,
         cols,

@@ -14,14 +14,14 @@ size = comm.Get_size()
 
 @pytest.mark.mpi(ranks=2)
 def test_rat_s1_get_positions_mpi(tmp_path):
-    """Test get_positions for rat_s1_forelimb_l56_10cells with 2 MPI ranks."""
+    """Test _get_positions for rat_s1_forelimb_l56_10cells with 2 MPI ranks."""
     assert size == 2
 
     output_dir = comm.bcast(tmp_path, root=0)
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
 
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(circuit_config)
-    positions_df, _, _ = positions.get_positions(
+    positions_df, _, _ = positions._get_positions(
         node_manager,
         ids,
         cols,

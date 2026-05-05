@@ -17,7 +17,7 @@ def test_sscx_100_cells_write_weights(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, cols, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = _get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -39,7 +39,7 @@ def test_rat_s1_write_weights(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, cols, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = _get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -61,7 +61,7 @@ def test_single_cell_write_weights_near(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, cols, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = _get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -83,7 +83,7 @@ def test_single_cell_write_weights_distant(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, cols, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = _get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -106,7 +106,7 @@ def test_rat_s1_neurite_types(tmp_path):
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
-    pos_df, cols, neurite_types = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, cols, neurite_types = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = _get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types)

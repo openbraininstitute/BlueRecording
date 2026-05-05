@@ -531,7 +531,7 @@ def _find_morph_file(morph_name: str, morph_dir: str) -> str:
     raise FileNotFoundError(f"Morphology '{morph_name}' not found in {morph_dir}")
 
 
-def get_positions(
+def _get_positions(
     node_manager,
     ids: np.ndarray,
     cols: np.ndarray,
@@ -599,7 +599,7 @@ def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | P
     """Write positions DataFrame to a pickle file for this MPI rank.
 
     Args:
-        positions_df: DataFrame returned by get_positions.
+        positions_df: DataFrame returned by compute_positions.
         path_to_positions_folder: Output directory.
     """
     path_to_positions_folder = Path(path_to_positions_folder)
@@ -628,7 +628,7 @@ def compute_positions(
         neurite_types: (N,) int32 array of neurite type codes per compartment.
     """
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
-    return get_positions(
+    return _get_positions(
         node_manager,
         ids,
         cols,

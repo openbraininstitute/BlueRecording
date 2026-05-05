@@ -10,6 +10,9 @@ from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
 
+from . import positions as _pos_module
+from .circuit import init_circuit
+
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
 
@@ -881,11 +884,11 @@ def _get_weights(
 ) -> pd.DataFrame | None:
     """Compute electrode transfer coefficients from pre-computed positions.
 
-    Pure computation — no file I/O. Mirrors ``positions.get_positions``.
+    Pure computation — no file I/O.
 
     Args:
         positions: DataFrame of segment boundary positions (from
-            ``get_positions``).
+            ``compute_positions``).
         cols: (N, 2) int64 array of (gid, section) pairs.
         electrodes: Electrode metadata (dict or path to CSV).
         sigma: Extracellular conductivity value(s) in S/m.
@@ -949,12 +952,9 @@ def compute_weights(
         neurite_types: (N,) int32 array of neurite type codes per compartment.
         population_name: SONATA population name (needed by ``save_weights``).
     """
-    from . import positions as pos_module
-    from .circuit import init_circuit
-
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
 
-    positions_df, cols, neurite_types = pos_module.get_positions(
+    positions_df, cols, neurite_types = _pos_module._get_positions(
         node_manager,
         ids,
         cols,
@@ -989,7 +989,7 @@ def save_weights(
 
     Args:
         weights: DataFrame of transfer coefficients returned by
-            ``get_weights_and_positions``, or None for empty ranks.
+            ``compute_weights``, or None for empty ranks.
         cols: (N, 2) array of (gid, section) pairs for this rank.
         population_name: SONATA population name.
         outputfile: Path to the output HDF5 weights file.

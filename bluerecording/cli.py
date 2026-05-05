@@ -84,7 +84,7 @@ def main():
 
         electrodes = Electrode.from_csv(args.electrode_csv)
 
-        positions_df, cols, neurite_types = positions.get_positions(
+        positions_df, cols, neurite_types = positions._get_positions(
             node_manager,
             ids,
             cols,

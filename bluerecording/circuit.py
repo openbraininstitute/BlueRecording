@@ -3,7 +3,7 @@
 
 Provides the entry point for loading a circuit model and extracting
 the discretization info (node IDs, compartment structure, morphology access)
-needed by both get_positions and write_weights.
+needed by both compute_positions and compute_weights.
 """
 
 import libsonata

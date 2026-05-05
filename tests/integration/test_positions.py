@@ -8,12 +8,12 @@ from bluerecording.circuit import init_circuit
 
 @pytest.mark.skip_in_ci
 def test_single_cell_get_positions(tmp_path):
-    """Test get_positions for single_cell_l5_tpc."""
+    """Test _get_positions for single_cell_l5_tpc."""
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
 
     nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, _, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
@@ -26,12 +26,12 @@ def test_single_cell_get_positions(tmp_path):
 
 @pytest.mark.skip_in_ci
 def test_sscx_100_cells_get_positions(tmp_path):
-    """Test get_positions for sscx_100_cells."""
+    """Test _get_positions for sscx_100_cells."""
     simconfig = "examples/sscx_100_cells/simulation_config.json"
     ref_path = "examples/sscx_100_cells/reference/positions0_ref.pkl"
 
     nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    pos_df, _, _ = positions._get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
     df_ref = pd.read_pickle(ref_path)
@@ -43,7 +43,7 @@ def test_sscx_100_cells_get_positions(tmp_path):
 
 
 def test_rat_s1_get_positions(tmp_path):
-    """Test get_positions using a circuit_config.json (no simulation config).
+    """Test _get_positions using a circuit_config.json (no simulation config).
 
     Exercises the resolve_config path that generates a temporary simulation
     config on the fly from a circuit config.
@@ -54,7 +54,7 @@ def test_rat_s1_get_positions(tmp_path):
     ref_path = str(EXAMPLE_RAT_S1 / "reference" / "positions0_ref.pkl")
 
     nm, ids, cols, pop, _, morphologies_dir = init_circuit(circuit_config)
-    pos_df, _, _ = positions.get_positions(
+    pos_df, _, _ = positions._get_positions(
         nm,
         ids,
         cols,
