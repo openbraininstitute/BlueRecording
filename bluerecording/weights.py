@@ -903,9 +903,7 @@ def write_h5_file(
 
     # Resolve electrodes
     if isinstance(electrodes, str):
-        electrodes_resolved = Electrode.from_csv(electrodes)
-    else:
-        electrodes_resolved = electrodes
+        electrodes = Electrode.from_csv(electrodes)
 
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
@@ -927,7 +925,7 @@ def write_h5_file(
         return
 
     all_coeffs = _compute_electrode_coeffs(
-        electrodes_resolved,
+        electrodes,
         positions,
         columns,
         node_ids,
