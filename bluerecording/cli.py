@@ -4,7 +4,7 @@ from pathlib import Path
 from . import __version__, positions
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
-from .weights import DEFAULT_SIGMA, Electrode, initialize_h5_file, write_h5_file
+from .weights import DEFAULT_SIGMA, Electrode, save_weights_file
 
 
 def main():
@@ -96,10 +96,7 @@ def main():
 
         electrodes = Electrode.from_csv(args.electrode_csv)
 
-        initialize_h5_file(
-            cols, population_name, str(output_file), electrodes, with_neurite_type=args.with_neurite_type
-        )
-        write_h5_file(
+        save_weights_file(
             positions_df,
             cols,
             population_name,

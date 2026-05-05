@@ -6,7 +6,7 @@ from mpi4py import MPI
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import Electrode, initialize_h5_file, write_h5_file
+from bluerecording.weights import Electrode, save_weights_file
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -36,8 +36,7 @@ def test_single_cell_write_weights_near_mpi(tmp_path):
         morphologies_dir=morphologies_dir,
     )
     electrodes = Electrode.from_csv(electrode_csv)
-    initialize_h5_file(cols, population_name, output_path, electrodes)
-    write_h5_file(
+    save_weights_file(
         positions_df, cols, population_name, output_path, electrodes=electrodes, path_to_fields=[field_path, field_path]
     )
 

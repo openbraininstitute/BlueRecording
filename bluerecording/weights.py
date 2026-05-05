@@ -179,7 +179,7 @@ def _init_scaling_factors_and_offsets(
     )
 
 
-def initialize_h5_file(
+def _init_weights_file(
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
@@ -758,7 +758,7 @@ def get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
-def _compute_electrode_coeffs(
+def _get_weights(
     electrodes: dict[str, Electrode],
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
@@ -871,7 +871,7 @@ def _write_neurite_types(
         h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
 
 
-def write_h5_file(
+def save_weights_file(
     positions: pd.DataFrame,
     cols: np.ndarray,
     population_name: str,
@@ -882,13 +882,18 @@ def write_h5_file(
     objective_csd_array_indices: list[str] | None = None,
     neurite_types: np.ndarray | None = None,
 ) -> None:
-    """Compute and write electrode coefficients to the HDF5 weights file.
+    """Compute electrode coefficients, initialize the H5 file, and write results.
+
+    This is the single entry point for producing a weights file. It:
+    1. Computes the transfer coefficients on each rank.
+    2. Initializes the HDF5 file structure (gather to rank 0).
+    3. Writes the coefficients in parallel.
 
     Args:
         positions: DataFrame of segment boundary positions.
         cols: (N, 2) array of (gid, section) pairs for this rank.
         population_name: SONATA population name.
-        outputfile: Path to the HDF5 weights file.
+        outputfile: Path to the output HDF5 weights file.
         electrodes: Electrode metadata. Can be:
             - A dict mapping electrode name to ``Electrode`` objects.
             - A path (str) to an electrode CSV file.
@@ -908,6 +913,29 @@ def write_h5_file(
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
 
+    # 1. Compute coefficients (rank-local, no I/O)
+    all_coeffs = None
+    if len(node_ids) > 0:
+        all_coeffs = _get_weights(
+            electrodes,
+            positions,
+            columns,
+            node_ids,
+            sigma,
+            path_to_fields,
+            objective_csd_array_indices,
+        )
+
+    # 2. Initialize the file (gather + rank 0 creates structure + barrier)
+    _init_weights_file(
+        cols,
+        population_name,
+        outputfile,
+        electrodes,
+        with_neurite_type=neurite_types is not None,
+    )
+
+    # 3. Write coefficients in parallel
     comm = MPI.COMM_WORLD
     if comm.Get_size() > 1:
         h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
@@ -924,16 +952,7 @@ def write_h5_file(
         h5.close()
         return
 
-    all_coeffs = _compute_electrode_coeffs(
-        electrodes,
-        positions,
-        columns,
-        node_ids,
-        sigma,
-        path_to_fields,
-        objective_csd_array_indices,
-    )
-    add_data(h5, node_ids, all_coeffs, population_name)
+    add_data(h5, node_ids, all_coeffs, population_name)  # type: ignore[arg-type]
 
     if neurite_types is not None:
         _write_neurite_types(h5, cols, node_ids, neurite_types, population_name)
