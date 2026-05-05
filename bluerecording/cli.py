@@ -16,9 +16,7 @@ def main():
 
     # write_positions command
     gp_parser = subparsers.add_parser("write_positions", help="Compute and save segment positions to disk")
-    gp_parser.add_argument(
-        "path_to_simconfig", type=str, help="Path to the simulation or circuit configuration file"
-    )
+    gp_parser.add_argument("path_to_simconfig", type=str, help="Path to the simulation or circuit configuration file")
     gp_parser.add_argument(
         "path_to_positions_folder", type=str, help="Path to the folder where positions will be stored"
     )
@@ -31,9 +29,7 @@ def main():
 
     # write_weights command
     ww_parser = subparsers.add_parser("write_weights", help="Compute electrode weights for all cells in the circuit")
-    ww_parser.add_argument(
-        "path_to_simconfig", type=str, help="Path to the simulation or circuit configuration file"
-    )
+    ww_parser.add_argument("path_to_simconfig", type=str, help="Path to the simulation or circuit configuration file")
     ww_parser.add_argument("electrode_csv", type=str, help="Path to the electrode CSV file")
     ww_parser.add_argument(
         "output_path",

@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import numpy as np
 import pandas as pd
-import pytest
 
 from bluerecording import positions
-
 from tests.helpers import (
     SOMA_POS,
     make_morphology,

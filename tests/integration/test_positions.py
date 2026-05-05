@@ -55,7 +55,11 @@ def test_rat_s1_get_positions(tmp_path):
 
     nm, ids, cols, pop, _, morphologies_dir = init_circuit(circuit_config)
     pos_df, _, _ = positions.get_positions(
-        nm, ids, cols, pop, morphologies_dir=morphologies_dir,
+        nm,
+        ids,
+        cols,
+        pop,
+        morphologies_dir=morphologies_dir,
     )
 
     positions.save_positions(pos_df, tmp_path)

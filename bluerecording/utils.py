@@ -92,7 +92,7 @@ def resolve_config(path: str | Path):
         tmp_name = None
         if rank == 0:
             sim_cfg = _make_simulation_config(path)
-            tmp = tempfile.NamedTemporaryFile(
+            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115  # noqa: SIM115
                 mode="w",
                 suffix=".json",
                 prefix=".bluerecording_sim_",

@@ -47,9 +47,7 @@ def init_circuit(path_to_config: str):
             keep_build=False,
             simulator="NEURON",
         )
-        assert len(nd.circuits.node_managers) == 1, (
-            "Multiple or no node managers are not allowed for the moment"
-        )
+        assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
         node_manager = next(iter(nd.circuits.node_managers.values()))
 
         ids = node_manager.get_final_gids()

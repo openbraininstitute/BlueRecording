@@ -45,4 +45,5 @@ def _check_dependencies():
 _check_dependencies()
 
 # Public API
-from .positions import compute_positions, save_positions  # noqa: E402
+from .positions import compute_positions as compute_positions  # noqa: E402
+from .positions import save_positions as save_positions  # noqa: E402

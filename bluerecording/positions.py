@@ -10,6 +10,8 @@ from morphio import Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
 
+from .circuit import init_circuit
+
 rank = MPI.COMM_WORLD.Get_rank()
 
 
@@ -627,7 +629,10 @@ def compute_positions(
     """
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
     return get_positions(
-        node_manager, ids, cols, population,
+        node_manager,
+        ids,
+        cols,
+        population,
         morphologies_dir=morphologies_dir,
         replace_axons=replace_axons,
     )

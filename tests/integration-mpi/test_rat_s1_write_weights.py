@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from mpi4py import MPI
-import numpy as np
 import h5py
+import numpy as np
 import pytest
+from mpi4py import MPI
 
-from bluerecording.circuit import init_circuit
 from bluerecording import positions
+from bluerecording.circuit import init_circuit
 from bluerecording.weights import initialize_h5_file, write_h5_file
 from tests.conftest import EXAMPLE_RAT_S1
 
@@ -27,7 +27,10 @@ def test_rat_s1_write_weights_mpi(tmp_path):
 
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
     positions_df, cols, _ = positions.get_positions(
-        node_manager, ids, cols, population,
+        node_manager,
+        ids,
+        cols,
+        population,
         morphologies_dir=morphologies_dir,
     )
 

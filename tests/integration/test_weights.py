@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import numpy as np
 import h5py
+import numpy as np
 import pytest
 
-from bluerecording.circuit import init_circuit
 from bluerecording import positions
+from bluerecording.circuit import init_circuit
 from bluerecording.weights import initialize_h5_file, write_h5_file
 
 
@@ -95,6 +95,7 @@ def test_single_cell_write_weights_distant(tmp_path):
 def test_rat_s1_neurite_types(tmp_path):
     """Write weights with --with-neurite-type and verify types independently."""
     from neurodamus.metype import BaseCell
+
     from tests.conftest import EXAMPLE_RAT_S1
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
@@ -103,12 +104,15 @@ def test_rat_s1_neurite_types(tmp_path):
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, neurite_types = positions.get_positions(
-        nm, ids, cols, pop, morphologies_dir=morphologies_dir,
+        nm,
+        ids,
+        cols,
+        pop,
+        morphologies_dir=morphologies_dir,
     )
 
     initialize_h5_file(cols, pop_name, out, csv, with_neurite_type=True)
-    write_h5_file(pos_df, cols, pop_name, out,
-                  neurite_types=neurite_types)
+    write_h5_file(pos_df, cols, pop_name, out, neurite_types=neurite_types)
 
     # --- Independent verification ---
     type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
@@ -119,7 +123,7 @@ def test_rat_s1_neurite_types(tmp_path):
 
         expected_map = {}
         offset = 0
-        for (sec_type, _), count in zip(BaseCell.SECTION_TYPES, counts):
+        for (sec_type, _), count in zip(BaseCell.SECTION_TYPES, counts, strict=False):
             for local_idx in range(count):
                 expected_map[offset + local_idx] = type_to_code[sec_type]
             offset += count

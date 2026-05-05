@@ -23,9 +23,7 @@ from bluerecording.weights import (
     get_offsets,
     get_segment_midpts,
     get_thickness,
-    initialize_h5_file,
     sort_electrode_names,
-    write_h5_file,
 )
 from tests.helpers import (
     GIDS,
