@@ -183,7 +183,7 @@ def initialize_h5_file(
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
-    electrode_csv: str,
+    electrodes: dict[str, Electrode],
     with_neurite_type: bool = False,
 ) -> None:
     """Initialize the HDF5 electrode weights file on rank 0.
@@ -196,7 +196,7 @@ def initialize_h5_file(
         cols: Rank-local (N, 2) int64 array of (gid, section) pairs.
         population_name: SONATA population name.
         outputfile: Path to the output HDF5 file.
-        electrode_csv: Path to the electrode CSV file.
+        electrodes: Mapping of electrode name to ``Electrode`` objects.
         with_neurite_type: If True, pre-allocate a neurite_types dataset.
     """
     comm = MPI.COMM_WORLD
@@ -210,8 +210,6 @@ def initialize_h5_file(
         node_ids = np.unique(all_cols[:, 0])
 
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
-
-        electrodes = Electrode.from_csv(electrode_csv)
 
         with h5py.File(outputfile, "w") as h5file:
             # Tune HDF5 metadata cache for faster writes
@@ -747,9 +745,7 @@ def get_objective_csd_array(
         electrode_idx: Index of the current electrode in the sorted list.
     """
     if objective_csd_array_indices is None:
-        all_types = [
-            e.type.type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered
-        ]
+        all_types = [e.type.type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered]
         array_idx = [i for i, t in enumerate(all_types) if t == electrode_type]
     else:
         array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
@@ -875,50 +871,12 @@ def _write_neurite_types(
         h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
 
 
-def _read_electrodes_from_h5(h5: h5py.File, population_name: str) -> dict[str, Electrode]:
-    """Reconstruct Electrode objects from an already-initialized H5 file.
-
-    This is a backward-compatibility helper for callers that don't pass
-    electrode metadata explicitly.
-    """
-    electrode_names = sort_electrode_names(h5["electrodes"].keys(), population_name)
-    electrodes: dict[str, Electrode] = {}
-
-    for name in electrode_names:
-        grp = h5["electrodes"][str(name)]
-        position = grp["position"][:]
-        type_raw = grp["type"][()].decode()
-        etype = ElectrodeType(type_raw)
-
-        region = grp["region"][()].decode() if "region" in grp else "NA"
-        layer = grp["layer"][()].decode() if "layer" in grp else "NA"
-
-        if "ObjectiveCSD" in etype:
-            radius = grp["type"].attrs.get("radius", None)
-            thickness = grp["type"].attrs.get("thickness", None)
-            electrodes[str(name)] = Electrode(
-                position=position,
-                type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
-                region=region,
-                layer=layer,
-            )
-        else:
-            electrodes[str(name)] = Electrode(
-                position=position,
-                type=etype,
-                region=region,
-                layer=layer,
-            )
-
-    return electrodes
-
-
 def write_h5_file(
     positions: pd.DataFrame,
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
-    electrodes: dict[str, Electrode] | str | None = None,
+    electrodes: dict[str, Electrode] | str,
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
@@ -934,7 +892,6 @@ def write_h5_file(
         electrodes: Electrode metadata. Can be:
             - A dict mapping electrode name to ``Electrode`` objects.
             - A path (str) to an electrode CSV file.
-            - None to read electrode metadata from the H5 file (deprecated).
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
@@ -945,19 +902,10 @@ def write_h5_file(
         sigma = [DEFAULT_SIGMA]
 
     # Resolve electrodes
-    if electrodes is None:
-        warnings.warn(
-            "Calling write_h5_file without electrodes is deprecated. "
-            "Pass electrodes as a dict or CSV path.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Fall back to reading from the H5 file for backward compatibility
-        electrodes_dict = None
-    elif isinstance(electrodes, str):
-        electrodes_dict = Electrode.from_csv(electrodes)
+    if isinstance(electrodes, str):
+        electrodes_resolved = Electrode.from_csv(electrodes)
     else:
-        electrodes_dict = electrodes
+        electrodes_resolved = electrodes
 
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
@@ -978,12 +926,8 @@ def write_h5_file(
         h5.close()
         return
 
-    if electrodes_dict is None:
-        # Deprecated path: reconstruct electrodes from the H5 file
-        electrodes_dict = _read_electrodes_from_h5(h5, population_name)
-
     all_coeffs = _compute_electrode_coeffs(
-        electrodes_dict,
+        electrodes_resolved,
         positions,
         columns,
         node_ids,

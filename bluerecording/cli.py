@@ -4,7 +4,7 @@ from pathlib import Path
 from . import __version__, positions
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
-from .weights import DEFAULT_SIGMA, initialize_h5_file, write_h5_file
+from .weights import DEFAULT_SIGMA, Electrode, initialize_h5_file, write_h5_file
 
 
 def main():
@@ -94,15 +94,17 @@ def main():
         elif output_file.suffix != ".h5":
             parser.error(f"output_path must be a directory or an .h5 file, got '{output_file}'")
 
+        electrodes = Electrode.from_csv(args.electrode_csv)
+
         initialize_h5_file(
-            cols, population_name, str(output_file), args.electrode_csv, with_neurite_type=args.with_neurite_type
+            cols, population_name, str(output_file), electrodes, with_neurite_type=args.with_neurite_type
         )
         write_h5_file(
             positions_df,
             cols,
             population_name,
             str(output_file),
-            electrodes=args.electrode_csv,
+            electrodes=electrodes,
             sigma=args.sigma,
             path_to_fields=args.path_to_fields,
             neurite_types=neurite_types if args.with_neurite_type else None,

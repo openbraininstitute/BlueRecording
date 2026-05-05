@@ -6,7 +6,7 @@ from mpi4py import MPI
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import initialize_h5_file, write_h5_file
+from bluerecording.weights import Electrode, initialize_h5_file, write_h5_file
 from tests.conftest import EXAMPLE_RAT_S1
 
 comm = MPI.COMM_WORLD
@@ -34,8 +34,9 @@ def test_rat_s1_write_weights_mpi(tmp_path):
         morphologies_dir=morphologies_dir,
     )
 
-    initialize_h5_file(cols, population_name, output_path, csv)
-    write_h5_file(positions_df, cols, population_name, output_path)
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, population_name, output_path, electrodes)
+    write_h5_file(positions_df, cols, population_name, output_path, electrodes=electrodes)
 
     comm.Barrier()
 

@@ -5,7 +5,7 @@ import pytest
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import initialize_h5_file, write_h5_file
+from bluerecording.weights import Electrode, initialize_h5_file, write_h5_file
 
 
 @pytest.mark.skip_in_ci
@@ -18,8 +18,9 @@ def test_sscx_100_cells_write_weights(tmp_path):
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    initialize_h5_file(cols, pop_name, out, csv)
-    write_h5_file(pos_df, cols, pop_name, out)
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, pop_name, out, electrodes)
+    write_h5_file(pos_df, cols, pop_name, out, electrodes=electrodes)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -40,8 +41,9 @@ def test_rat_s1_write_weights(tmp_path):
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
 
-    initialize_h5_file(cols, pop_name, out, csv)
-    write_h5_file(pos_df, cols, pop_name, out)
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, pop_name, out, electrodes)
+    write_h5_file(pos_df, cols, pop_name, out, electrodes=electrodes)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -61,8 +63,9 @@ def test_single_cell_write_weights_near(tmp_path):
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    initialize_h5_file(cols, pop_name, out, csv)
-    write_h5_file(pos_df, cols, pop_name, out, path_to_fields=[field, field])
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, pop_name, out, electrodes)
+    write_h5_file(pos_df, cols, pop_name, out, electrodes=electrodes, path_to_fields=[field, field])
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -82,8 +85,9 @@ def test_single_cell_write_weights_distant(tmp_path):
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    initialize_h5_file(cols, pop_name, out, csv)
-    write_h5_file(pos_df, cols, pop_name, out, path_to_fields=[field, field])
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, pop_name, out, electrodes)
+    write_h5_file(pos_df, cols, pop_name, out, electrodes=electrodes, path_to_fields=[field, field])
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -111,8 +115,9 @@ def test_rat_s1_neurite_types(tmp_path):
         morphologies_dir=morphologies_dir,
     )
 
-    initialize_h5_file(cols, pop_name, out, csv, with_neurite_type=True)
-    write_h5_file(pos_df, cols, pop_name, out, neurite_types=neurite_types)
+    electrodes = Electrode.from_csv(csv)
+    initialize_h5_file(cols, pop_name, out, electrodes, with_neurite_type=True)
+    write_h5_file(pos_df, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types)
 
     # --- Independent verification ---
     type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
