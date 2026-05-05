@@ -731,17 +731,25 @@ def get_objective_csd_array(
     electrode_type: ElectrodeType,
     objective_csd_array_indices: list[str] | None,
     objective_csd_count: int,
-    electrode_names: np.ndarray,
-    h5: h5py.File,
+    electrodes_ordered: list[Electrode],
     electrode_idx: int,
 ) -> tuple[list[int] | range, int]:
     """Determine which electrodes belong to the objective CSD array.
 
     If no explicit indices are given, all electrodes matching the type
     are used. Otherwise the provided subsampling indices are applied.
+
+    Args:
+        electrode_type: The ObjectiveCSD electrode type to match.
+        objective_csd_array_indices: Optional list of 'start:end' range specs.
+        objective_csd_count: Running count of CSD arrays encountered so far.
+        electrodes_ordered: List of Electrode objects in sorted order.
+        electrode_idx: Index of the current electrode in the sorted list.
     """
     if objective_csd_array_indices is None:
-        all_types = [h5["electrodes"][str(e)]["type"][()].decode() for e in electrode_names]
+        all_types = [
+            e.type.type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered
+        ]
         array_idx = [i for i, t in enumerate(all_types) if t == electrode_type]
     else:
         array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
@@ -755,30 +763,42 @@ def get_objective_csd_array(
 
 
 def _compute_electrode_coeffs(
-    h5: h5py.File,
+    electrodes: dict[str, Electrode],
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
     node_ids: np.ndarray,
-    population_name: str,
     sigma: list[float],
     path_to_fields: list[str] | None,
     objective_csd_array_indices: list[str] | None,
 ) -> pd.DataFrame:
-    """Compute coefficients for every electrode in the H5 file.
+    """Compute coefficients for every electrode.
 
     Dispatches to the appropriate coefficient function based on each
     electrode's type and returns the concatenated result.
+
+    Args:
+        electrodes: Ordered mapping of electrode name to Electrode object.
+        positions: DataFrame of segment boundary positions.
+        columns: MultiIndex of (gid, section) pairs for the output.
+        node_ids: Unique node IDs on this rank.
+        sigma: Extracellular conductivity value(s) in S/m.
+        path_to_fields: Path(s) to potential/E-field files for reciprocity.
+        objective_csd_array_indices: Subsampling indices for objective CSD.
     """
     coeff_list = []
-    electrode_names = sort_electrode_names(h5["electrodes"].keys(), population_name)
+    electrodes_ordered = list(electrodes.values())
 
     reciprocity_idx = 0
     sigma_idx = 0
     objective_csd_count = 0
 
-    for electrode_idx, electrode in enumerate(electrode_names):
-        epos = h5["electrodes"][str(electrode)]["position"][:]
-        electrode_type = ElectrodeType(h5["electrodes"][str(electrode)]["type"][()].decode())
+    for electrode_idx, electrode in enumerate(electrodes_ordered):
+        epos = electrode.position
+
+        if isinstance(electrode.type, ObjectiveCSDParams):
+            electrode_type = electrode.type.type
+        else:
+            electrode_type = electrode.type
 
         if electrode_type is ElectrodeType.LINE_SOURCE:
             coeffs = get_coeffs_line_source(positions, columns, epos, sigma[sigma_idx])
@@ -798,13 +818,17 @@ def _compute_electrode_coeffs(
                     electrode_type,
                     objective_csd_array_indices,
                     objective_csd_count,
-                    electrode_names,
-                    h5,
+                    electrodes_ordered,
                     electrode_idx,
                 )
-                all_epos = [h5["electrodes"][str(e)]["position"][:] for e in electrode_names[array_idx]]
-                radius = h5["electrodes"][str(electrode)]["type"].attrs.get("radius", None)
-                thickness = h5["electrodes"][str(electrode)]["type"].attrs.get("thickness", None)
+                all_epos = [electrodes_ordered[i].position for i in array_idx]
+
+                if isinstance(electrode.type, ObjectiveCSDParams):
+                    radius = electrode.type.radius
+                    thickness = electrode.type.thickness
+                else:
+                    radius = None
+                    thickness = None
 
                 if electrode_type is ElectrodeType.OBJECTIVE_CSD_SPHERE:
                     coeffs = get_coeffs_objective_csd_sphere(mid_positions, epos, all_epos, radius)
@@ -851,11 +875,50 @@ def _write_neurite_types(
         h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
 
 
+def _read_electrodes_from_h5(h5: h5py.File, population_name: str) -> dict[str, Electrode]:
+    """Reconstruct Electrode objects from an already-initialized H5 file.
+
+    This is a backward-compatibility helper for callers that don't pass
+    electrode metadata explicitly.
+    """
+    electrode_names = sort_electrode_names(h5["electrodes"].keys(), population_name)
+    electrodes: dict[str, Electrode] = {}
+
+    for name in electrode_names:
+        grp = h5["electrodes"][str(name)]
+        position = grp["position"][:]
+        type_raw = grp["type"][()].decode()
+        etype = ElectrodeType(type_raw)
+
+        region = grp["region"][()].decode() if "region" in grp else "NA"
+        layer = grp["layer"][()].decode() if "layer" in grp else "NA"
+
+        if "ObjectiveCSD" in etype:
+            radius = grp["type"].attrs.get("radius", None)
+            thickness = grp["type"].attrs.get("thickness", None)
+            electrodes[str(name)] = Electrode(
+                position=position,
+                type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
+                region=region,
+                layer=layer,
+            )
+        else:
+            electrodes[str(name)] = Electrode(
+                position=position,
+                type=etype,
+                region=region,
+                layer=layer,
+            )
+
+    return electrodes
+
+
 def write_h5_file(
     positions: pd.DataFrame,
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
+    electrodes: dict[str, Electrode] | str | None = None,
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
@@ -868,6 +931,10 @@ def write_h5_file(
         cols: (N, 2) array of (gid, section) pairs for this rank.
         population_name: SONATA population name.
         outputfile: Path to the HDF5 weights file.
+        electrodes: Electrode metadata. Can be:
+            - A dict mapping electrode name to ``Electrode`` objects.
+            - A path (str) to an electrode CSV file.
+            - None to read electrode metadata from the H5 file (deprecated).
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
@@ -876,6 +943,21 @@ def write_h5_file(
     """
     if sigma is None:
         sigma = [DEFAULT_SIGMA]
+
+    # Resolve electrodes
+    if electrodes is None:
+        warnings.warn(
+            "Calling write_h5_file without electrodes is deprecated. "
+            "Pass electrodes as a dict or CSV path.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Fall back to reading from the H5 file for backward compatibility
+        electrodes_dict = None
+    elif isinstance(electrodes, str):
+        electrodes_dict = Electrode.from_csv(electrodes)
+    else:
+        electrodes_dict = electrodes
 
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
@@ -896,12 +978,15 @@ def write_h5_file(
         h5.close()
         return
 
+    if electrodes_dict is None:
+        # Deprecated path: reconstruct electrodes from the H5 file
+        electrodes_dict = _read_electrodes_from_h5(h5, population_name)
+
     all_coeffs = _compute_electrode_coeffs(
-        h5,
+        electrodes_dict,
         positions,
         columns,
         node_ids,
-        population_name,
         sigma,
         path_to_fields,
         objective_csd_array_indices,

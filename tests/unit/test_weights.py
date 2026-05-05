@@ -273,18 +273,17 @@ def test_planar_coords():
 
 def test_get_objective_csd_array(tmp_path):
     electrodes = make_electrodes_objective_array()
-    path = create_electrode_file(tmp_path / "obj.h5", electrodes)
-    h5 = h5py.File(path, "r+")
-    names = ["a", "b", "name", "name1", "name2", "name3"]
+    # Build the ordered list matching sorted electrode names
+    names = sorted(electrodes.keys())
+    electrodes_ordered = [electrodes[n] for n in names]
 
-    idx, count = get_objective_csd_array("ObjectiveCSD_Disk", None, 0, names, h5, 0)
+    idx, count = get_objective_csd_array(ElectrodeType.OBJECTIVE_CSD_DISK, None, 0, electrodes_ordered, 0)
     assert idx == [2, 3, 4, 5]
     assert count == 0
 
-    idx, count = get_objective_csd_array("ObjectiveCSD_Disk", ["2:3", "4:5"], 0, names, h5, 4)
+    idx, count = get_objective_csd_array(ElectrodeType.OBJECTIVE_CSD_DISK, ["2:3", "4:5"], 0, electrodes_ordered, 4)
     np.testing.assert_equal(idx, np.arange(4, 5))
     assert count == 1
-    h5.close()
 
 
 # ---------------------------------------------------------------------------

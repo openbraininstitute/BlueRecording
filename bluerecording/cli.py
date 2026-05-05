@@ -102,6 +102,7 @@ def main():
             cols,
             population_name,
             str(output_file),
+            electrodes=args.electrode_csv,
             sigma=args.sigma,
             path_to_fields=args.path_to_fields,
             neurite_types=neurite_types if args.with_neurite_type else None,
