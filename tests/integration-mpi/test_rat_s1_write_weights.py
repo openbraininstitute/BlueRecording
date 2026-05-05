@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 from mpi4py import MPI
 
+from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import Electrode, get_weights_and_positions, save_weights
+from bluerecording.weights import Electrode, _get_weights, save_weights
 from tests.conftest import EXAMPLE_RAT_S1
 
 comm = MPI.COMM_WORLD
@@ -25,10 +26,9 @@ def test_rat_s1_write_weights_mpi(tmp_path):
     csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
 
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(node_manager, ids, cols, population, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
-    weights, _, cols, _ = get_weights_and_positions(
-        node_manager, ids, cols, population, electrodes=electrodes, morphologies_dir=morphologies_dir
-    )
+    weights = _get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
 
     comm.Barrier()

@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 from mpi4py import MPI
 
+from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import Electrode, get_weights_and_positions, save_weights
+from bluerecording.weights import Electrode, _get_weights, save_weights
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -27,16 +28,9 @@ def test_single_cell_write_weights_near_mpi(tmp_path):
     output_path = str(output_dir / "weights.h5")
 
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
+    pos_df, cols, _ = positions.get_positions(node_manager, ids, cols, population, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(electrode_csv)
-    weights, _, cols, _ = get_weights_and_positions(
-        node_manager,
-        ids,
-        cols,
-        population,
-        electrodes=electrodes,
-        morphologies_dir=morphologies_dir,
-        path_to_fields=[field_path, field_path],
-    )
+    weights = _get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field_path, field_path])
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
 
     comm.Barrier()

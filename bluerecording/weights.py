@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 import h5py
-import libsonata
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -758,7 +758,7 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
-def _get_weights(
+def _compute_coeffs(
     electrodes: dict[str, Electrode],
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
@@ -871,30 +871,70 @@ def _write_neurite_types(
         h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
 
 
-def get_weights_and_positions(
-    node_manager,
-    ids: np.ndarray,
+def _get_weights(
+    positions: pd.DataFrame,
     cols: np.ndarray,
-    population: libsonata.NodePopulation,
     electrodes: dict[str, Electrode] | str,
-    morphologies_dir: str,
+    sigma: list[float] | None = None,
+    path_to_fields: list[str] | None = None,
+    objective_csd_array_indices: list[str] | None = None,
+) -> pd.DataFrame | None:
+    """Compute electrode transfer coefficients from pre-computed positions.
+
+    Pure computation — no file I/O. Mirrors ``positions.get_positions``.
+
+    Args:
+        positions: DataFrame of segment boundary positions (from
+            ``get_positions``).
+        cols: (N, 2) int64 array of (gid, section) pairs.
+        electrodes: Electrode metadata (dict or path to CSV).
+        sigma: Extracellular conductivity value(s) in S/m.
+        path_to_fields: Path(s) to potential/E-field files for reciprocity.
+        objective_csd_array_indices: Subsampling indices for objective CSD.
+
+    Returns:
+        DataFrame of transfer coefficients, or None if this rank has no nodes.
+    """
+    if sigma is None:
+        sigma = [DEFAULT_SIGMA]
+
+    if isinstance(electrodes, str):
+        electrodes = Electrode.from_csv(electrodes)
+
+    node_ids = np.unique(cols[:, 0])
+    columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
+
+    if len(node_ids) == 0:
+        return None
+
+    return _compute_coeffs(
+        electrodes,
+        positions,
+        columns,
+        node_ids,
+        sigma,
+        path_to_fields,
+        objective_csd_array_indices,
+    )
+
+
+def compute_weights(
+    path_to_config: str | Path,
+    electrodes: dict[str, Electrode] | str,
     replace_axons: bool = True,
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
-) -> tuple[pd.DataFrame | None, pd.DataFrame, np.ndarray, np.ndarray]:
-    """Compute segment positions and electrode transfer coefficients.
+) -> tuple[pd.DataFrame | None, pd.DataFrame, np.ndarray, np.ndarray, str]:
+    """High-level API: compute weights and positions from a config file.
 
-    Pure computation — no file I/O. Mirrors the pattern of
-    ``positions.get_positions`` but also computes the electrode weights.
+    Handles circuit initialization, position computation, and weight
+    computation in one call. Mirrors ``positions.compute_positions``.
 
     Args:
-        node_manager: Neurodamus node manager.
-        ids: GIDs assigned to this MPI rank.
-        cols: (N, 2) int64 array of (gid, section) pairs.
-        population: libsonata NodePopulation for morphology resolution.
+        path_to_config: Path to a SONATA simulation or circuit configuration
+            file.
         electrodes: Electrode metadata (dict or path to CSV).
-        morphologies_dir: Fully resolved path to the morphologies directory.
         replace_axons: If True, replace morphological axons with a standardized
             stub.
         sigma: Extracellular conductivity value(s) in S/m.
@@ -905,16 +945,14 @@ def get_weights_and_positions(
         weights: DataFrame of transfer coefficients, or None if this rank
             has no nodes.
         positions_df: DataFrame of segment boundary positions.
-        cols: The input cols array, passed through for convenience.
+        cols: (N, 2) int64 array of (gid, section) pairs.
         neurite_types: (N,) int32 array of neurite type codes per compartment.
+        population_name: SONATA population name (needed by ``save_weights``).
     """
     from . import positions as pos_module
+    from .circuit import init_circuit
 
-    if sigma is None:
-        sigma = [DEFAULT_SIGMA]
-
-    if isinstance(electrodes, str):
-        electrodes = Electrode.from_csv(electrodes)
+    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
 
     positions_df, cols, neurite_types = pos_module.get_positions(
         node_manager,
@@ -925,22 +963,16 @@ def get_weights_and_positions(
         replace_axons=replace_axons,
     )
 
-    node_ids = np.unique(cols[:, 0])
-    columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
+    weights = _get_weights(
+        positions_df,
+        cols,
+        electrodes,
+        sigma=sigma,
+        path_to_fields=path_to_fields,
+        objective_csd_array_indices=objective_csd_array_indices,
+    )
 
-    weights = None
-    if len(node_ids) > 0:
-        weights = _get_weights(
-            electrodes,
-            positions_df,
-            columns,
-            node_ids,
-            sigma,
-            path_to_fields,
-            objective_csd_array_indices,
-        )
-
-    return weights, positions_df, cols, neurite_types
+    return weights, positions_df, cols, neurite_types, population_name
 
 
 def save_weights(
