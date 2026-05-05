@@ -112,3 +112,33 @@ def resolve_config(path: str | Path):
             comm.Barrier()
             if rank == 0:
                 Path(tmp_name).unlink(missing_ok=True)
+
+
+def resolve_output_path(path: str | Path, default_filename: str = "weights.h5") -> Path:
+    """Resolve an output path to a concrete file path.
+
+    If *path* is an existing directory or has no file extension, it is
+    treated as a directory and *default_filename* is appended.  Otherwise
+    the path is returned as-is after validating the extension is ``.h5``.
+
+    The parent directory is created if it does not exist.
+
+    Args:
+        path: User-provided output path (file or directory).
+        default_filename: Filename to use when *path* is a directory.
+
+    Returns:
+        Resolved absolute Path to the output file.
+
+    Raises:
+        ValueError: If the path has a non-``.h5`` extension.
+    """
+    p = Path(path)
+    if p.is_dir() or not p.suffix:
+        p.mkdir(parents=True, exist_ok=True)
+        p = p / default_filename
+    elif p.suffix != ".h5":
+        raise ValueError(f"output_path must be a directory or an .h5 file, got '{p}'")
+    else:
+        p.parent.mkdir(parents=True, exist_ok=True)
+    return p

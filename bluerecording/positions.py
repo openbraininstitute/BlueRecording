@@ -69,7 +69,7 @@ class PositionedMorphology:
         return self._points[o[sec_id] : o[sec_id + 1]]
 
 
-def interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
+def _interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
     """Interpolate segment boundary points along a dendritic section.
 
     Given the 3D points of a section and a number of compartments, returns
@@ -266,7 +266,7 @@ def _extrapolate_branch(
     return points, running_len
 
 
-def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract 3D positions and cumulative lengths along the simulated axon.
 
     The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
@@ -299,7 +299,7 @@ def get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.nda
     return axon_points, np.array(running_len)[indices]
 
 
-def interp_points_axon(
+def _interp_points_axon(
     axon_points: np.ndarray,
     running_lens: np.ndarray,
     sec_id: int,
@@ -388,7 +388,7 @@ def interp_points_axon(
     return seg_pos
 
 
-def get_new_index(cols: np.ndarray) -> pd.MultiIndex:
+def _get_new_index(cols: np.ndarray) -> pd.MultiIndex:
     """Build a new MultiIndex by duplicating certain (id, section) column tuples.
 
     Each column is kept once. Non-somatic columns (section != 0) are
@@ -445,7 +445,7 @@ def _get_cell_positions(
 
     axon_points, running_lens = None, None
     if replace_axons:
-        axon_points, running_lens = get_axon_points(m, center)
+        axon_points, running_lens = _get_axon_points(m, center)
 
     sections = np.unique(cols[np.where(gid_mask), 1:].flatten())
 
@@ -457,22 +457,22 @@ def _get_cell_positions(
         num_compartments = np.sum(gid_mask & (cols[:, 1] == sec_id))
 
         if sec_id < 3 and replace_axons:
-            seg_pos = interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
+            seg_pos = _interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
         else:
             morpho_sec_id = sec_id - 1
             if morpho_sec_id >= m.num_sections:
                 # Beyond morphology sections → myelinated AIS
-                seg_pos = interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
+                seg_pos = _interp_points_axon(axon_points, running_lens, sec_id, num_compartments)
             else:
                 sec_pts = np.array(m.section_points(morpho_sec_id))
-                seg_pos = interp_points(sec_pts, num_compartments)
+                seg_pos = _interp_points(sec_pts, num_compartments)
 
         xyz = np.hstack((xyz, seg_pos.T))
 
     return xyz
 
 
-def resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
+def _resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
     """Return an int array of neurite-type codes for one neuron's compartments.
 
     Queries the actual NEURON section via ``cell.get_sec()`` and maps the
@@ -580,7 +580,7 @@ def get_positions(
         cell_arrays.append(_get_cell_positions(m, center, cols, i, replace_axons))
 
         cols_for_gid = cols[cols[:, 0] == i]
-        neurite_type_arrays.append(resolve_neurite_types(cols_for_gid, cell))
+        neurite_type_arrays.append(_resolve_neurite_types(cols_for_gid, cell))
 
     if not cell_arrays:
         empty_idx = pd.MultiIndex.from_tuples([], names=["id", "section"])
@@ -588,7 +588,7 @@ def get_positions(
         return positions_df, cols, np.array([], dtype=np.int32)
 
     xyz = np.hstack(cell_arrays)
-    new_cols = get_new_index(cols)
+    new_cols = _get_new_index(cols)
     positions_df = pd.DataFrame(xyz, columns=new_cols)
     neurite_types = np.concatenate(neurite_type_arrays)
 

@@ -1,10 +1,10 @@
 import argparse
-from pathlib import Path
 
-from . import __version__, positions
+from . import __version__
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
-from .weights import DEFAULT_SIGMA, Electrode, save_weights_file
+from .utils import resolve_output_path
+from .weights import DEFAULT_SIGMA, Electrode, get_weights_and_positions, save_weights
 
 
 def main():
@@ -79,31 +79,28 @@ def main():
 
     elif args.command == "write_weights":
         node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
-        positions_df, cols, neurite_types = positions.get_positions(
+
+        output_file = resolve_output_path(args.output_path)
+
+        electrodes = Electrode.from_csv(args.electrode_csv)
+
+        weights, positions_df, cols, neurite_types = get_weights_and_positions(
             node_manager,
             ids,
             cols,
             population,
+            electrodes=electrodes,
             morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
+            sigma=args.sigma,
+            path_to_fields=args.path_to_fields,
         )
-        output_file = Path(args.output_path)
-        if output_file.is_dir() or not output_file.suffix:
-            output_file.mkdir(parents=True, exist_ok=True)
-            output_file = output_file / "weights.h5"
-        elif output_file.suffix != ".h5":
-            parser.error(f"output_path must be a directory or an .h5 file, got '{output_file}'")
-
-        electrodes = Electrode.from_csv(args.electrode_csv)
-
-        save_weights_file(
-            positions_df,
+        save_weights(
+            weights,
             cols,
             population_name,
             str(output_file),
             electrodes=electrodes,
-            sigma=args.sigma,
-            path_to_fields=args.path_to_fields,
             neurite_types=neurite_types if args.with_neurite_type else None,
         )
         if args.write_positions:

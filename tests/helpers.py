@@ -11,7 +11,7 @@ from bluerecording.weights import (
     ElectrodeType,
     ObjectiveCSDParams,
     _init_scaling_factors_and_offsets,
-    write_electrode_metadata_to_h5,
+    _write_electrode_metadata_to_h5,
 )
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def make_two_section_data():
 def create_electrode_file(path, electrodes, gids=GIDS, population=POPULATION_NAME):
     """Create an initialized electrode H5 file."""
     with h5py.File(path, "w") as h5file:
-        write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
+        _write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
     return path
 
 
