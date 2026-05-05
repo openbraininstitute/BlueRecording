@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+from mpi4py import MPI
+import numpy as np
+import h5py
+import pytest
+
+from bluerecording.circuit import init_circuit
+from bluerecording import positions
+from bluerecording.weights import initialize_h5_file, write_h5_file
+from tests.conftest import EXAMPLE_RAT_S1
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+
+@pytest.mark.mpi(ranks=2)
+def test_rat_s1_write_weights_mpi(tmp_path):
+    """Test write_weights for rat_s1_forelimb_l56_10cells with 2 MPI ranks."""
+    assert size == 2
+
+    output_dir = comm.bcast(tmp_path, root=0)
+    output_path = str(output_dir / "weights.h5")
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
+
+    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
+    positions_df, cols, _ = positions.get_positions(
+        node_manager, ids, cols, population,
+        morphologies_dir=morphologies_dir,
+    )
+
+    initialize_h5_file(cols, population_name, output_path, csv)
+    write_h5_file(positions_df, cols, population_name, output_path)
+
+    comm.Barrier()
+
+    if rank == 0:
+        ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
+        with h5py.File(ref, "r") as r, h5py.File(output_path, "r") as n:
+            np.testing.assert_array_equal(r[f"{population_name}/node_ids"][:], n[f"{population_name}/node_ids"][:])
+            np.testing.assert_array_equal(r[f"{population_name}/offsets"][:], n[f"{population_name}/offsets"][:])
+            dset = f"electrodes/{population_name}/scaling_factors"
+            np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)

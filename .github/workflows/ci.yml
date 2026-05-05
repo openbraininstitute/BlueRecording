@@ -76,7 +76,7 @@ jobs:
           cmake --build neurodamus-models/build
           cmake --install neurodamus-models/build
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
           CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
@@ -85,7 +85,16 @@ jobs:
           export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
           pytest -v -m "not skip_in_ci" tests/unit
 
-      - name: Run MPI tests
+      - name: Run integration tests
+        env:
+          HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
+          CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
+          NRNMECH_LIB_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libnrnmech.so
+        run: |
+          export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
+          pytest -v -m "not skip_in_ci" tests/integration --forked
+
+      - name: Run MPI unit tests
         env:
           HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
           CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
@@ -93,3 +102,20 @@ jobs:
         run: |
           export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
           mpirun --oversubscribe -n 2 pytest -v -m "not skip_in_ci" tests/unit-mpi --with-mpi
+
+      - name: Run MPI integration tests
+        env:
+          HOC_LIBRARY_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/share/neurodamus_neocortex/hoc
+          CORENEURONLIB: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libcorenrnmech.so
+          NRNMECH_LIB_PATH: ${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/lib/libnrnmech.so
+        run: |
+          export PATH="${{ env.NEURODAMUS_NEOCORTEX_ROOT }}/bin:$PATH"
+          for f in tests/integration-mpi/test_*.py; do
+            # Check if any tests match the marker filter before running mpirun
+            selected=$(python -m pytest "$f" --collect-only -q -m "not skip_in_ci" 2>/dev/null | grep -c "test_" || true)
+            if [ "$selected" -eq 0 ]; then
+              echo "--- skipping $f (no matching tests) ---"
+              continue
+            fi
+            mpirun --oversubscribe -n 2 pytest -v -m "not skip_in_ci" "$f" --with-mpi
+          done

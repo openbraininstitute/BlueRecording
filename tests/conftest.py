@@ -11,6 +11,7 @@ TESTS_DIR = Path(__file__).parent
 ROOT_DIR = TESTS_DIR.parent
 EXAMPLE_SINGLE_CELL = ROOT_DIR / "examples" / "single_cell_l5_tpc"
 EXAMPLE_SSCX_100 = ROOT_DIR / "examples" / "sscx_100_cells"
+EXAMPLE_RAT_S1 = ROOT_DIR / "examples" / "rat_s1_forelimb_l56_10cells"
 
 
 @pytest.fixture(scope="session")

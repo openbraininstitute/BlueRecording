@@ -603,3 +603,31 @@ def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | P
     path_to_positions_folder = Path(path_to_positions_folder)
     path_to_positions_folder.mkdir(parents=True, exist_ok=True)
     positions_df.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
+
+
+def compute_positions(
+    path_to_config: str | Path,
+    replace_axons: bool = True,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """High-level API: compute segment positions from a config file.
+
+    Handles circuit initialization and position computation in one call.
+    Accepts either a simulation config or a circuit config path.
+
+    Args:
+        path_to_config: Path to a SONATA simulation or circuit configuration file.
+        replace_axons: If True, replace morphological axons with a standardized
+            stub (two 30 µm AIS sections + 1000 µm myelinated section).
+
+    Returns:
+        positions_df: DataFrame with MultiIndex columns (id, section),
+            shape (3, M) where M includes segment boundary duplicates.
+        cols: (N, 2) int64 array of (gid, section) pairs.
+        neurite_types: (N,) int32 array of neurite type codes per compartment.
+    """
+    node_manager, ids, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
+    return get_positions(
+        node_manager, ids, cols, population,
+        morphologies_dir=morphologies_dir,
+        replace_axons=replace_axons,
+    )

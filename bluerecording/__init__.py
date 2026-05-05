@@ -43,3 +43,6 @@ def _check_dependencies():
 
 
 _check_dependencies()
+
+# Public API
+from .positions import compute_positions, save_positions  # noqa: E402

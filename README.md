@@ -94,8 +94,9 @@ After that, the simplest way to run the full test suite is:
 You can also run subsets:
 
 ```bash
-./run_tests.sh unit   # only unit tests
-./run_tests.sh mpi    # only MPI tests
+./run_tests.sh unit          # unit tests only (no MPI)
+./run_tests.sh integration   # integration tests only (no MPI)
+./run_tests.sh mpi           # MPI tests (unit-mpi + integration-mpi)
 ```
 
 If you need to re-run setup before testing:
@@ -108,16 +109,19 @@ Alternatively, you can run the tests manually:
 
 ```bash
 python -m pytest tests/unit/ -v --forked
-mpirun -n 2 python -m pytest tests/unit-mpi/test_write_weights.py --with-mpi -v
-mpirun -n 2 python -m pytest tests/unit-mpi/test_h5py_MPI.py --with-mpi -v
-mpirun -n 2 python -m pytest tests/unit-mpi/test_get_positions.py --with-mpi -v
+python -m pytest tests/integration/ -v --forked
+mpirun -n 2 python -m pytest tests/unit-mpi/test_h5py.py --with-mpi -v
+mpirun -n 2 python -m pytest tests/integration-mpi/test_write_weights.py --with-mpi -v
+mpirun -n 2 python -m pytest tests/integration-mpi/test_positions.py --with-mpi -v
 ```
 
 If you want to run only the base tests (without downloading data), after `source env.sh`:
 
 ```bash
-mpirun -n 2 pytest -v tests/unit-mpi --with-mpi
 pytest -v -m "not skip_in_ci" tests/unit
+pytest -v -m "not skip_in_ci" tests/integration
+mpirun -n 2 pytest -v -m "not skip_in_ci" tests/unit-mpi --with-mpi
+mpirun -n 2 pytest -v -m "not skip_in_ci" tests/integration-mpi --with-mpi
 ```
 
 This is also what runs in CI, where we avoid downloading large datasets to keep pipelines fast.
@@ -125,8 +129,8 @@ This is also what runs in CI, where we avoid downloading large datasets to keep 
 To run only the slow, data-intensive tests (e.g., single cell and 100-cell integration tests):
 
 ```bash
-pytest -v -m "slow" tests/unit --forked
-mpirun -n 2 pytest -v -m "slow" tests/unit-mpi --with-mpi
+pytest -v -m "skip_in_ci" tests/integration --forked
+mpirun -n 2 pytest -v -m "skip_in_ci" tests/integration-mpi --with-mpi
 ```
 
 

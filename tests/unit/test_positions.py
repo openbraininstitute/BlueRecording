@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from bluerecording import positions
-from bluerecording.circuit import init_circuit
+
 from tests.helpers import (
     SOMA_POS,
     make_morphology,
@@ -185,44 +185,3 @@ def test_interpolate_myelin_short(tmp_path):
     np.testing.assert_almost_equal(
         seg_pos, [[0, 0, 60], [0, 0, 260], [0, 0, 460], [0, 0, 660], [0, 0, 860], [0, 0, 1060]], decimal=2
     )
-
-
-# ---------------------------------------------------------------------------
-# Integration tests (require data)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.skip_in_ci
-def test_single_cell_get_positions(tmp_path):
-    """Test get_positions for single_cell_l5_tpc."""
-    simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
-
-    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    positions.save_positions(pos_df, tmp_path)
-
-    df_ref = pd.read_pickle(ref_path)
-    df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
-
-    assert df_ref.index.equals(df_new.index)
-    assert df_ref.columns.equals(df_new.columns)
-    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False)
-
-
-@pytest.mark.skip_in_ci
-def test_circuit_get_positions(tmp_path):
-    """Test get_positions for sscx_100_cells."""
-    simconfig = "examples/sscx_100_cells/simulation_config.json"
-    ref_path = "examples/sscx_100_cells/reference/positions0_ref.pkl"
-
-    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
-    pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    positions.save_positions(pos_df, tmp_path)
-
-    df_ref = pd.read_pickle(ref_path)
-    df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
-
-    assert df_ref.index.equals(df_new.index)
-    assert df_ref.columns.equals(df_new.columns)
-    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, rtol=5e-4, atol=0.1)
