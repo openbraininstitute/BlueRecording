@@ -153,7 +153,7 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 else
     echo "=== Creating virtual environment ==="
-    uv venv --python ">=3.10,<3.14" venv
+    uv venv --python ">=3.12.2,<3.13" venv
     source venv/bin/activate
 fi
 

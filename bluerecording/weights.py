@@ -761,29 +761,44 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
-def _compute_coeffs(
-    electrodes: dict[str, Electrode],
+def _get_weights(
     positions: pd.DataFrame,
-    columns: pd.MultiIndex,
-    node_ids: np.ndarray,
-    sigma: list[float],
-    path_to_fields: list[str] | None,
-    objective_csd_array_indices: list[str] | None,
-) -> pd.DataFrame:
-    """Compute coefficients for every electrode.
+    cols: np.ndarray,
+    electrodes: dict[str, Electrode] | str,
+    sigma: list[float] | None = None,
+    path_to_fields: list[str] | None = None,
+    objective_csd_array_indices: list[str] | None = None,
+) -> pd.DataFrame | None:
+    """Compute electrode transfer coefficients from pre-computed positions.
 
     Dispatches to the appropriate coefficient function based on each
     electrode's type and returns the concatenated result.
+    Pure computation — no file I/O.
 
     Args:
-        electrodes: Ordered mapping of electrode name to Electrode object.
-        positions: DataFrame of segment boundary positions.
-        columns: MultiIndex of (gid, section) pairs for the output.
-        node_ids: Unique node IDs on this rank.
+        positions: DataFrame of segment boundary positions (from
+            ``compute_positions``).
+        cols: (N, 2) int64 array of (gid, section) pairs.
+        electrodes: Electrode metadata (dict or path to CSV).
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
+
+    Returns:
+        DataFrame of transfer coefficients, or None if this rank has no nodes.
     """
+    if sigma is None:
+        sigma = [DEFAULT_SIGMA]
+
+    if isinstance(electrodes, str):
+        electrodes = Electrode.from_csv(electrodes)
+
+    node_ids = np.unique(cols[:, 0])
+    columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
+
+    if len(node_ids) == 0:
+        return None
+
     coeff_list = []
     electrodes_ordered = list(electrodes.values())
 
@@ -872,53 +887,6 @@ def _write_neurite_types(
             offset1 = offsets[id_index + 1]
 
         h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
-
-
-def _get_weights(
-    positions: pd.DataFrame,
-    cols: np.ndarray,
-    electrodes: dict[str, Electrode] | str,
-    sigma: list[float] | None = None,
-    path_to_fields: list[str] | None = None,
-    objective_csd_array_indices: list[str] | None = None,
-) -> pd.DataFrame | None:
-    """Compute electrode transfer coefficients from pre-computed positions.
-
-    Pure computation — no file I/O.
-
-    Args:
-        positions: DataFrame of segment boundary positions (from
-            ``compute_positions``).
-        cols: (N, 2) int64 array of (gid, section) pairs.
-        electrodes: Electrode metadata (dict or path to CSV).
-        sigma: Extracellular conductivity value(s) in S/m.
-        path_to_fields: Path(s) to potential/E-field files for reciprocity.
-        objective_csd_array_indices: Subsampling indices for objective CSD.
-
-    Returns:
-        DataFrame of transfer coefficients, or None if this rank has no nodes.
-    """
-    if sigma is None:
-        sigma = [DEFAULT_SIGMA]
-
-    if isinstance(electrodes, str):
-        electrodes = Electrode.from_csv(electrodes)
-
-    node_ids = np.unique(cols[:, 0])
-    columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
-
-    if len(node_ids) == 0:
-        return None
-
-    return _compute_coeffs(
-        electrodes,
-        positions,
-        columns,
-        node_ids,
-        sigma,
-        path_to_fields,
-        objective_csd_array_indices,
-    )
 
 
 def compute_weights(
