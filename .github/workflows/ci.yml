@@ -24,7 +24,7 @@ jobs:
         run: pip install tox
 
       - name: Lint and format check
-        run: tox -e lint,format
+        run: tox -e check
 
   test:
     runs-on: ubuntu-latest
