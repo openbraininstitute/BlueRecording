@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import numpy as np
 import pandas as pd
 import pytest
 from mpi4py import MPI
@@ -56,7 +57,11 @@ def test_sscx_100_cells_get_positions_mpi(tmp_path):
         # reference.  Within each gid the column order is already correct
         # (sections in simulation order), so we only need to reorder gid blocks.
         ref_gid_order = df_ref.columns.get_level_values("id").unique()
-        reordered = pd.concat([df_new.xs(gid, level="id", axis=1, drop_level=False) for gid in ref_gid_order], axis=1)
+        col_indices = []
+        for gid in ref_gid_order:
+            col_indices.extend(np.where(df_new.columns.get_level_values("id") == gid)[0])
+        reordered = df_new.iloc[:, col_indices]
+        reordered.columns = df_ref.columns
 
         pd.testing.assert_frame_equal(
             df_ref,
