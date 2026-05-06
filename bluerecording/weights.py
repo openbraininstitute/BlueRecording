@@ -10,7 +10,7 @@ from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
 
-from . import positions as _pos_module
+from . import positions as _positions
 from .circuit import init_circuit
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
@@ -761,7 +761,7 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
-def _get_weights(
+def get_weights(
     positions: pd.DataFrame,
     cols: np.ndarray,
     electrodes: dict[str, Electrode] | str,
@@ -922,7 +922,7 @@ def compute_weights(
     """
     node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
 
-    positions_df, cols, neurite_types = _pos_module._get_positions(
+    positions_df, cols, neurite_types = _positions.get_positions(
         node_manager,
         ids,
         cols,
@@ -931,7 +931,7 @@ def compute_weights(
         replace_axons=replace_axons,
     )
 
-    weights = _get_weights(
+    weights = get_weights(
         positions_df,
         cols,
         electrodes,

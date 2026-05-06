@@ -29,20 +29,20 @@ def _get_sections(data, gid):
 
 def test_positioned_morphology(tmp_path):
     morph = make_morphology(tmp_path / "morph.h5")
-    m = positions.PositionedMorphology(morph)
+    m = positions._PositionedMorphology(morph)
     np.testing.assert_array_equal(m.offsets, [0, 4, 6, 9])
     assert m.num_sections == 3
 
 
 def test_get_axon_points(tmp_path):
-    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     points, lengths = positions._get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 1073], decimal=2)
     np.testing.assert_almost_equal(points, [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 0, 3], [0, 0, 1073]], decimal=2)
 
 
 def test_get_axon_points_extrapolate(tmp_path):
-    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     points, lengths = positions._get_axon_points(morph, SOMA_POS)
     np.testing.assert_almost_equal(lengths, [0, 1, 2, 3, 4, 1060], decimal=2)
     np.testing.assert_almost_equal(
@@ -57,7 +57,7 @@ def test_get_axon_points_picks_longest_branch(tmp_path):
     the longer one (branch A, 100 µm) for extrapolation, not the last one
     visited (branch B, 10 µm).
     """
-    morph = positions.PositionedMorphology(make_morphology_two_axon_branches(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_two_axon_branches(tmp_path / "morph.h5"))
     points, lengths = positions._get_axon_points(morph, SOMA_POS)
 
     # Longest branch: soma(0,0,0) → root tip(0,0,5) → branch A tip(0,0,100)
@@ -81,7 +81,7 @@ def test_get_new_idx():
 
 def test_interpolate_dendrite(tmp_path):
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[3]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -92,7 +92,7 @@ def test_interpolate_dendrite(tmp_path):
 
 def test_interpolate_ais(tmp_path):
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -106,7 +106,7 @@ def test_interpolate_ais(tmp_path):
 def test_interpolate_ais_far_axon(tmp_path):
     """Edge case: only the soma is < 30 um from soma."""
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology_far_axon(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_far_axon(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -120,7 +120,7 @@ def test_interpolate_ais_far_axon(tmp_path):
 def test_interpolate_ais_short(tmp_path):
     """No point > 30 um from soma."""
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[1]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -134,7 +134,7 @@ def test_interpolate_ais_short(tmp_path):
 def test_interpolate_ais_2(tmp_path):
     """No point between 30-60 um, but one farther than 60 um."""
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -148,7 +148,7 @@ def test_interpolate_ais_2(tmp_path):
 def test_interpolate_ais_2_short(tmp_path):
     """No points > 30 um from soma."""
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[2]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -161,7 +161,7 @@ def test_interpolate_ais_2_short(tmp_path):
 
 def test_interpolate_myelin(tmp_path):
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]
@@ -174,7 +174,7 @@ def test_interpolate_myelin(tmp_path):
 
 def test_interpolate_myelin_short(tmp_path):
     data = make_report_data()
-    morph = positions.PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
+    morph = positions._PositionedMorphology(make_morphology_short(tmp_path / "morph.h5"))
     sections = _get_sections(data, 1)
     sec_name = sections[-1]
     num_compartments = np.shape(data[1][sec_name])[-1]

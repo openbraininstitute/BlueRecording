@@ -15,7 +15,7 @@ from .circuit import init_circuit
 rank = MPI.COMM_WORLD.Get_rank()
 
 
-class PositionedMorphology:
+class _PositionedMorphology:
     """A morphology with points transformed to global (circuit) coordinates.
 
     Wraps an immutable MorphIO morphology, applying an optional coordinate
@@ -101,7 +101,7 @@ def _interp_points(coords: np.ndarray, ncomps: int) -> np.ndarray:
     return xyz
 
 
-def _get_cumulative_length(m: PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]) -> float:
+def _get_cumulative_length(m: _PositionedMorphology, sec, soma_pos: np.ndarray, cache: dict[int, float]) -> float:
     """Return cumulative arc length from soma to the end of a section.
 
     Computes lazily and caches results so each section is measured at most once.
@@ -151,7 +151,7 @@ def _get_branch_section_ids(sec) -> list[int]:
 
 
 def _find_best_axon_branch(
-    m: PositionedMorphology, soma_pos: np.ndarray, target_length: float
+    m: _PositionedMorphology, soma_pos: np.ndarray, target_length: float
 ) -> tuple[list[int], bool]:
     """Find the best axonal branch for simulated-axon position reconstruction.
 
@@ -193,7 +193,7 @@ def _find_best_axon_branch(
 
 
 def _collect_branch_points(
-    m: PositionedMorphology,
+    m: _PositionedMorphology,
     section_ids: list[int],
     soma_pos: np.ndarray,
     target_length: float,
@@ -266,7 +266,7 @@ def _extrapolate_branch(
     return points, running_len
 
 
-def _get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _get_axon_points(m: _PositionedMorphology, center: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Extract 3D positions and cumulative lengths along the simulated axon.
 
     The simulated axon consists of two AIS sections (30 µm each) and a 1000 µm
@@ -277,7 +277,7 @@ def _get_axon_points(m: PositionedMorphology, center: np.ndarray) -> tuple[np.nd
     extrapolated.
 
     Args:
-        m: PositionedMorphology with points in global coordinates.
+        m: _PositionedMorphology with points in global coordinates.
         center: Soma position as a 1D array of shape (3,).
 
     Returns:
@@ -416,7 +416,7 @@ def _get_new_index(cols: np.ndarray) -> pd.MultiIndex:
 
 
 def _get_cell_positions(
-    m: PositionedMorphology,
+    m: _PositionedMorphology,
     center: np.ndarray,
     cols: np.ndarray,
     gid: int,
@@ -430,7 +430,7 @@ def _get_cell_positions(
     interpolated along the simulated axon branch instead.
 
     Args:
-        m: PositionedMorphology with points in global coordinates.
+        m: _PositionedMorphology with points in global coordinates.
         center: Soma position, shape (3,).
         cols: (N, 2) array of (gid, section) pairs for all cells.
         gid: GID of the cell to process.
@@ -531,7 +531,7 @@ def _find_morph_file(morph_name: str, morph_dir: str) -> str:
     raise FileNotFoundError(f"Morphology '{morph_name}' not found in {morph_dir}")
 
 
-def _get_positions(
+def get_positions(
     node_manager,
     ids: np.ndarray,
     cols: np.ndarray,
@@ -571,7 +571,7 @@ def _get_positions(
         # differ by up to ~1.8 µm.
         morph_name = population.get_attribute("morphology", cell.raw_gid)
         morph_path = _find_morph_file(morph_name, morphologies_dir)
-        m = PositionedMorphology(
+        m = _PositionedMorphology(
             Morphology(morph_path),
             transform=cell.local_to_global_coord_mapping,
         )
@@ -628,7 +628,7 @@ def compute_positions(
         neurite_types: (N,) int32 array of neurite type codes per compartment.
     """
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
-    return _get_positions(
+    return get_positions(
         node_manager,
         ids,
         cols,

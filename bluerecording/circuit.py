@@ -3,13 +3,12 @@
 
 Provides the entry point for loading a circuit model and extracting
 the discretization info (node IDs, compartment structure, morphology access)
-needed by both compute_positions and compute_weights.
 """
 
 import libsonata
 import numpy as np
 
-from .utils import get_circuit_path, resolve_config
+from .utils import get_circuit_path, resolve_simulation_config
 
 
 def init_circuit(path_to_config: str):
@@ -37,7 +36,7 @@ def init_circuit(path_to_config: str):
     # in lightweight installs (e.g. CI with --quick).
     import neurodamus
 
-    with resolve_config(path_to_config) as path_to_simconfig:
+    with resolve_simulation_config(path_to_config) as path_to_simconfig:
         nd = neurodamus.Neurodamus(
             path_to_simconfig,
             disable_reports=True,

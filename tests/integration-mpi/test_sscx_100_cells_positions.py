@@ -14,7 +14,7 @@ size = comm.Get_size()
 @pytest.mark.skip_in_ci
 @pytest.mark.mpi(ranks=2)
 def test_sscx_100_cells_get_positions_mpi(tmp_path):
-    """Test that _get_positions produces correct results when split across 2 MPI ranks.
+    """Test that get_positions produces correct results when split across 2 MPI ranks.
 
     Each rank writes its own positions{rank}.pkl.  We concatenate them and compare
     against the single-rank reference file.
@@ -27,7 +27,7 @@ def test_sscx_100_cells_get_positions_mpi(tmp_path):
     path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
 
     node_manager, ids, cols, population, _, morphologies_dir = init_circuit(path_to_simconfig)
-    positions_df, _, _ = positions._get_positions(
+    positions_df, _, _ = positions.get_positions(
         node_manager,
         ids,
         cols,

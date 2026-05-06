@@ -28,7 +28,7 @@ def get_circuit_path(path_to_simconfig: str | Path) -> str:
     return sim_conf.network
 
 
-def is_circuit_config(path: str | Path) -> bool:
+def _is_circuit_config(path: str | Path) -> bool:
     """Detect whether a JSON file is a circuit config (vs. a simulation config).
 
     A circuit config contains a top-level ``"networks"`` key (plural).
@@ -63,7 +63,7 @@ def _make_simulation_config(circuit_config_path: str | Path) -> dict:
 
 
 @contextmanager
-def resolve_config(path: str | Path):
+def resolve_simulation_config(path: str | Path):
     """Context manager that yields a path to a simulation config.
 
     If *path* already points to a simulation config, it is yielded as-is.
@@ -86,13 +86,13 @@ def resolve_config(path: str | Path):
     if not path.is_file():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    if not is_circuit_config(path):
+    if not _is_circuit_config(path):
         yield str(path)
     else:
         tmp_name = None
         if rank == 0:
             sim_cfg = _make_simulation_config(path)
-            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115  # noqa: SIM115
+            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
                 mode="w",
                 suffix=".json",
                 prefix=".bluerecording_sim_",

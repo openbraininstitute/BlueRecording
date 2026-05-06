@@ -4,7 +4,7 @@ from . import __version__, positions
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
 from .utils import resolve_output_path
-from .weights import DEFAULT_SIGMA, Electrode, _get_weights, save_weights
+from .weights import DEFAULT_SIGMA, Electrode, get_weights, save_weights
 
 
 def main():
@@ -84,7 +84,7 @@ def main():
 
         electrodes = Electrode.from_csv(args.electrode_csv)
 
-        positions_df, cols, neurite_types = positions._get_positions(
+        positions_df, cols, neurite_types = positions.get_positions(
             node_manager,
             ids,
             cols,
@@ -92,7 +92,7 @@ def main():
             morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
         )
-        weights = _get_weights(
+        weights = get_weights(
             positions_df,
             cols,
             electrodes=electrodes,
