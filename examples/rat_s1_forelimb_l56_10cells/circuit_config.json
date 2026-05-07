@@ -1,15 +1,4 @@
 {
-  "components": {
-    "biophysical_neuron_models_dir": "",
-    "mechanisms_dir": "",
-    "morphologies_dir": "",
-    "point_neuron_models_dir": "",
-    "provenance": {
-      "id_mapping": "id_mapping.json"
-    },
-    "synaptic_models_dir": "",
-    "templates_dir": ""
-  },
   "networks": {
     "edges": [
       {
