@@ -803,7 +803,7 @@ def get_weights(
         return None
 
     coeff_list = []
-    electrodes_ordered = list(electrodes.values())
+    electrodes_ordered = electrodes
 
     reciprocity_idx = 0
     sigma_idx = 0
