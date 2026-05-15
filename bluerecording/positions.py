@@ -583,7 +583,10 @@ def get_positions(
         neurite_type_arrays.append(_resolve_neurite_types(cols_for_gid, cell))
 
     if not cell_arrays:
-        empty_idx = pd.MultiIndex.from_tuples([], names=["id", "section"])
+        empty_idx = pd.MultiIndex.from_arrays(
+            [np.array([], dtype=np.int64), np.array([], dtype=np.int64)],
+            names=["id", "section"],
+        )
         positions_df = pd.DataFrame(np.empty((3, 0)), columns=empty_idx)
         return positions_df, cols, np.array([], dtype=np.int32)
 

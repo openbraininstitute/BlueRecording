@@ -41,13 +41,14 @@ class ObjectiveCSDParams:
 class Electrode:
     """Metadata for a single electrode."""
 
+    name: str
     position: np.ndarray
     type: ElectrodeType | ObjectiveCSDParams
     region: str = "NA"
     layer: str = "NA"
 
     @classmethod
-    def from_csv(cls, electrode_csv: str) -> dict[str, "Electrode"]:
+    def from_csv(cls, electrode_csv: str) -> list["Electrode"]:
         """Read electrode metadata from a CSV file.
 
         The CSV must have columns ``x``, ``y``, ``z``.  Optional columns:
@@ -57,10 +58,10 @@ class Electrode:
         """
         electrode_df = pd.read_csv(electrode_csv, header=0, index_col=0)
 
-        electrodes: dict[str, Electrode] = {}
+        electrodes: list[Electrode] = []
 
         for i in range(len(electrode_df)):
-            name = electrode_df.index.values[i]
+            name = str(electrode_df.index.values[i])
             position = np.array(
                 [
                     electrode_df["x"].iloc[i],
@@ -87,19 +88,21 @@ class Electrode:
                     if "thickness" in electrode_df.columns and pd.notna(electrode_df["thickness"].iloc[i])
                     else None
                 )
-                electrodes[name] = cls(
+                electrodes.append(cls(
+                    name=name,
                     position=position,
                     type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
                     region=region,
                     layer=layer,
-                )
+                ))
             else:
-                electrodes[name] = cls(
+                electrodes.append(cls(
+                    name=name,
                     position=position,
                     type=etype,
                     region=region,
                     layer=layer,
-                )
+                ))
 
         return electrodes
 
@@ -112,7 +115,7 @@ class Electrode:
 def _write_electrode_metadata_to_h5(
     h5: h5py.File,
     node_ids: np.ndarray,
-    electrodes: dict[str, Electrode],
+    electrodes: list[Electrode],
     population_name: str,
 ) -> None:
     """Write electrode metadata into an HDF5 file.
@@ -123,13 +126,13 @@ def _write_electrode_metadata_to_h5(
     Args:
         h5: HDF5 file handle opened for writing.
         node_ids: Node IDs.
-        electrodes: Mapping of electrode name to ``Electrode``.
+        electrodes: List of ``Electrode`` objects.
         population_name: SONATA population name.
     """
     h5.create_dataset(f"{population_name}/node_ids", data=sorted(node_ids))
 
-    for index, (key, electrode) in enumerate(electrodes.items()):
-        prefix = f"electrodes/{key}"
+    for index, electrode in enumerate(electrodes):
+        prefix = f"electrodes/{electrode.name}"
         h5.create_dataset(f"{prefix}/{population_name}", data=index)
         h5.create_dataset(f"{prefix}/position", data=electrode.position)
 
@@ -162,7 +165,7 @@ def _init_scaling_factors_and_offsets(
     section_ids_frame: pd.DataFrame,
     population_name: str,
     h5file: h5py.File,
-    electrodes: dict,
+    electrodes: list,
 ) -> None:
     """Create the scaling_factors and offsets datasets in the H5 file.
 

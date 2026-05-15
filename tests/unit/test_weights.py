@@ -294,27 +294,28 @@ def test_get_objective_csd_array(tmp_path):
 def test_make_electrode_dict():
     expected = make_electrodes()
     result = Electrode.from_csv("tests/data/electrode.csv")
-    e = result["name"]
-    np.testing.assert_equal(e.position, expected["name"].position)
-    assert e.type == expected["name"].type
-    assert e.region == expected["name"].region
-    assert e.layer == expected["name"].layer
+    e = result[0]
+    np.testing.assert_equal(e.position, expected[0].position)
+    assert e.type == expected[0].type
+    assert e.region == expected[0].region
+    assert e.layer == expected[0].layer
 
 
 def test_make_electrode_dict_objective_csd():
     result = Electrode.from_csv("tests/data/electrode_objective.csv")
+    by_name = {e.name: e for e in result}
 
-    assert result["sphere"].type == ObjectiveCSDParams(
+    assert by_name["sphere"].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=15.0, thickness=None
     )
-    assert result["disk"].type == ObjectiveCSDParams(
+    assert by_name["disk"].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=25.0
     )
-    assert result["plane"].type == ObjectiveCSDParams(
+    assert by_name["plane"].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_PLANE, radius=None, thickness=30.0
     )
     # Missing radius/thickness → None
-    assert result["disk_defaults"].type == ObjectiveCSDParams(
+    assert by_name["disk_defaults"].type == ObjectiveCSDParams(
         type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=None, thickness=None
     )
 
@@ -329,7 +330,7 @@ def test_make_electrode_dict_invalid_type(tmp_path):
 def test_electrode_file_structure(tmp_path):
     electrodes = make_electrodes()
     path = create_electrode_file(tmp_path / "test.h5", electrodes)
-    e = electrodes["name"]
+    e = electrodes[0]
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f["electrodes/name/position"][:], e.position)
         np.testing.assert_equal(f["electrodes/name/type"][()].decode(), e.type.value)
@@ -341,7 +342,7 @@ def test_electrode_file_structure(tmp_path):
 def test_electrode_file_structure_objective(tmp_path):
     electrodes = make_electrodes_objective()
     path = create_electrode_file(tmp_path / "test.h5", electrodes)
-    e = electrodes["name"]
+    e = electrodes[0]
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f["electrodes/name/position"][:], e.position)
         np.testing.assert_equal(f["electrodes/name/type"][()].decode(), e.type.type.value)
