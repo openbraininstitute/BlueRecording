@@ -81,19 +81,39 @@ def make_electrodes_objective():
 
 def make_electrodes_objective_array():
     return [
-        Electrode(name="a", position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region="Outside", layer="Outside"),
-        Electrode(name="b", position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region="Outside", layer="Outside"),
         Electrode(
-            name="name", position=np.array([1, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region="Outside", layer="Outside"
+            name="a", position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region="Outside", layer="Outside"
         ),
         Electrode(
-            name="name1", position=np.array([2, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region="Outside", layer="Outside"
+            name="b", position=np.array([1, 0, 0]), type=ElectrodeType.RECIPROCITY, region="Outside", layer="Outside"
         ),
         Electrode(
-            name="name2", position=np.array([1, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region="Outside", layer="Outside"
+            name="name",
+            position=np.array([1, 0, 0]),
+            type=ElectrodeType.OBJECTIVE_CSD_DISK,
+            region="Outside",
+            layer="Outside",
         ),
         Electrode(
-            name="name3", position=np.array([2, 0, 0]), type=ElectrodeType.OBJECTIVE_CSD_DISK, region="Outside", layer="Outside"
+            name="name1",
+            position=np.array([2, 0, 0]),
+            type=ElectrodeType.OBJECTIVE_CSD_DISK,
+            region="Outside",
+            layer="Outside",
+        ),
+        Electrode(
+            name="name2",
+            position=np.array([1, 0, 0]),
+            type=ElectrodeType.OBJECTIVE_CSD_DISK,
+            region="Outside",
+            layer="Outside",
+        ),
+        Electrode(
+            name="name3",
+            position=np.array([2, 0, 0]),
+            type=ElectrodeType.OBJECTIVE_CSD_DISK,
+            region="Outside",
+            layer="Outside",
         ),
     ]
 
