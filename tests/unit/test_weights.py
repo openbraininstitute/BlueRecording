@@ -274,8 +274,7 @@ def test_planar_coords():
 def test_get_objective_csd_array(tmp_path):
     electrodes = make_electrodes_objective_array()
     # Build the ordered list matching sorted electrode names
-    names = sorted(electrodes.keys())
-    electrodes_ordered = [electrodes[n] for n in names]
+    electrodes_ordered = sorted(electrodes, key=lambda e: e.name)
 
     idx, count = _get_objective_csd_array(ElectrodeType.OBJECTIVE_CSD_DISK, None, 0, electrodes_ordered, 0)
     assert idx == [2, 3, 4, 5]
