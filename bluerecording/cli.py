@@ -46,7 +46,7 @@ def main():
         type=float,
         nargs="+",
         default=None,
-        help=f"Extracellular conductivity in S/m (default: {DEFAULT_SIGMA})",
+        help=f"Extracellular conductivity in S/m (uses {DEFAULT_SIGMA} if not specified)",
     )
     ww_parser.add_argument(
         "--path-to-fields",
