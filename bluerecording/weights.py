@@ -85,21 +85,25 @@ class Electrode:
                     if "thickness" in electrode_df.columns and pd.notna(electrode_df["thickness"].iloc[i])
                     else None
                 )
-                electrodes.append(cls(
-                    name=name,
-                    position=position,
-                    type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
-                    region=region,
-                    layer=layer,
-                ))
+                electrodes.append(
+                    cls(
+                        name=name,
+                        position=position,
+                        type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
+                        region=region,
+                        layer=layer,
+                    )
+                )
             else:
-                electrodes.append(cls(
-                    name=name,
-                    position=position,
-                    type=etype,
-                    region=region,
-                    layer=layer,
-                ))
+                electrodes.append(
+                    cls(
+                        name=name,
+                        position=position,
+                        type=etype,
+                        region=region,
+                        layer=layer,
+                    )
+                )
 
         return electrodes
 
