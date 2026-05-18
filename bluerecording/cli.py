@@ -1,9 +1,9 @@
 import argparse
+from pathlib import Path
 
 from . import __version__, positions
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
-from .utils import resolve_output_path
 from .weights import DEFAULT_SIGMA, Electrode, get_weights, save_weights
 
 
@@ -34,7 +34,7 @@ def main():
     ww_parser.add_argument(
         "output_path",
         type=str,
-        help="Path to the output H5 weights file, or a directory (weights.h5 will be created inside)",
+        help="Path to the output H5 weights file (e.g. /path/to/weights.h5)",
     )
     ww_parser.add_argument(
         "--no-replace-axons",
@@ -80,7 +80,8 @@ def main():
     elif args.command == "write_weights":
         node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
 
-        output_file = resolve_output_path(args.output_path)
+        output_file = Path(args.output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
         electrodes = Electrode.from_csv(args.electrode_csv)
 
