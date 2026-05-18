@@ -112,6 +112,3 @@ def resolve_simulation_config(path: str | Path):
             comm.Barrier()
             if rank == 0:
                 Path(tmp_name).unlink(missing_ok=True)
-
-
-
