@@ -90,25 +90,25 @@ def resolve_simulation_config(path: str | Path):
         yield str(path)
     else:
         tmp_name = None
-        if rank == 0:
-            sim_cfg = _make_simulation_config(path)
-            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                mode="w",
-                suffix=".json",
-                prefix=".bluerecording_sim_",
-                dir=path.parent,
-                delete=False,
-            )
-            json.dump(sim_cfg, tmp, indent=2)
-            tmp.close()
-            tmp_name = tmp.name
-
-        tmp_name = comm.bcast(tmp_name, root=0)
-        comm.Barrier()
-
         try:
+            if rank == 0:
+                sim_cfg = _make_simulation_config(path)
+                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
+                    mode="w",
+                    suffix=".json",
+                    prefix=".bluerecording_sim_",
+                    dir=path.parent,
+                    delete=False,
+                )
+                json.dump(sim_cfg, tmp, indent=2)
+                tmp.close()
+                tmp_name = tmp.name
+
+            tmp_name = comm.bcast(tmp_name, root=0)
+            comm.Barrier()
+
             yield tmp_name
         finally:
             comm.Barrier()
-            if rank == 0:
+            if rank == 0 and tmp_name is not None:
                 Path(tmp_name).unlink(missing_ok=True)

@@ -305,17 +305,17 @@ def test_make_electrode_dict_objective_csd():
     by_name = {e.name: e for e in result}
 
     assert by_name["sphere"].type == ObjectiveCSDParams(
-        type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=15.0, thickness=None
+        electrode_type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=15.0, thickness=None
     )
     assert by_name["disk"].type == ObjectiveCSDParams(
-        type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=25.0
+        electrode_type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=25.0
     )
     assert by_name["plane"].type == ObjectiveCSDParams(
-        type=ElectrodeType.OBJECTIVE_CSD_PLANE, radius=None, thickness=30.0
+        electrode_type=ElectrodeType.OBJECTIVE_CSD_PLANE, radius=None, thickness=30.0
     )
     # Missing radius/thickness → None
     assert by_name["disk_defaults"].type == ObjectiveCSDParams(
-        type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=None, thickness=None
+        electrode_type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=None, thickness=None
     )
 
 
@@ -344,7 +344,7 @@ def test_electrode_file_structure_objective(tmp_path):
     e = electrodes[0]
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f["electrodes/name/position"][:], e.position)
-        np.testing.assert_equal(f["electrodes/name/type"][()].decode(), e.type.type.value)
+        np.testing.assert_equal(f["electrodes/name/type"][()].decode(), e.type.electrode_type.value)
         np.testing.assert_equal(f["electrodes/name/type"].attrs.get("radius"), e.type.radius)
         np.testing.assert_equal(f["electrodes/name/type"].attrs.get("thickness"), e.type.thickness)
         np.testing.assert_equal(f["electrodes/name/region"][()].decode(), e.region)

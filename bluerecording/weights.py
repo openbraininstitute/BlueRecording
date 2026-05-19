@@ -32,7 +32,7 @@ class ElectrodeType(StrEnum):
 class ObjectiveCSDParams:
     """Parameters for an objective CSD electrode type."""
 
-    type: ElectrodeType
+    electrode_type: ElectrodeType
     radius: float | None = None
     thickness: float | None = None
 
@@ -92,7 +92,7 @@ class Electrode:
                     cls(
                         name=name,
                         position=position,
-                        type=ObjectiveCSDParams(type=etype, radius=radius, thickness=thickness),
+                        type=ObjectiveCSDParams(electrode_type=etype, radius=radius, thickness=thickness),
                         region=region,
                         layer=layer,
                     )
@@ -141,7 +141,7 @@ def _write_electrode_metadata_to_h5(
         h5.create_dataset(f"{prefix}/position", data=electrode.position)
 
         if isinstance(electrode.type, ObjectiveCSDParams):
-            dset = h5.create_dataset(f"{prefix}/type", data=electrode.type.type.value)
+            dset = h5.create_dataset(f"{prefix}/type", data=electrode.type.electrode_type.value)
             if electrode.type.radius is not None:
                 dset.attrs.create("radius", electrode.type.radius)
             if electrode.type.thickness is not None:
@@ -755,7 +755,7 @@ def _get_objective_csd_array(
         electrode_idx: Index of the current electrode in the sorted list.
     """
     if objective_csd_array_indices is None:
-        all_types = [e.type.type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered]
+        all_types = [e.type.electrode_type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered]
         array_idx = [i for i, t in enumerate(all_types) if t == electrode_type]
     else:
         array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
@@ -817,7 +817,7 @@ def get_weights(
         epos = electrode.position
 
         if isinstance(electrode.type, ObjectiveCSDParams):
-            electrode_type = electrode.type.type
+            electrode_type = electrode.type.electrode_type
         else:
             electrode_type = electrode.type
 

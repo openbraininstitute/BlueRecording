@@ -72,7 +72,7 @@ def make_electrodes_objective():
         Electrode(
             name="name",
             position=np.array([1, 2, 3]),
-            type=ObjectiveCSDParams(type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500, thickness=10),
+            type=ObjectiveCSDParams(electrode_type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500, thickness=10),
             region="Outside",
             layer="Outside",
         )
