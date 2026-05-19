@@ -755,7 +755,9 @@ def _get_objective_csd_array(
         electrode_idx: Index of the current electrode in the sorted list.
     """
     if objective_csd_array_indices is None:
-        all_types = [e.type.electrode_type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered]
+        all_types = [
+            e.type.electrode_type if isinstance(e.type, ObjectiveCSDParams) else e.type for e in electrodes_ordered
+        ]
         array_idx = [i for i, t in enumerate(all_types) if t == electrode_type]
     else:
         array_idx = _parse_index_range(objective_csd_array_indices[objective_csd_count])
