@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import json
-import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -64,51 +63,28 @@ def _make_simulation_config(circuit_config_path: str | Path) -> dict:
 
 @contextmanager
 def resolve_simulation_config(path: str | Path):
-    """Context manager that yields a path to a simulation config.
+    """Context manager that yields a ``libsonata.SimulationConfig`` object.
 
-    If *path* already points to a simulation config, it is yielded as-is.
-    If *path* points to a circuit config, a temporary simulation config is
-    created (in the same directory, so relative paths inside the circuit
-    config keep working) and its path is yielded.  The temporary file is
-    removed on exit.
+    If *path* already points to a simulation config, the object is built from
+    that file.  If *path* points to a circuit config, a
+    ``SimulationConfig`` is constructed in-memory without writing any
+    temporary files (avoiding permission issues on read-only filesystems).
 
-    MPI-safe: only rank 0 creates and removes the temporary file.
-    A barrier ensures all ranks see the file before proceeding and
-    wait before it is deleted.
+    MPI-safe: only rank 0 reads the file and broadcasts the result.
 
     Args:
         path: Path to either a simulation or circuit configuration file.
 
     Yields:
-        Resolved path (str) to a simulation configuration file.
+        A ``libsonata.SimulationConfig`` instance.
     """
     path = Path(path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"Config file not found: {path}")
 
     if not _is_circuit_config(path):
-        yield str(path)
+        yield libsonata.SimulationConfig.from_file(str(path))
     else:
-        tmp_name = None
-        try:
-            if rank == 0:
-                sim_cfg = _make_simulation_config(path)
-                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                    mode="w",
-                    suffix=".json",
-                    prefix=".bluerecording_sim_",
-                    dir=path.parent,
-                    delete=False,
-                )
-                json.dump(sim_cfg, tmp, indent=2)
-                tmp.close()
-                tmp_name = tmp.name
-
-            tmp_name = comm.bcast(tmp_name, root=0)
-            comm.Barrier()
-
-            yield tmp_name
-        finally:
-            comm.Barrier()
-            if rank == 0 and tmp_name is not None:
-                Path(tmp_name).unlink(missing_ok=True)
+        sim_cfg_dict = _make_simulation_config(path)
+        sim_cfg_json = json.dumps(sim_cfg_dict)
+        yield libsonata.SimulationConfig(sim_cfg_json, str(path.parent))

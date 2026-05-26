@@ -8,15 +8,15 @@ the discretization info (node IDs, compartment structure, morphology access)
 import libsonata
 import numpy as np
 
-from .utils import get_circuit_path, resolve_simulation_config
+from .utils import resolve_simulation_config
 
 
 def init_circuit(path_to_config: str):
     """Initialize neurodamus and extract circuit discretization info.
 
-    Accepts either a simulation config or a circuit config. If a circuit
-    config is detected, a temporary simulation config is created
-    transparently.
+    Accepts either a simulation config or a circuit config path. Internally
+    builds a ``libsonata.SimulationConfig`` object in-memory (no temp files)
+    and passes it directly to neurodamus.
 
     Args:
         path_to_config: Path to a SONATA simulation or circuit configuration file.
@@ -36,9 +36,9 @@ def init_circuit(path_to_config: str):
     # in lightweight installs (e.g. CI with --quick).
     import neurodamus
 
-    with resolve_simulation_config(path_to_config) as path_to_simconfig:
+    with resolve_simulation_config(path_to_config) as sim_config_obj:
         nd = neurodamus.Neurodamus(
-            path_to_simconfig,
+            sim_config_obj,
             disable_reports=True,
             enable_coord_mapping=True,
             simulator="NEURON",
@@ -59,7 +59,7 @@ def init_circuit(path_to_config: str):
 
         population_name = node_manager.population_name
 
-        circuit_conf = libsonata.CircuitConfig.from_file(get_circuit_path(path_to_simconfig))
+        circuit_conf = libsonata.CircuitConfig.from_file(sim_config_obj.network)
         population = circuit_conf.node_population(population_name)
         morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
 
