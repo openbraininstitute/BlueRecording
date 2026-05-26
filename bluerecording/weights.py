@@ -193,7 +193,7 @@ def _init_weights(
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
-    electrodes: dict[str, Electrode],
+    electrodes: list[Electrode],
     with_neurite_type: bool = False,
 ) -> None:
     """Initialize the HDF5 electrode weights file on rank 0.
@@ -773,7 +773,7 @@ def _get_objective_csd_array(
 def get_weights(
     positions: pd.DataFrame,
     cols: np.ndarray,
-    electrodes: dict[str, Electrode] | str,
+    electrodes: list[Electrode] | str,
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
@@ -900,7 +900,7 @@ def _write_neurite_types(
 
 def compute_weights(
     path_to_config: str | Path,
-    electrodes: dict[str, Electrode] | str,
+    electrodes: list[Electrode] | str,
     replace_axons: bool = True,
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
@@ -957,7 +957,7 @@ def save_weights(
     cols: np.ndarray,
     population_name: str,
     outputfile: str,
-    electrodes: dict[str, Electrode] | str,
+    electrodes: list[Electrode] | str,
     neurite_types: np.ndarray | None = None,
 ) -> None:
     """Initialize the HDF5 weights file and write pre-computed coefficients.
