@@ -22,7 +22,7 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "mpi4py",
     "h5py",
-    "neurodamus>=4.2.1",
+    "neurodamus>=4.2.2",
     "pandas",
     "morphio",
     "libsonata",
