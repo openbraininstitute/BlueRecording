@@ -139,22 +139,14 @@ def make_two_section_data():
 # ---------------------------------------------------------------------------
 
 
-def create_electrode_file(path, electrodes, gids=GIDS, population=POPULATION_NAME):
-    """Create an initialized electrode H5 file."""
-    with h5py.File(path, "w") as h5file:
-        _write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
-    return path
-
-
-def create_neuron_file(path, electrodes=None, gids=GIDS, population=POPULATION_NAME):
-    """Create electrode file with neuron weights initialized to ones."""
+def create_weights_file(path, electrodes=None, gids=GIDS, population=POPULATION_NAME):
+    """Create a weights H5 file with electrode metadata and scaling factors initialized to ones."""
     if electrodes is None:
         electrodes = make_electrodes()
-    path = create_electrode_file(path, electrodes, gids, population)
-    sec_counts = make_sec_counts()
-    h5file = h5py.File(path, "r+")
-    _init_scaling_factors_and_offsets(sec_counts, population, h5file, electrodes)
-    h5file.close()
+    with h5py.File(path, "w") as h5file:
+        _write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
+        sec_counts = make_sec_counts()
+        _init_scaling_factors_and_offsets(sec_counts, population, h5file, electrodes)
     return path
 
 

@@ -24,13 +24,13 @@ from bluerecording.weights import (
     _get_segment_midpts,
     _get_thickness,
     _sort_electrode_names,
+    _write_electrode_metadata_to_h5,
 )
 from tests.helpers import (
     GIDS,
     POPULATION_NAME,
     create_e_field,
-    create_electrode_file,
-    create_neuron_file,
+    create_weights_file,
     create_potential_field,
     make_electrodes,
     make_electrodes_objective,
@@ -60,14 +60,29 @@ def test_get_segment_midpts():
 
 
 def test_write_neuron(tmp_path):
-    path = create_neuron_file(tmp_path / "weights.h5")
+    path = create_weights_file(tmp_path / "weights.h5")
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], np.ones((25, 2)))
         np.testing.assert_equal(f[f"{POPULATION_NAME}/offsets"][:], np.array([0, 19, 25]))
 
 
+def test_write_neuron_creates_missing_directory(tmp_path):
+    """save_weights creates parent directories if they don't exist."""
+    from bluerecording.weights import save_weights
+
+    path = tmp_path / "nested" / "subdir" / "weights.h5"
+    assert not path.parent.exists()
+
+    cols = np.array([[1, 0], [1, 1]], dtype=np.int64)
+    electrodes = make_electrodes()
+    weights = pd.DataFrame(data=np.ones((1, 2)), columns=pd.MultiIndex.from_arrays(cols.T, names=["id", "section"]))
+
+    save_weights(weights, cols, POPULATION_NAME, str(path), electrodes)
+    assert path.exists()
+
+
 def test_add_coeffs(tmp_path):
-    path = create_neuron_file(tmp_path / "weights.h5")
+    path = create_weights_file(tmp_path / "weights.h5")
     data = make_report_data()
     with h5py.File(path, "r+") as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data.columns)
@@ -77,7 +92,7 @@ def test_add_coeffs(tmp_path):
 
 
 def test_add_coeffs_backwards(tmp_path):
-    path = create_neuron_file(tmp_path / "weights.h5")
+    path = create_weights_file(tmp_path / "weights.h5")
     data_bw = make_report_data_backwards()
     with h5py.File(path, "r+") as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data_bw.columns)
@@ -328,7 +343,9 @@ def test_make_electrode_dict_invalid_type(tmp_path):
 
 def test_electrode_file_structure(tmp_path):
     electrodes = make_electrodes()
-    path = create_electrode_file(tmp_path / "test.h5", electrodes)
+    path = tmp_path / "test.h5"
+    with h5py.File(path, "w") as h5file:
+        _write_electrode_metadata_to_h5(h5file, GIDS, electrodes, POPULATION_NAME)
     e = electrodes[0]
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f["electrodes/name/position"][:], e.position)
@@ -340,7 +357,9 @@ def test_electrode_file_structure(tmp_path):
 
 def test_electrode_file_structure_objective(tmp_path):
     electrodes = make_electrodes_objective()
-    path = create_electrode_file(tmp_path / "test.h5", electrodes)
+    path = tmp_path / "test.h5"
+    with h5py.File(path, "w") as h5file:
+        _write_electrode_metadata_to_h5(h5file, GIDS, electrodes, POPULATION_NAME)
     e = electrodes[0]
     with h5py.File(path, "r") as f:
         np.testing.assert_equal(f["electrodes/name/position"][:], e.position)
