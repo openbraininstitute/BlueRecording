@@ -221,6 +221,7 @@ def _init_weights(
 
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
 
+        Path(outputfile).parent.mkdir(parents=True, exist_ok=True)
         with h5py.File(outputfile, "w") as h5file:
             # Tune HDF5 metadata cache for faster writes
             h5id = h5file.id
