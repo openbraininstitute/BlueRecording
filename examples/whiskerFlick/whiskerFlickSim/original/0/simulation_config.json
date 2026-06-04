@@ -3,8 +3,7 @@
     "dt": 0.025,
     "tstop": 2200,
     "random_seed": 843,
-    "run_mode":"WholeCell",
-    "electrodes_file": "../../../electrodeFile/coeffs_eeg.h5"
+    "run_mode":"WholeCell"
   },
 
   "conditions": {
@@ -169,8 +168,8 @@
 
       "lfp_report": {
         "type": "lfp",
+      "electrodes_file": "../../../electrodeFile/coeffs_eeg.h5",
         "cells": "Mosaic",
-        "variable_name": "v",
         "dt": 0.1,
         "start_time": 0.0,
         "end_time": 12000,
