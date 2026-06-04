@@ -43,8 +43,24 @@ def init_circuit(path_to_config: str):
             enable_coord_mapping=True,
             simulator="NEURON",
         )
-        assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
-        node_manager = next(iter(nd.circuits.node_managers.values()))
+        node_managers = nd.circuits.node_managers
+        if len(node_managers) == 1:
+            node_manager = next(iter(node_managers.values()))
+        elif len(node_managers) > 1:
+            # Multiple populations loaded — pick the one with cells on this rank
+            managers_with_cells = {
+                name: mgr for name, mgr in node_managers.items()
+                if len(mgr.get_final_gids()) > 0
+            }
+            if len(managers_with_cells) != 1:
+                raise RuntimeError(
+                    f"Expected exactly one population with cells, got: "
+                    f"{list(managers_with_cells.keys())}. "
+                    f"Use a node_set that targets a single population."
+                )
+            node_manager = next(iter(managers_with_cells.values()))
+        else:
+            raise RuntimeError("No node managers found.")
 
         ids = node_manager.get_final_gids()
         points = node_manager.target_manager.get_target(None).get_point_list(
@@ -62,5 +78,11 @@ def init_circuit(path_to_config: str):
         circuit_conf = libsonata.CircuitConfig.from_file(sim_config_obj.network)
         population = circuit_conf.node_population(population_name)
         morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
+        alt_morphs = circuit_conf.node_population_properties(population_name).alternate_morphology_formats
+        if alt_morphs:
+            if "neurolucida-asc" in alt_morphs:
+                morphologies_dir = alt_morphs["neurolucida-asc"]
+            elif "h5v1" in alt_morphs:
+                morphologies_dir = alt_morphs["h5v1"]
 
     return node_manager, ids, cols, population, population_name, morphologies_dir
