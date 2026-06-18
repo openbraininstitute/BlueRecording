@@ -69,29 +69,22 @@ jobs:
 
           # neurodamus-models 3.0+ no longer uses CMake.
           # Build: combine core mods + neocortex test mods → nrnivmodl
-          # (following neurodamus's own CI: build-neocortex-models.sh)
           INSTALL_DIR=${{ env.NEURODAMUS_NEOCORTEX_ROOT }}
           mkdir -p "$INSTALL_DIR/mod"
           mkdir -p "$INSTALL_DIR/hoc"
           mkdir -p "$INSTALL_DIR/lib"
           mkdir -p "$INSTALL_DIR/bin"
 
-          # Copy core MOD files from neurodamus (exclude reporting mods that need libsonatareport)
-          for f in ${NEURODAMUS_PYTHON}/mod/*.mod; do
-            basename=$(basename "$f")
-            if [ "$basename" != "SonataReportHelper.mod" ] && [ "$basename" != "SonataReports.mod" ]; then
-              cp "$f" "$INSTALL_DIR/mod/"
-            fi
-          done
+          # Copy core MOD files from neurodamus
+          cp ${NEURODAMUS_PYTHON}/mod/*.mod "$INSTALL_DIR/mod/"
           # Copy neocortex test mechanisms from neurodamus source
           cp neurodamus-src/tests/mechanisms/neocortex/*.mod "$INSTALL_DIR/mod/"
-
           # Copy HOC files
           cp ${NEURODAMUS_PYTHON}/hoc/*.hoc "$INSTALL_DIR/hoc/"
 
-          # Build with nrnivmodl (no reporting needed for tests)
+          # Build with nrnivmodl (disable reporting lib, keep mods for neurodamus checks)
           cd "$INSTALL_DIR"
-          nrnivmodl -coreneuron mod
+          nrnivmodl -coreneuron -incflags "-DDISABLE_REPORTINGLIB" mod
 
           # Install built libraries and binary
           ARCH=$(uname -m)
