@@ -393,27 +393,27 @@ def test_precompute_segment_geometry_basic():
     result = _precompute_segment_geometry(positions)
 
     # Should identify 1 soma and 1 line-source segment
-    assert result["is_soma"].shape == (2,)
-    assert result["is_soma"][0] is np.True_  # first segment is soma
-    assert result["is_soma"][1] is np.False_  # second is line-source
+    assert result.is_soma.shape == (2,)
+    assert result.is_soma[0] is np.True_  # first segment is soma
+    assert result.is_soma[1] is np.False_  # second is line-source
 
     # Soma position
-    assert result["soma_positions"].shape == (1, 3)
-    np.testing.assert_array_equal(result["soma_positions"][0], [0.0, 0.0, 0.0])
+    assert result.soma_positions.shape == (1, 3)
+    np.testing.assert_array_equal(result.soma_positions[0], [0.0, 0.0, 0.0])
 
     # Line-source segment: start=(0,0,0), end=(0,0,1) in µm
-    assert result["start_pos"].shape == (1, 3)
-    assert result["end_pos"].shape == (1, 3)
-    np.testing.assert_array_equal(result["start_pos"][0], [0.0, 0.0, 0.0])
-    np.testing.assert_array_equal(result["end_pos"][0], [0.0, 0.0, 1.0])
+    assert result.start_pos.shape == (1, 3)
+    assert result.end_pos.shape == (1, 3)
+    np.testing.assert_array_equal(result.start_pos[0], [0.0, 0.0, 0.0])
+    np.testing.assert_array_equal(result.end_pos[0], [0.0, 0.0, 1.0])
 
     # Length should be 1 µm = 1e-6 m
-    assert result["seg_lengths"].shape == (1,)
-    np.testing.assert_almost_equal(result["seg_lengths"][0], 1e-6)
+    assert result.seg_lengths.shape == (1,)
+    np.testing.assert_almost_equal(result.seg_lengths[0], 1e-6)
 
     # Direction should be along z-axis
-    assert result["seg_dirs"].shape == (1, 3)
-    np.testing.assert_array_almost_equal(result["seg_dirs"][0], [0.0, 0.0, 1.0])
+    assert result.seg_dirs.shape == (1, 3)
+    np.testing.assert_array_almost_equal(result.seg_dirs[0], [0.0, 0.0, 1.0])
 
 
 def test_precompute_segment_geometry_multi_neuron():
@@ -444,18 +444,18 @@ def test_precompute_segment_geometry_multi_neuron():
 
     # Expected: 2 somas, 3 line-source segments
     # Order: soma(1,0), seg(1→2), seg(2→3), soma(2,0), seg(y1→y2)
-    assert np.sum(result["is_soma"]) == 2
-    assert np.sum(~result["is_soma"]) == 3
+    assert np.sum(result.is_soma) == 2
+    assert np.sum(~result.is_soma) == 3
 
-    assert result["soma_positions"].shape == (2, 3)
-    np.testing.assert_array_equal(result["soma_positions"][0], [0.0, 0.0, 0.0])
-    np.testing.assert_array_equal(result["soma_positions"][1], [10.0, 0.0, 0.0])
+    assert result.soma_positions.shape == (2, 3)
+    np.testing.assert_array_equal(result.soma_positions[0], [0.0, 0.0, 0.0])
+    np.testing.assert_array_equal(result.soma_positions[1], [10.0, 0.0, 0.0])
 
-    assert result["start_pos"].shape == (3, 3)
-    assert result["end_pos"].shape == (3, 3)
+    assert result.start_pos.shape == (3, 3)
+    assert result.end_pos.shape == (3, 3)
 
     # All segments are 1 µm long along x or y axis
-    np.testing.assert_array_almost_equal(result["seg_lengths"], [1e-6, 1e-6, 1e-6])
+    np.testing.assert_array_almost_equal(result.seg_lengths, [1e-6, 1e-6, 1e-6])
 
 
 def test_precompute_segment_geometry_no_soma():
@@ -468,11 +468,11 @@ def test_precompute_segment_geometry_no_soma():
 
     result = _precompute_segment_geometry(positions)
 
-    assert np.sum(result["is_soma"]) == 0
-    assert result["soma_positions"].shape == (0, 3)
-    assert result["start_pos"].shape == (1, 3)
-    assert result["end_pos"].shape == (1, 3)
-    np.testing.assert_almost_equal(result["seg_lengths"][0], 1e-6)
+    assert np.sum(result.is_soma) == 0
+    assert result.soma_positions.shape == (0, 3)
+    assert result.start_pos.shape == (1, 3)
+    assert result.end_pos.shape == (1, 3)
+    np.testing.assert_almost_equal(result.seg_lengths[0], 1e-6)
 
 
 def test_precompute_segment_geometry_only_soma():
@@ -485,12 +485,12 @@ def test_precompute_segment_geometry_only_soma():
 
     result = _precompute_segment_geometry(positions)
 
-    assert np.sum(result["is_soma"]) == 1
-    assert np.sum(~result["is_soma"]) == 0
-    assert result["soma_positions"].shape == (1, 3)
-    np.testing.assert_array_equal(result["soma_positions"][0], [5.0, 3.0, 1.0])
-    assert result["start_pos"].shape == (0, 3)
-    assert result["seg_lengths"].shape == (0,)
+    assert np.sum(result.is_soma) == 1
+    assert np.sum(~result.is_soma) == 0
+    assert result.soma_positions.shape == (1, 3)
+    np.testing.assert_array_equal(result.soma_positions[0], [5.0, 3.0, 1.0])
+    assert result.start_pos.shape == (0, 3)
+    assert result.seg_lengths.shape == (0,)
 
 
 def test_vectorized_matches_scalar():
