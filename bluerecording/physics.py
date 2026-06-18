@@ -27,6 +27,84 @@ class SegmentGeometry:
     is_soma: np.ndarray  # (N_total_segments,) — bool, True for soma entries
     soma_positions: np.ndarray  # (N_soma, 3) — soma positions (µm)
 
+    @classmethod
+    def from_positions(cls, positions: pd.DataFrame) -> "SegmentGeometry":
+        """Build geometry from a positions DataFrame.
+
+        Extracts start/end positions for line-source segments and soma
+        positions for point-source segments, along with derived quantities
+        (lengths, direction vectors).
+
+        The positions DataFrame has a MultiIndex column ``(gid, section_id)``.
+        - If section_id == 0, it's a soma (point source).
+        - If consecutive columns share the same section_id, they form a
+          line-source segment boundary pair.
+
+        Args:
+            positions: DataFrame of segment boundary positions (µm), shape
+                ``(3, N_columns)`` with MultiIndex columns ``(gid, section_id)``.
+        """
+        n_cols = len(positions.columns)
+        col_section_ids = np.array([c[-1] for c in positions.columns])
+
+        soma_positions_list = []
+        start_positions_list = []
+        end_positions_list = []
+
+        is_soma_list = []
+
+        i = 0
+        while i < n_cols:
+            section_id = col_section_ids[i]
+
+            if section_id == 0:
+                soma_positions_list.append(positions.iloc[:, i].values)
+                is_soma_list.append(True)
+                i += 1
+            elif i + 1 < n_cols and col_section_ids[i] == col_section_ids[i + 1]:
+                start_positions_list.append(positions.iloc[:, i].values)
+                end_positions_list.append(positions.iloc[:, i + 1].values)
+                is_soma_list.append(False)
+                i += 1
+            else:
+                i += 1
+
+        is_soma = np.array(is_soma_list, dtype=bool)
+
+        if soma_positions_list:
+            soma_positions = np.array(soma_positions_list)
+        else:
+            soma_positions = np.empty((0, 3), dtype=np.float64)
+
+        if start_positions_list:
+            start_pos = np.array(start_positions_list)
+            end_pos = np.array(end_positions_list)
+
+            diff = (end_pos - start_pos) * 1e-6
+            seg_lengths = np.linalg.norm(diff, axis=1)
+
+            safe_lengths = np.where(seg_lengths > 0, seg_lengths, 1.0)
+            seg_dirs = diff / safe_lengths[:, np.newaxis]
+        else:
+            start_pos = np.empty((0, 3), dtype=np.float64)
+            end_pos = np.empty((0, 3), dtype=np.float64)
+            seg_lengths = np.empty((0,), dtype=np.float64)
+            seg_dirs = np.empty((0, 3), dtype=np.float64)
+
+        return cls(
+            start_pos=start_pos,
+            end_pos=end_pos,
+            seg_lengths=seg_lengths,
+            seg_dirs=seg_dirs,
+            is_soma=is_soma,
+            soma_positions=soma_positions,
+        )
+
+
+def precompute_segment_geometry(positions: pd.DataFrame) -> SegmentGeometry:
+    """Precompute segment geometry arrays. Use ``SegmentGeometry.from_positions()`` instead."""
+    return SegmentGeometry.from_positions(positions)
+
 
 def _line_source_cases(h: float, r2: float, l: float) -> float:
     """Return the line-source potential term for the given geometry case.
@@ -93,91 +171,6 @@ def _get_line_coeffs(
     return seg_coeff
 
 
-def precompute_segment_geometry(
-    positions: pd.DataFrame,
-) -> SegmentGeometry:
-    """Precompute segment geometry arrays from the positions DataFrame.
-
-    Extracts start/end positions for line-source segments and soma positions
-    for point-source segments, along with derived quantities (lengths,
-    direction vectors).
-
-    The positions DataFrame has a MultiIndex column ``(gid, section_id)``.
-    - If section_id == 0, it's a soma (point source).
-    - If consecutive columns share the same section_id, they form a
-      line-source segment boundary pair.
-
-    Args:
-        positions: DataFrame of segment boundary positions (µm), shape
-            ``(3, N_columns)`` with MultiIndex columns ``(gid, section_id)``.
-
-    Returns:
-        SegmentGeometry dataclass with precomputed arrays.
-    """
-    n_cols = len(positions.columns)
-    col_section_ids = np.array([c[-1] for c in positions.columns])
-
-    soma_positions_list = []
-    start_positions_list = []
-    end_positions_list = []
-
-    # Track which output index is soma vs line-source
-    is_soma_list = []
-
-    i = 0
-    while i < n_cols:
-        section_id = col_section_ids[i]
-
-        if section_id == 0:
-            # Soma: point source
-            soma_positions_list.append(positions.iloc[:, i].values)
-            is_soma_list.append(True)
-            i += 1
-        elif i + 1 < n_cols and col_section_ids[i] == col_section_ids[i + 1]:
-            # Line-source segment: consecutive columns with same section_id
-            start_positions_list.append(positions.iloc[:, i].values)
-            end_positions_list.append(positions.iloc[:, i + 1].values)
-            is_soma_list.append(False)
-            i += 1
-        else:
-            # Skip columns that don't form a segment pair
-            i += 1
-
-    # Build arrays
-    is_soma = np.array(is_soma_list, dtype=bool)
-
-    if soma_positions_list:
-        soma_positions = np.array(soma_positions_list)  # (N_soma, 3)
-    else:
-        soma_positions = np.empty((0, 3), dtype=np.float64)
-
-    if start_positions_list:
-        start_pos = np.array(start_positions_list)  # (N_line_segments, 3)
-        end_pos = np.array(end_positions_list)  # (N_line_segments, 3)
-
-        # Compute lengths in meters (positions are in µm)
-        diff = (end_pos - start_pos) * 1e-6  # convert to meters
-        seg_lengths = np.linalg.norm(diff, axis=1)  # (N_line_segments,)
-
-        # Unit direction vectors (end - start, normalized)
-        # Avoid division by zero for degenerate segments
-        safe_lengths = np.where(seg_lengths > 0, seg_lengths, 1.0)
-        seg_dirs = diff / safe_lengths[:, np.newaxis]  # (N_line_segments, 3)
-    else:
-        start_pos = np.empty((0, 3), dtype=np.float64)
-        end_pos = np.empty((0, 3), dtype=np.float64)
-        seg_lengths = np.empty((0,), dtype=np.float64)
-        seg_dirs = np.empty((0, 3), dtype=np.float64)
-
-    return SegmentGeometry(
-        start_pos=start_pos,
-        end_pos=end_pos,
-        seg_lengths=seg_lengths,
-        seg_dirs=seg_dirs,
-        is_soma=is_soma,
-        soma_positions=soma_positions,
-    )
-
 
 def get_coeffs_line_source(
     positions: pd.DataFrame,
@@ -200,7 +193,7 @@ def get_coeffs_line_source(
         electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    geom = precompute_segment_geometry(positions)
+    geom = SegmentGeometry.from_positions(positions)
 
     is_soma = geom.is_soma
     n_total = len(is_soma)
@@ -284,7 +277,7 @@ def get_coeffs_line_source_batch(
     Returns:
         DataFrame of shape ``(N_elec, N_segments)`` with columns matching ``columns``.
     """
-    geom = precompute_segment_geometry(positions)
+    geom = SegmentGeometry.from_positions(positions)
 
     is_soma = geom.is_soma
     n_total = len(is_soma)
