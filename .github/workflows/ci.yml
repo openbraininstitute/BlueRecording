@@ -63,13 +63,13 @@ jobs:
 
       - name: Build neurodamus-models
         run: |
-          git clone --depth=1 https://github.com/openbraininstitute/neurodamus-models.git neurodamus-models-src
           git clone --depth=1 https://github.com/openbraininstitute/neurodamus.git neurodamus-src
 
           NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
           # neurodamus-models 3.0+ no longer uses CMake.
-          # Build: combine core mods + neurodamus-models mods + neocortex test mods → nrnivmodl
+          # Build: combine core mods + neocortex test mods → nrnivmodl
+          # (following neurodamus's own CI: build-neocortex-models.sh)
           INSTALL_DIR=${{ env.NEURODAMUS_NEOCORTEX_ROOT }}
           mkdir -p "$INSTALL_DIR/mod"
           mkdir -p "$INSTALL_DIR/hoc"
@@ -78,8 +78,6 @@ jobs:
 
           # Copy core MOD files from neurodamus
           cp ${NEURODAMUS_PYTHON}/mod/*.mod "$INSTALL_DIR/mod/"
-          # Copy neurodamus-models mechanism files
-          cp neurodamus-models-src/mod/*.mod "$INSTALL_DIR/mod/"
           # Copy neocortex test mechanisms from neurodamus source
           cp neurodamus-src/tests/mechanisms/neocortex/*.mod "$INSTALL_DIR/mod/"
 
