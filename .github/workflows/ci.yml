@@ -64,8 +64,7 @@ jobs:
       - name: Build neurodamus-models
         run: |
           git clone --depth=1 https://github.com/openbraininstitute/neurodamus-models.git neurodamus-models-src
-          git clone --depth=1 --branch ${{ env.NEURODAMUS_COMMIT }} \
-              https://github.com/openbraininstitute/neurodamus.git neurodamus-src
+          git clone --depth=1 https://github.com/openbraininstitute/neurodamus.git neurodamus-src
 
           NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
