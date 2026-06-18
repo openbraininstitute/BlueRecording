@@ -385,142 +385,16 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
-def _collect_and_compute_point_source_batch(
-    electrodes: list[Electrode],
-    start_idx: int,
-    sigma: list[float],
-    sigma_idx: int,
-    mid_positions: pd.DataFrame,
-    columns: pd.MultiIndex,
-    n_electrodes: int,
-    verbose: bool,
-) -> tuple[pd.DataFrame, int, int]:
-    """Collect consecutive PointSource electrodes with the same sigma and compute batch.
-
-    Returns:
-        batch_coeffs: DataFrame of coefficients for the batch.
-        next_idx: Index of the next electrode to process after this batch.
-        sigma_idx: Updated sigma index.
-    """
-    current_sigma = sigma[sigma_idx]
-    batch_positions = [electrodes[start_idx].position]
-
-    if len(sigma) == 1:
-        next_idx = start_idx + 1
-        while next_idx < n_electrodes:
-            next_elec = electrodes[next_idx]
-            next_type = (
-                next_elec.type.electrode_type
-                if isinstance(next_elec.type, ObjectiveCSDParams)
-                else next_elec.type
-            )
-            if next_type is ElectrodeType.POINT_SOURCE:
-                batch_positions.append(next_elec.position)
-                next_idx += 1
-            else:
-                break
-    else:
-        next_idx = start_idx + 1
-        while next_idx < n_electrodes:
-            next_elec = electrodes[next_idx]
-            next_type = (
-                next_elec.type.electrode_type
-                if isinstance(next_elec.type, ObjectiveCSDParams)
-                else next_elec.type
-            )
-            next_sigma_idx = sigma_idx + (next_idx - start_idx)
-            if (
-                next_type is ElectrodeType.POINT_SOURCE
-                and next_sigma_idx < len(sigma)
-                and sigma[next_sigma_idx] == current_sigma
-            ):
-                batch_positions.append(next_elec.position)
-                next_idx += 1
-            else:
-                break
-        sigma_idx += next_idx - start_idx
-
-    epos_array = np.array(batch_positions)
-    batch_size = len(batch_positions)
-    if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-        print(
-            f"Computing point-source weights: electrodes "
-            f"{start_idx + 1}-{start_idx + batch_size} / {n_electrodes}"
-        )
-    batch_coeffs = get_coeffs_point_source_batch(
-        mid_positions, columns, epos_array, current_sigma, verbose=verbose
-    )
-    return batch_coeffs, next_idx, sigma_idx
+def _get_electrode_type(electrode: Electrode) -> ElectrodeType:
+    """Extract the ElectrodeType from an Electrode (handles ObjectiveCSDParams)."""
+    if isinstance(electrode.type, ObjectiveCSDParams):
+        return electrode.type.electrode_type
+    return electrode.type
 
 
-def _collect_and_compute_line_source_batch(
-    electrodes: list[Electrode],
-    start_idx: int,
-    sigma: list[float],
-    sigma_idx: int,
-    positions: pd.DataFrame,
-    columns: pd.MultiIndex,
-    n_electrodes: int,
-    verbose: bool,
-) -> tuple[pd.DataFrame, int, int]:
-    """Collect consecutive LineSource electrodes with the same sigma and compute batch.
-
-    Returns:
-        batch_coeffs: DataFrame of coefficients for the batch.
-        next_idx: Index of the next electrode to process after this batch.
-        sigma_idx: Updated sigma index.
-    """
-    current_sigma = sigma[sigma_idx]
-    batch_positions = [electrodes[start_idx].position]
-
-    if len(sigma) == 1:
-        # All electrodes share the same sigma — batch all consecutive LINE_SOURCE
-        next_idx = start_idx + 1
-        while next_idx < n_electrodes:
-            next_elec = electrodes[next_idx]
-            next_type = (
-                next_elec.type.electrode_type
-                if isinstance(next_elec.type, ObjectiveCSDParams)
-                else next_elec.type
-            )
-            if next_type is ElectrodeType.LINE_SOURCE:
-                batch_positions.append(next_elec.position)
-                next_idx += 1
-            else:
-                break
-    else:
-        # Multiple sigmas — batch consecutive LINE_SOURCE with same sigma value
-        next_idx = start_idx + 1
-        while next_idx < n_electrodes:
-            next_elec = electrodes[next_idx]
-            next_type = (
-                next_elec.type.electrode_type
-                if isinstance(next_elec.type, ObjectiveCSDParams)
-                else next_elec.type
-            )
-            next_sigma_idx = sigma_idx + (next_idx - start_idx)
-            if (
-                next_type is ElectrodeType.LINE_SOURCE
-                and next_sigma_idx < len(sigma)
-                and sigma[next_sigma_idx] == current_sigma
-            ):
-                batch_positions.append(next_elec.position)
-                next_idx += 1
-            else:
-                break
-        sigma_idx += next_idx - start_idx
-
-    epos_array = np.array(batch_positions)
-    batch_size = len(batch_positions)
-    if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-        print(
-            f"Computing line-source weights: electrodes "
-            f"{start_idx + 1}-{start_idx + batch_size} / {n_electrodes}"
-        )
-    batch_coeffs = get_coeffs_line_source_batch(
-        positions, columns, epos_array, current_sigma, verbose=verbose
-    )
-    return batch_coeffs, next_idx, sigma_idx
+def _get_sigma_for_electrode(idx: int, sigma: list[float]) -> float:
+    """Get the sigma value for electrode at index idx."""
+    return sigma[idx] if len(sigma) > 1 else sigma[0]
 
 
 def get_weights(
@@ -534,8 +408,8 @@ def get_weights(
 ) -> pd.DataFrame | None:
     """Compute electrode transfer coefficients from pre-computed positions.
 
-    Dispatches to the appropriate coefficient function based on each
-    electrode's type and returns the concatenated result.
+    Groups electrodes by (type, sigma), computes each group as a batch,
+    then reassembles results in original electrode order.
     Pure computation — no file I/O.
 
     Args:
@@ -563,52 +437,75 @@ def get_weights(
     if len(node_ids) == 0:
         return None
 
-    coeff_list = []
-    electrodes_ordered = electrodes
+    n_electrodes = len(electrodes)
+    n_segments = len(cols)
 
+    # Result array: (N_electrodes, N_segments), filled per group then reordered
+    all_coeffs = np.empty((n_electrodes, n_segments))
+
+    # --- Group LINE_SOURCE electrodes by sigma ---
+    line_source_groups: dict[float, list[int]] = {}
+    point_source_groups: dict[float, list[int]] = {}
+    other_indices: list[int] = []
+
+    for idx, elec in enumerate(electrodes):
+        etype = _get_electrode_type(elec)
+        s = _get_sigma_for_electrode(idx, sigma)
+        if etype is ElectrodeType.LINE_SOURCE:
+            line_source_groups.setdefault(s, []).append(idx)
+        elif etype is ElectrodeType.POINT_SOURCE:
+            point_source_groups.setdefault(s, []).append(idx)
+        else:
+            other_indices.append(idx)
+
+    # --- Batch compute LINE_SOURCE groups ---
+    for group_sigma, indices in line_source_groups.items():
+        epos_array = np.array([electrodes[i].position for i in indices])
+        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+            print(
+                f"Computing line-source weights: {len(indices)} electrodes, sigma={group_sigma}"
+            )
+        batch_coeffs = get_coeffs_line_source_batch(
+            positions, columns, epos_array, group_sigma, verbose=verbose
+        )
+        all_coeffs[indices] = batch_coeffs.values
+
+    # --- Batch compute POINT_SOURCE groups ---
+    mid_positions = None  # lazy compute
+    for group_sigma, indices in point_source_groups.items():
+        if mid_positions is None:
+            mid_positions = _get_segment_midpts(positions, node_ids)
+        epos_array = np.array([electrodes[i].position for i in indices])
+        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+            print(
+                f"Computing point-source weights: {len(indices)} electrodes, sigma={group_sigma}"
+            )
+        batch_coeffs = get_coeffs_point_source_batch(
+            mid_positions, columns, epos_array, group_sigma, verbose=verbose
+        )
+        all_coeffs[indices] = batch_coeffs.values
+
+    # --- Process remaining electrode types one by one ---
     reciprocity_idx = 0
-    sigma_idx = 0
     objective_csd_count = 0
 
-    n_electrodes = len(electrodes_ordered)
-    electrode_idx = 0
-
-    while electrode_idx < n_electrodes:
-        electrode = electrodes_ordered[electrode_idx]
+    for idx in other_indices:
+        electrode = electrodes[idx]
         epos = electrode.position
+        electrode_type = _get_electrode_type(electrode)
 
-        if isinstance(electrode.type, ObjectiveCSDParams):
-            electrode_type = electrode.type.electrode_type
-        else:
-            electrode_type = electrode.type
-
-        if electrode_type is ElectrodeType.LINE_SOURCE:
-            batch_coeffs, next_idx, sigma_idx = _collect_and_compute_line_source_batch(
-                electrodes_ordered, electrode_idx, sigma, sigma_idx,
-                positions, columns, n_electrodes, verbose,
-            )
-            coeff_list.append(batch_coeffs)
-            electrode_idx = next_idx
-
-        elif electrode_type is ElectrodeType.POINT_SOURCE:
+        if mid_positions is None:
             mid_positions = _get_segment_midpts(positions, node_ids)
-            batch_coeffs, next_idx, sigma_idx = _collect_and_compute_point_source_batch(
-                electrodes_ordered, electrode_idx, sigma, sigma_idx,
-                mid_positions, columns, n_electrodes, verbose,
-            )
-            coeff_list.append(batch_coeffs)
-            electrode_idx = next_idx
 
-        elif "ObjectiveCSD" in electrode_type:
-            mid_positions = _get_segment_midpts(positions, node_ids)
+        if "ObjectiveCSD" in electrode_type:
             array_idx, objective_csd_count = _get_objective_csd_array(
                 electrode_type,
                 objective_csd_array_indices,
                 objective_csd_count,
-                electrodes_ordered,
-                electrode_idx,
+                electrodes,
+                idx,
             )
-            all_epos = [electrodes_ordered[i].position for i in array_idx]
+            all_epos = [electrodes[i].position for i in array_idx]
 
             if isinstance(electrode.type, ObjectiveCSDParams):
                 radius = electrode.type.radius
@@ -624,22 +521,19 @@ def get_weights(
             elif electrode_type is ElectrodeType.OBJECTIVE_CSD_PLANE:
                 coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
 
-            coeff_list.append(coeffs)
-            electrode_idx += 1
-
-        else:
-            mid_positions = _get_segment_midpts(positions, node_ids)
-            if electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
-                center = mid_positions.mean(axis=1)
-                coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
-            else:
-                coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
+        elif electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
+            center = mid_positions.mean(axis=1)
+            coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
             reciprocity_idx += 1
 
-            coeff_list.append(coeffs)
-            electrode_idx += 1
+        else:
+            coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
+            reciprocity_idx += 1
 
-    return pd.concat(coeff_list) if len(coeff_list) > 1 else coeff_list[0]
+        all_coeffs[idx] = coeffs.values.ravel()
+
+    result = pd.DataFrame(data=all_coeffs, columns=columns)
+    return result
 
 
 def _write_neurite_types(
