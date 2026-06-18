@@ -257,7 +257,7 @@ def get_coeffs_line_source_batch(
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
     electrode_positions: np.ndarray,
-    sigma: float,
+    sigma: float | np.ndarray,
     chunk_size: int = 50,
     verbose: bool = True,
 ) -> pd.DataFrame:
@@ -271,7 +271,7 @@ def get_coeffs_line_source_batch(
         positions: DataFrame of segment boundary positions.
         columns: MultiIndex of (gid, section) pairs for the output.
         electrode_positions: Electrode positions array, shape ``(N_elec, 3)`` (µm).
-        sigma: Extracellular conductivity (S/m), shared by all electrodes.
+        sigma: Extracellular conductivity (S/m). Scalar or array of shape ``(N_elec,)``.
         chunk_size: Number of electrodes to process per chunk (controls peak memory).
         verbose: If True, print chunk progress on rank 0.
 
@@ -283,6 +283,7 @@ def get_coeffs_line_source_batch(
     is_soma = geom.is_soma
     n_total = len(is_soma)
     n_elec = len(electrode_positions)
+    sigma_arr = np.broadcast_to(np.asarray(sigma, dtype=np.float64), (n_elec,))
 
     # Final result: (N_elec, N_segments)
     all_coeffs = np.empty((n_elec, n_total))
@@ -291,6 +292,7 @@ def get_coeffs_line_source_batch(
     for chunk_start in range(0, n_elec, chunk_size):
         chunk_end = min(chunk_start + chunk_size, n_elec)
         epos_chunk = electrode_positions[chunk_start:chunk_end]  # (chunk, 3)
+        sigma_chunk = sigma_arr[chunk_start:chunk_end]  # (chunk,)
 
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             pct = int(chunk_end / n_elec * 100)
@@ -303,7 +305,7 @@ def get_coeffs_line_source_batch(
         if np.any(is_soma):
             soma_pos = geom.soma_positions  # (N_soma, 3) in µm
             all_coeffs[chunk_start:chunk_end][:, is_soma] = _point_source_coeffs_batch(
-                soma_pos, epos_chunk, sigma
+                soma_pos, epos_chunk, sigma_chunk
             )
 
         # --- Line-source segments ---
@@ -340,7 +342,8 @@ def get_coeffs_line_source_batch(
                 case3,
             )
 
-            line_coeffs = 1 / (4 * np.pi * sigma * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
+            # sigma_chunk: (chunk,) → (1, chunk) for broadcasting against (N_line, chunk)
+            line_coeffs = 1 / (4 * np.pi * sigma_chunk[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
             # Transpose to (chunk, N_line) and assign
             all_coeffs[chunk_start:chunk_end][:, line_mask] = line_coeffs.T
 
@@ -351,14 +354,14 @@ def get_coeffs_line_source_batch(
 def _point_source_coeffs_batch(
     positions_um: np.ndarray,
     electrode_positions_um: np.ndarray,
-    sigma: float,
+    sigma: float | np.ndarray,
 ) -> np.ndarray:
     """Vectorized point-source coefficients for positions vs electrodes.
 
     Args:
         positions_um: Segment positions in µm, shape ``(N_points, 3)``.
         electrode_positions_um: Electrode positions in µm, shape ``(N_elec, 3)``.
-        sigma: Extracellular conductivity (S/m).
+        sigma: Extracellular conductivity (S/m). Scalar or array of shape ``(N_elec,)``.
 
     Returns:
         Coefficients array, shape ``(N_elec, N_points)``.
@@ -366,7 +369,12 @@ def _point_source_coeffs_batch(
     # (N_points, 1, 3) - (1, N_elec, 3) → (N_points, N_elec, 3)
     delta = (positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]) * 1e-6
     dist = np.linalg.norm(delta, axis=2)  # (N_points, N_elec)
-    coeffs = 1 / (4 * np.pi * sigma * dist) * 1e-9  # (N_points, N_elec)
+    # sigma: scalar → broadcast; array (N_elec,) → (1, N_elec) for broadcast
+    if np.ndim(sigma) == 0:
+        coeffs = 1 / (4 * np.pi * sigma * dist) * 1e-9
+    else:
+        sigma_row = np.asarray(sigma)[np.newaxis, :]  # (1, N_elec)
+        coeffs = 1 / (4 * np.pi * sigma_row * dist) * 1e-9
     return coeffs.T  # (N_elec, N_points)
 
 
@@ -394,7 +402,7 @@ def get_coeffs_point_source_batch(
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
     electrode_positions: np.ndarray,
-    sigma: float,
+    sigma: float | np.ndarray,
     chunk_size: int = 50,
     verbose: bool = True,
 ) -> pd.DataFrame:
@@ -406,7 +414,7 @@ def get_coeffs_point_source_batch(
         positions: DataFrame of segment midpoint positions (µm), shape ``(3, N_segments)``.
         columns: MultiIndex of (gid, section) pairs for the output.
         electrode_positions: Electrode positions array, shape ``(N_elec, 3)`` (µm).
-        sigma: Extracellular conductivity (S/m).
+        sigma: Extracellular conductivity (S/m). Scalar or array of shape ``(N_elec,)``.
         chunk_size: Number of electrodes to process per chunk (controls peak memory).
         verbose: If True, print chunk progress on rank 0.
 
@@ -416,12 +424,14 @@ def get_coeffs_point_source_batch(
     positions_um = positions.values.T  # (N_segments, 3)
     n_elec = len(electrode_positions)
     n_segments = positions_um.shape[0]
+    sigma_arr = np.broadcast_to(np.asarray(sigma, dtype=np.float64), (n_elec,))
 
     all_coeffs = np.empty((n_elec, n_segments))
 
     for chunk_start in range(0, n_elec, chunk_size):
         chunk_end = min(chunk_start + chunk_size, n_elec)
         epos_chunk = electrode_positions[chunk_start:chunk_end]
+        sigma_chunk = sigma_arr[chunk_start:chunk_end]
 
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             pct = int(chunk_end / n_elec * 100)
@@ -431,7 +441,7 @@ def get_coeffs_point_source_batch(
             )
 
         all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(
-            positions_um, epos_chunk, sigma
+            positions_um, epos_chunk, sigma_chunk
         )
 
     result = pd.DataFrame(data=all_coeffs, columns=columns)

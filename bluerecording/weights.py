@@ -392,11 +392,6 @@ def _get_electrode_type(electrode: Electrode) -> ElectrodeType:
     return electrode.type
 
 
-def _get_sigma_for_electrode(idx: int, sigma: list[float]) -> float:
-    """Get the sigma value for electrode at index idx."""
-    return sigma[idx] if len(sigma) > 1 else sigma[0]
-
-
 def get_weights(
     positions: pd.DataFrame,
     cols: np.ndarray,
@@ -443,47 +438,45 @@ def get_weights(
     # Result array: (N_electrodes, N_segments), filled per group then reordered
     all_coeffs = np.empty((n_electrodes, n_segments))
 
-    # --- Group LINE_SOURCE electrodes by sigma ---
-    line_source_groups: dict[float, list[int]] = {}
-    point_source_groups: dict[float, list[int]] = {}
+    # --- Group electrodes by type ---
+    line_source_indices: list[int] = []
+    point_source_indices: list[int] = []
     other_indices: list[int] = []
+
+    sigma_arr = np.broadcast_to(np.asarray(sigma, dtype=np.float64), (n_electrodes,))
 
     for idx, elec in enumerate(electrodes):
         etype = _get_electrode_type(elec)
-        s = _get_sigma_for_electrode(idx, sigma)
         if etype is ElectrodeType.LINE_SOURCE:
-            line_source_groups.setdefault(s, []).append(idx)
+            line_source_indices.append(idx)
         elif etype is ElectrodeType.POINT_SOURCE:
-            point_source_groups.setdefault(s, []).append(idx)
+            point_source_indices.append(idx)
         else:
             other_indices.append(idx)
 
-    # --- Batch compute LINE_SOURCE groups ---
-    for group_sigma, indices in line_source_groups.items():
-        epos_array = np.array([electrodes[i].position for i in indices])
+    # --- Batch compute LINE_SOURCE ---
+    if line_source_indices:
+        epos_array = np.array([electrodes[i].position for i in line_source_indices])
+        group_sigma = sigma_arr[line_source_indices]
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            print(
-                f"Computing line-source weights: {len(indices)} electrodes, sigma={group_sigma}"
-            )
+            print(f"Computing line-source weights: {len(line_source_indices)} electrodes")
         batch_coeffs = get_coeffs_line_source_batch(
             positions, columns, epos_array, group_sigma, verbose=verbose
         )
-        all_coeffs[indices] = batch_coeffs.values
+        all_coeffs[line_source_indices] = batch_coeffs.values
 
-    # --- Batch compute POINT_SOURCE groups ---
-    mid_positions = None  # lazy compute
-    for group_sigma, indices in point_source_groups.items():
-        if mid_positions is None:
-            mid_positions = _get_segment_midpts(positions, node_ids)
-        epos_array = np.array([electrodes[i].position for i in indices])
+    # --- Batch compute POINT_SOURCE ---
+    mid_positions = None
+    if point_source_indices:
+        mid_positions = _get_segment_midpts(positions, node_ids)
+        epos_array = np.array([electrodes[i].position for i in point_source_indices])
+        group_sigma = sigma_arr[point_source_indices]
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            print(
-                f"Computing point-source weights: {len(indices)} electrodes, sigma={group_sigma}"
-            )
+            print(f"Computing point-source weights: {len(point_source_indices)} electrodes")
         batch_coeffs = get_coeffs_point_source_batch(
             mid_positions, columns, epos_array, group_sigma, verbose=verbose
         )
-        all_coeffs[indices] = batch_coeffs.values
+        all_coeffs[point_source_indices] = batch_coeffs.values
 
     # --- Process remaining electrode types one by one ---
     reciprocity_idx = 0
