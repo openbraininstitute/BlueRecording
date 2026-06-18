@@ -48,10 +48,7 @@ def init_circuit(path_to_config: str):
             node_manager = next(iter(node_managers.values()))
         elif len(node_managers) > 1:
             # Multiple populations loaded — pick the one with cells on this rank
-            managers_with_cells = {
-                name: mgr for name, mgr in node_managers.items()
-                if len(mgr.get_final_gids()) > 0
-            }
+            managers_with_cells = {name: mgr for name, mgr in node_managers.items() if len(mgr.get_final_gids()) > 0}
             if len(managers_with_cells) != 1:
                 raise RuntimeError(
                     f"Expected exactly one population with cells, got: "
