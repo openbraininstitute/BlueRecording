@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  NEURODAMUS_COMMIT: "4.2.3"
+  NEURODAMUS_COMMIT: "katta/lfp-electrode-offsets"
   NEURODAMUS_NEOCORTEX_ROOT: ${{ github.workspace }}/install/neurodamus-neocortex
 
 jobs:
@@ -63,7 +63,8 @@ jobs:
 
       - name: Build neurodamus-models
         run: |
-          git clone --depth=1 https://github.com/openbraininstitute/neurodamus.git neurodamus-src
+          git clone --depth=1 --branch ${{ env.NEURODAMUS_COMMIT }} \
+              https://github.com/openbraininstitute/neurodamus.git neurodamus-src
 
           NEURODAMUS_PYTHON=$(python -c "import neurodamus; from pathlib import Path; print(Path(neurodamus.__file__).parent / 'data')")
 
