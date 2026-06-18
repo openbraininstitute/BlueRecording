@@ -38,6 +38,18 @@ class ObjectiveCSDParams:
 
 
 @dataclass
+class SegmentGeometry:
+    """Precomputed segment geometry for vectorized line-source computation."""
+
+    start_pos: np.ndarray  # (N_line_segments, 3) — segment start positions (µm)
+    end_pos: np.ndarray  # (N_line_segments, 3) — segment end positions (µm)
+    seg_lengths: np.ndarray  # (N_line_segments,) — lengths in meters
+    seg_dirs: np.ndarray  # (N_line_segments, 3) — unit direction vectors
+    is_soma: np.ndarray  # (N_total_segments,) — bool, True for soma entries
+    soma_positions: np.ndarray  # (N_soma, 3) — soma positions (µm)
+
+
+@dataclass
 class Electrode:
     """Metadata for a single electrode."""
 
@@ -351,7 +363,7 @@ def _get_line_coeffs(
 
 def _precompute_segment_geometry(
     positions: pd.DataFrame,
-) -> dict:
+) -> SegmentGeometry:
     """Precompute segment geometry arrays from the positions DataFrame.
 
     Extracts start/end positions for line-source segments and soma positions
@@ -369,22 +381,7 @@ def _precompute_segment_geometry(
             ``(3, N_columns)`` with MultiIndex columns ``(gid, section_id)``.
 
     Returns:
-        Dictionary with keys:
-            - ``start_pos``: ndarray shape ``(N_line_segments, 3)`` — start
-              positions of line-source segments (µm).
-            - ``end_pos``: ndarray shape ``(N_line_segments, 3)`` — end
-              positions of line-source segments (µm).
-            - ``seg_lengths``: ndarray shape ``(N_line_segments,)`` — segment
-              lengths in meters.
-            - ``seg_dirs``: ndarray shape ``(N_line_segments, 3)`` — unit
-              direction vectors (end - start, normalized).
-            - ``is_soma``: boolean array shape ``(N_total_segments,)`` — True
-              for soma (point-source) entries in the output ordering.
-            - ``soma_positions``: ndarray shape ``(N_soma, 3)`` — positions
-              of soma segments (µm).
-            - ``segment_order``: list of int — indices into the output array
-              indicating original traversal order (for reconstructing the
-              output column mapping).
+        SegmentGeometry dataclass with precomputed arrays.
     """
     n_cols = len(positions.columns)
     col_section_ids = np.array([c[-1] for c in positions.columns])
@@ -441,14 +438,14 @@ def _precompute_segment_geometry(
         seg_lengths = np.empty((0,), dtype=np.float64)
         seg_dirs = np.empty((0, 3), dtype=np.float64)
 
-    return {
-        "start_pos": start_pos,
-        "end_pos": end_pos,
-        "seg_lengths": seg_lengths,
-        "seg_dirs": seg_dirs,
-        "is_soma": is_soma,
-        "soma_positions": soma_positions,
-    }
+    return SegmentGeometry(
+        start_pos=start_pos,
+        end_pos=end_pos,
+        seg_lengths=seg_lengths,
+        seg_dirs=seg_dirs,
+        is_soma=is_soma,
+        soma_positions=soma_positions,
+    )
 
 
 def _get_coeffs_line_source(
@@ -474,22 +471,22 @@ def _get_coeffs_line_source(
     """
     geom = _precompute_segment_geometry(positions)
 
-    is_soma = geom["is_soma"]
+    is_soma = geom.is_soma
     n_total = len(is_soma)
     coeffs = np.empty(n_total)
 
     # --- Soma segments (point source) ---
     if np.any(is_soma):
-        soma_pos = geom["soma_positions"]  # (N_soma, 3) in µm
+        soma_pos = geom.soma_positions  # (N_soma, 3) in µm
         dist = np.linalg.norm((soma_pos - electrode_pos) * 1e-6, axis=1)
         coeffs[is_soma] = 1 / (4 * np.pi * sigma * dist) * 1e-9
 
     # --- Line-source segments ---
     line_mask = ~is_soma
     if np.any(line_mask):
-        start_pos = geom["start_pos"] * 1e-6  # (N_line, 3) in meters
-        end_pos = geom["end_pos"] * 1e-6  # (N_line, 3) in meters
-        seg_lengths = geom["seg_lengths"]  # (N_line,) already in meters
+        start_pos = geom.start_pos * 1e-6  # (N_line, 3) in meters
+        end_pos = geom.end_pos * 1e-6  # (N_line, 3) in meters
+        seg_lengths = geom.seg_lengths  # (N_line,) already in meters
         epos = electrode_pos * 1e-6
 
         # delta = electrode - end (vector from segment end to electrode)
@@ -560,7 +557,7 @@ def _get_coeffs_line_source_batch(
     """
     geom = _precompute_segment_geometry(positions)
 
-    is_soma = geom["is_soma"]
+    is_soma = geom.is_soma
     n_total = len(is_soma)
     n_elec = len(electrode_positions)
 
@@ -582,7 +579,7 @@ def _get_coeffs_line_source_batch(
 
         # --- Soma segments (point source) ---
         if np.any(is_soma):
-            soma_pos = geom["soma_positions"]  # (N_soma, 3) in µm
+            soma_pos = geom.soma_positions  # (N_soma, 3) in µm
             # Broadcast: (N_soma, 1, 3) - (1, chunk, 3) → (N_soma, chunk, 3)
             soma_delta = (soma_pos[:, np.newaxis, :] - epos_chunk[np.newaxis, :, :]) * 1e-6
             soma_dist = np.linalg.norm(soma_delta, axis=2)  # (N_soma, chunk)
@@ -594,9 +591,9 @@ def _get_coeffs_line_source_batch(
         line_mask = ~is_soma
         if np.any(line_mask):
             # end_pos: (N_line, 3) in meters
-            end_pos = geom["end_pos"] * 1e-6  # (N_line, 3)
-            seg_lengths = geom["seg_lengths"]  # (N_line,) in meters
-            start_pos = geom["start_pos"] * 1e-6  # (N_line, 3)
+            end_pos = geom.end_pos * 1e-6  # (N_line, 3)
+            seg_lengths = geom.seg_lengths  # (N_line,) in meters
+            start_pos = geom.start_pos * 1e-6  # (N_line, 3)
             seg_dir = end_pos - start_pos  # (N_line, 3) — unnormalized direction
 
             # Broadcast electrode positions: (1, chunk, 3) - (N_line, 1, 3) → (N_line, chunk, 3)
