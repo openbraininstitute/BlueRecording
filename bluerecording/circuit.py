@@ -74,12 +74,6 @@ def init_circuit(path_to_config: str):
 
         circuit_conf = libsonata.CircuitConfig.from_file(sim_config_obj.network)
         population = circuit_conf.node_population(population_name)
-        morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
-        alt_morphs = circuit_conf.node_population_properties(population_name).alternate_morphology_formats
-        if alt_morphs:
-            if "neurolucida-asc" in alt_morphs:
-                morphologies_dir = alt_morphs["neurolucida-asc"]
-            elif "h5v1" in alt_morphs:
-                morphologies_dir = alt_morphs["h5v1"]
+        morphologies_dir = nd._sonata_circuits[population_name].MorphologyPath
 
     return node_manager, ids, cols, population, population_name, morphologies_dir
