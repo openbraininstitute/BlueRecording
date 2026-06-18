@@ -24,6 +24,7 @@ from .physics import (
     get_coeffs_objective_csd_plane,
     get_coeffs_objective_csd_sphere,
     get_coeffs_point_source,
+    get_coeffs_point_source_batch,
     get_coeffs_reciprocity,
     precompute_segment_geometry as _precompute_segment_geometry,
 )
@@ -384,6 +385,74 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
+def _collect_and_compute_point_source_batch(
+    electrodes: list[Electrode],
+    start_idx: int,
+    sigma: list[float],
+    sigma_idx: int,
+    mid_positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    n_electrodes: int,
+    verbose: bool,
+) -> tuple[pd.DataFrame, int, int]:
+    """Collect consecutive PointSource electrodes with the same sigma and compute batch.
+
+    Returns:
+        batch_coeffs: DataFrame of coefficients for the batch.
+        next_idx: Index of the next electrode to process after this batch.
+        sigma_idx: Updated sigma index.
+    """
+    current_sigma = sigma[sigma_idx]
+    batch_positions = [electrodes[start_idx].position]
+
+    if len(sigma) == 1:
+        next_idx = start_idx + 1
+        while next_idx < n_electrodes:
+            next_elec = electrodes[next_idx]
+            next_type = (
+                next_elec.type.electrode_type
+                if isinstance(next_elec.type, ObjectiveCSDParams)
+                else next_elec.type
+            )
+            if next_type is ElectrodeType.POINT_SOURCE:
+                batch_positions.append(next_elec.position)
+                next_idx += 1
+            else:
+                break
+    else:
+        next_idx = start_idx + 1
+        while next_idx < n_electrodes:
+            next_elec = electrodes[next_idx]
+            next_type = (
+                next_elec.type.electrode_type
+                if isinstance(next_elec.type, ObjectiveCSDParams)
+                else next_elec.type
+            )
+            next_sigma_idx = sigma_idx + (next_idx - start_idx)
+            if (
+                next_type is ElectrodeType.POINT_SOURCE
+                and next_sigma_idx < len(sigma)
+                and sigma[next_sigma_idx] == current_sigma
+            ):
+                batch_positions.append(next_elec.position)
+                next_idx += 1
+            else:
+                break
+        sigma_idx += next_idx - start_idx
+
+    epos_array = np.array(batch_positions)
+    batch_size = len(batch_positions)
+    if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+        print(
+            f"Computing point-source weights: electrodes "
+            f"{start_idx + 1}-{start_idx + batch_size} / {n_electrodes}"
+        )
+    batch_coeffs = get_coeffs_point_source_batch(
+        mid_positions, columns, epos_array, current_sigma, verbose=verbose
+    )
+    return batch_coeffs, next_idx, sigma_idx
+
+
 def _collect_and_compute_line_source_batch(
     electrodes: list[Electrode],
     start_idx: int,
@@ -521,45 +590,51 @@ def get_weights(
             coeff_list.append(batch_coeffs)
             electrode_idx = next_idx
 
+        elif electrode_type is ElectrodeType.POINT_SOURCE:
+            mid_positions = _get_segment_midpts(positions, node_ids)
+            batch_coeffs, next_idx, sigma_idx = _collect_and_compute_point_source_batch(
+                electrodes_ordered, electrode_idx, sigma, sigma_idx,
+                mid_positions, columns, n_electrodes, verbose,
+            )
+            coeff_list.append(batch_coeffs)
+            electrode_idx = next_idx
+
+        elif "ObjectiveCSD" in electrode_type:
+            mid_positions = _get_segment_midpts(positions, node_ids)
+            array_idx, objective_csd_count = _get_objective_csd_array(
+                electrode_type,
+                objective_csd_array_indices,
+                objective_csd_count,
+                electrodes_ordered,
+                electrode_idx,
+            )
+            all_epos = [electrodes_ordered[i].position for i in array_idx]
+
+            if isinstance(electrode.type, ObjectiveCSDParams):
+                radius = electrode.type.radius
+                thickness = electrode.type.thickness
+            else:
+                radius = None
+                thickness = None
+
+            if electrode_type is ElectrodeType.OBJECTIVE_CSD_SPHERE:
+                coeffs = get_coeffs_objective_csd_sphere(mid_positions, epos, all_epos, radius)
+            elif electrode_type is ElectrodeType.OBJECTIVE_CSD_DISK:
+                coeffs = get_coeffs_objective_csd_disk(mid_positions, epos, all_epos, radius, thickness)
+            elif electrode_type is ElectrodeType.OBJECTIVE_CSD_PLANE:
+                coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
+
+            coeff_list.append(coeffs)
+            electrode_idx += 1
+
         else:
             mid_positions = _get_segment_midpts(positions, node_ids)
-
-            if electrode_type is ElectrodeType.POINT_SOURCE:
-                coeffs = get_coeffs_point_source(mid_positions, epos, sigma[sigma_idx])
-                if len(sigma) > 1:
-                    sigma_idx += 1
-
-            elif "ObjectiveCSD" in electrode_type:
-                array_idx, objective_csd_count = _get_objective_csd_array(
-                    electrode_type,
-                    objective_csd_array_indices,
-                    objective_csd_count,
-                    electrodes_ordered,
-                    electrode_idx,
-                )
-                all_epos = [electrodes_ordered[i].position for i in array_idx]
-
-                if isinstance(electrode.type, ObjectiveCSDParams):
-                    radius = electrode.type.radius
-                    thickness = electrode.type.thickness
-                else:
-                    radius = None
-                    thickness = None
-
-                if electrode_type is ElectrodeType.OBJECTIVE_CSD_SPHERE:
-                    coeffs = get_coeffs_objective_csd_sphere(mid_positions, epos, all_epos, radius)
-                elif electrode_type is ElectrodeType.OBJECTIVE_CSD_DISK:
-                    coeffs = get_coeffs_objective_csd_disk(mid_positions, epos, all_epos, radius, thickness)
-                elif electrode_type is ElectrodeType.OBJECTIVE_CSD_PLANE:
-                    coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
-
+            if electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
+                center = mid_positions.mean(axis=1)
+                coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
             else:
-                if electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
-                    center = mid_positions.mean(axis=1)
-                    coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
-                else:
-                    coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
-                reciprocity_idx += 1
+                coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
+            reciprocity_idx += 1
 
             coeff_list.append(coeffs)
             electrode_idx += 1

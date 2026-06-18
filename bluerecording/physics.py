@@ -202,8 +202,9 @@ def get_coeffs_line_source(
     # --- Soma segments (point source) ---
     if np.any(is_soma):
         soma_pos = geom.soma_positions  # (N_soma, 3) in µm
-        dist = np.linalg.norm((soma_pos - electrode_pos) * 1e-6, axis=1)
-        coeffs[is_soma] = 1 / (4 * np.pi * sigma * dist) * 1e-9
+        coeffs[is_soma] = _point_source_coeffs_batch(
+            soma_pos, electrode_pos[np.newaxis, :], sigma
+        ).ravel()
 
     # --- Line-source segments ---
     line_mask = ~is_soma
@@ -301,12 +302,9 @@ def get_coeffs_line_source_batch(
         # --- Soma segments (point source) ---
         if np.any(is_soma):
             soma_pos = geom.soma_positions  # (N_soma, 3) in µm
-            # Broadcast: (N_soma, 1, 3) - (1, chunk, 3) → (N_soma, chunk, 3)
-            soma_delta = (soma_pos[:, np.newaxis, :] - epos_chunk[np.newaxis, :, :]) * 1e-6
-            soma_dist = np.linalg.norm(soma_delta, axis=2)  # (N_soma, chunk)
-            soma_coeffs = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9  # (N_soma, chunk)
-            # Transpose to (chunk, N_soma) and assign
-            all_coeffs[chunk_start:chunk_end][:, is_soma] = soma_coeffs.T
+            all_coeffs[chunk_start:chunk_end][:, is_soma] = _point_source_coeffs_batch(
+                soma_pos, epos_chunk, sigma
+            )
 
         # --- Line-source segments ---
         line_mask = ~is_soma
@@ -350,12 +348,34 @@ def get_coeffs_line_source_batch(
     return result
 
 
+def _point_source_coeffs_batch(
+    positions_um: np.ndarray,
+    electrode_positions_um: np.ndarray,
+    sigma: float,
+) -> np.ndarray:
+    """Vectorized point-source coefficients for positions vs electrodes.
+
+    Args:
+        positions_um: Segment positions in µm, shape ``(N_points, 3)``.
+        electrode_positions_um: Electrode positions in µm, shape ``(N_elec, 3)``.
+        sigma: Extracellular conductivity (S/m).
+
+    Returns:
+        Coefficients array, shape ``(N_elec, N_points)``.
+    """
+    # (N_points, 1, 3) - (1, N_elec, 3) → (N_points, N_elec, 3)
+    delta = (positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]) * 1e-6
+    dist = np.linalg.norm(delta, axis=2)  # (N_points, N_elec)
+    coeffs = 1 / (4 * np.pi * sigma * dist) * 1e-9  # (N_points, N_elec)
+    return coeffs.T  # (N_elec, N_points)
+
+
 def get_coeffs_point_source(
     positions: pd.DataFrame,
     electrode_pos: np.ndarray,
     sigma: float,
 ) -> pd.DataFrame:
-    """Compute point-source coefficients for all segments.
+    """Compute point-source coefficients for all segments (single electrode).
 
     Each segment is treated as a point source. Distances are converted
     from µm to m and currents from nA to A.
@@ -365,10 +385,57 @@ def get_coeffs_point_source(
         electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    distances = np.linalg.norm(positions.values - electrode_pos[:, np.newaxis], axis=0) * 1e-6
-    coeffs = 1 / (4 * np.pi * sigma * distances)
-    coeffs *= 1e-9
-    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
+    positions_um = positions.values.T  # (N_segments, 3)
+    coeffs = _point_source_coeffs_batch(positions_um, electrode_pos[np.newaxis, :], sigma)
+    return pd.DataFrame(data=coeffs, columns=positions.columns)
+
+
+def get_coeffs_point_source_batch(
+    positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    electrode_positions: np.ndarray,
+    sigma: float,
+    chunk_size: int = 50,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Compute point-source coefficients for multiple electrodes simultaneously.
+
+    All segments are treated as point sources at their midpoint positions.
+
+    Args:
+        positions: DataFrame of segment midpoint positions (µm), shape ``(3, N_segments)``.
+        columns: MultiIndex of (gid, section) pairs for the output.
+        electrode_positions: Electrode positions array, shape ``(N_elec, 3)`` (µm).
+        sigma: Extracellular conductivity (S/m).
+        chunk_size: Number of electrodes to process per chunk (controls peak memory).
+        verbose: If True, print chunk progress on rank 0.
+
+    Returns:
+        DataFrame of shape ``(N_elec, N_segments)`` with columns matching ``columns``.
+    """
+    positions_um = positions.values.T  # (N_segments, 3)
+    n_elec = len(electrode_positions)
+    n_segments = positions_um.shape[0]
+
+    all_coeffs = np.empty((n_elec, n_segments))
+
+    for chunk_start in range(0, n_elec, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, n_elec)
+        epos_chunk = electrode_positions[chunk_start:chunk_end]
+
+        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+            pct = int(chunk_end / n_elec * 100)
+            print(
+                f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / "
+                f"{n_elec} ({pct}%)"
+            )
+
+        all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(
+            positions_um, epos_chunk, sigma
+        )
+
+    result = pd.DataFrame(data=all_coeffs, columns=columns)
+    return result
 
 
 def _get_array_spacing(all_epos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
