@@ -161,3 +161,50 @@ def test_rat_s1_neurite_types(tmp_path):
         assert f"{pop_name}/neurite_types" in h5
         stored = h5[f"{pop_name}/neurite_types"][:]
         np.testing.assert_array_equal(stored, neurite_types)
+
+
+def test_rat_s1_interleaved_electrode_types(tmp_path):
+    """Verify interleaved electrode types with mixed sigmas produce correct results.
+
+    Uses a CSV with interleaved LineSource/PointSource electrodes and
+    per-electrode sigma values (0.3 and 0.4). Compares the batched result
+    against computing each electrode individually.
+    """
+    from bluerecording.physics import get_coeffs_line_source, get_coeffs_point_source
+
+    from tests.conftest import EXAMPLE_RAT_S1
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.csv")
+
+    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    electrodes = Electrode.from_csv(csv)
+
+    # Per-electrode sigma: 0.3 for first 3, 0.4 for next 2, 0.3 for last 2
+    sigma = [0.3, 0.3, 0.3, 0.4, 0.4, 0.3, 0.3]
+
+    # Batched computation (groups by type+sigma, reorders)
+    weights = get_weights(pos_df, cols, electrodes=electrodes, sigma=sigma)
+
+    # Individual computation for verification
+    columns = weights.columns
+    node_ids = np.unique(cols[:, 0])
+
+    from bluerecording.weights import _get_segment_midpts
+
+    mid_positions = _get_segment_midpts(pos_df, node_ids)
+
+    for i, electrode in enumerate(electrodes):
+        s = sigma[i]
+        if electrode.type.value == "LineSource":
+            expected = get_coeffs_line_source(pos_df, columns, electrode.position, s)
+        else:
+            expected = get_coeffs_point_source(mid_positions, electrode.position, s)
+
+        np.testing.assert_allclose(
+            weights.iloc[i].values,
+            expected.values.ravel(),
+            rtol=1e-12,
+            err_msg=f"Electrode {i} ({electrode.type.value}, sigma={s}) mismatch",
+        )
