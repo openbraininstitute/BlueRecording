@@ -349,6 +349,108 @@ def _get_line_coeffs(
     return seg_coeff
 
 
+def _precompute_segment_geometry(
+    positions: pd.DataFrame,
+) -> dict:
+    """Precompute segment geometry arrays from the positions DataFrame.
+
+    Extracts start/end positions for line-source segments and soma positions
+    for point-source segments, along with derived quantities (lengths,
+    direction vectors).
+
+    The positions DataFrame has a MultiIndex column ``(gid, section_id)``.
+    The logic mirrors ``_get_coeffs_line_source``:
+    - If section_id == 0, it's a soma (point source).
+    - If consecutive columns share the same section_id, they form a
+      line-source segment boundary pair.
+
+    Args:
+        positions: DataFrame of segment boundary positions (µm), shape
+            ``(3, N_columns)`` with MultiIndex columns ``(gid, section_id)``.
+
+    Returns:
+        Dictionary with keys:
+            - ``start_pos``: ndarray shape ``(N_line_segments, 3)`` — start
+              positions of line-source segments (µm).
+            - ``end_pos``: ndarray shape ``(N_line_segments, 3)`` — end
+              positions of line-source segments (µm).
+            - ``seg_lengths``: ndarray shape ``(N_line_segments,)`` — segment
+              lengths in meters.
+            - ``seg_dirs``: ndarray shape ``(N_line_segments, 3)`` — unit
+              direction vectors (end - start, normalized).
+            - ``is_soma``: boolean array shape ``(N_total_segments,)`` — True
+              for soma (point-source) entries in the output ordering.
+            - ``soma_positions``: ndarray shape ``(N_soma, 3)`` — positions
+              of soma segments (µm).
+            - ``segment_order``: list of int — indices into the output array
+              indicating original traversal order (for reconstructing the
+              output column mapping).
+    """
+    n_cols = len(positions.columns)
+    col_section_ids = np.array([c[-1] for c in positions.columns])
+
+    soma_positions_list = []
+    start_positions_list = []
+    end_positions_list = []
+
+    # Track which output index is soma vs line-source
+    is_soma_list = []
+
+    i = 0
+    while i < n_cols:
+        section_id = col_section_ids[i]
+
+        if section_id == 0:
+            # Soma: point source
+            soma_positions_list.append(positions.iloc[:, i].values)
+            is_soma_list.append(True)
+            i += 1
+        elif i + 1 < n_cols and col_section_ids[i] == col_section_ids[i + 1]:
+            # Line-source segment: consecutive columns with same section_id
+            start_positions_list.append(positions.iloc[:, i].values)
+            end_positions_list.append(positions.iloc[:, i + 1].values)
+            is_soma_list.append(False)
+            i += 1
+        else:
+            # Skip columns that don't form a segment pair
+            i += 1
+
+    # Build arrays
+    is_soma = np.array(is_soma_list, dtype=bool)
+
+    if soma_positions_list:
+        soma_positions = np.array(soma_positions_list)  # (N_soma, 3)
+    else:
+        soma_positions = np.empty((0, 3), dtype=np.float64)
+
+    if start_positions_list:
+        start_pos = np.array(start_positions_list)  # (N_line_segments, 3)
+        end_pos = np.array(end_positions_list)  # (N_line_segments, 3)
+
+        # Compute lengths in meters (positions are in µm)
+        diff = (end_pos - start_pos) * 1e-6  # convert to meters
+        seg_lengths = np.linalg.norm(diff, axis=1)  # (N_line_segments,)
+
+        # Unit direction vectors (end - start, normalized)
+        # Avoid division by zero for degenerate segments
+        safe_lengths = np.where(seg_lengths > 0, seg_lengths, 1.0)
+        seg_dirs = diff / safe_lengths[:, np.newaxis]  # (N_line_segments, 3)
+    else:
+        start_pos = np.empty((0, 3), dtype=np.float64)
+        end_pos = np.empty((0, 3), dtype=np.float64)
+        seg_lengths = np.empty((0,), dtype=np.float64)
+        seg_dirs = np.empty((0, 3), dtype=np.float64)
+
+    return {
+        "start_pos": start_pos,
+        "end_pos": end_pos,
+        "seg_lengths": seg_lengths,
+        "seg_dirs": seg_dirs,
+        "is_soma": is_soma,
+        "soma_positions": soma_positions,
+    }
+
+
 def _get_coeffs_line_source(
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
@@ -360,28 +462,181 @@ def _get_coeffs_line_source(
     Soma segments are treated as point sources; other segments use the
     line-source approximation between consecutive position endpoints.
 
+    This implementation is fully vectorized: it precomputes segment geometry
+    once and applies the line-source formula to all segments simultaneously
+    using numpy broadcasting and ``np.where`` for the three sign cases.
+
     Args:
         positions: DataFrame of segment boundary positions.
         columns: MultiIndex of (gid, section) pairs for the output.
         electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    coeff_list = []
+    geom = _precompute_segment_geometry(positions)
 
-    for i in range(len(positions.columns) - 1):
-        if positions.columns[i][-1] == 0:
-            soma_pos = positions.iloc[:, i]
-            dist = np.linalg.norm(soma_pos - electrode_pos) * 1e-6
-            soma_coeff = 1 / (4 * np.pi * sigma * dist)
-            soma_coeff *= 1e-9
-            coeff_list.append(soma_coeff)
+    is_soma = geom["is_soma"]
+    n_total = len(is_soma)
+    coeffs = np.empty(n_total)
 
-        elif positions.columns[i][-1] == positions.columns[i + 1][-1]:
-            coeff_list.append(_get_line_coeffs(positions.iloc[:, i], positions.iloc[:, i + 1], electrode_pos, sigma))
+    # --- Soma segments (point source) ---
+    if np.any(is_soma):
+        soma_pos = geom["soma_positions"]  # (N_soma, 3) in µm
+        dist = np.linalg.norm((soma_pos - electrode_pos) * 1e-6, axis=1)
+        coeffs[is_soma] = 1 / (4 * np.pi * sigma * dist) * 1e-9
 
-    coeffs = pd.DataFrame(data=np.array(coeff_list)[np.newaxis, :])
-    coeffs.columns = columns
-    return coeffs
+    # --- Line-source segments ---
+    line_mask = ~is_soma
+    if np.any(line_mask):
+        start_pos = geom["start_pos"] * 1e-6  # (N_line, 3) in meters
+        end_pos = geom["end_pos"] * 1e-6  # (N_line, 3) in meters
+        seg_lengths = geom["seg_lengths"]  # (N_line,) already in meters
+        epos = electrode_pos * 1e-6
+
+        # delta = electrode - end (vector from segment end to electrode)
+        delta = epos - end_pos  # (N_line, 3)
+        # seg_dir = end - start
+        seg_dir = end_pos - start_pos  # (N_line, 3)
+
+        # h = dot(delta, seg_dir) / seg_length for each segment
+        h = np.sum(delta * seg_dir, axis=1) / seg_lengths  # (N_line,)
+        l = h + seg_lengths  # (N_line,)
+
+        # r2 = |delta|^2 - h^2
+        delta_sq = np.sum(delta * delta, axis=1)
+        r2 = np.abs(delta_sq - h**2)
+
+        # Vectorized line_source_cases using np.where
+        sqrt_h2_r2 = np.sqrt(h**2 + r2)
+        sqrt_l2_r2 = np.sqrt(l**2 + r2)
+
+        # Case 1: h < 0, l < 0 → log((sqrt(h²+r²) - h) / (sqrt(l²+r²) - l))
+        case1 = np.log((sqrt_h2_r2 - h) / (sqrt_l2_r2 - l))
+
+        # Case 2: h < 0, l > 0 → log((sqrt(h²+r²) - h) * (l + sqrt(l²+r²)) / r2)
+        case2 = np.log((sqrt_h2_r2 - h) * (l + sqrt_l2_r2) / r2)
+
+        # Case 3: h > 0, l > 0 → log((l + sqrt(l²+r²)) / (sqrt(h²+r²) + h))
+        case3 = np.log((l + sqrt_l2_r2) / (sqrt_h2_r2 + h))
+
+        # Select cases using np.where
+        line_source_term = np.where(
+            h < 0,
+            np.where(l < 0, case1, case2),
+            case3,
+        )
+
+        line_coeffs = 1 / (4 * np.pi * sigma * seg_lengths) * line_source_term * 1e-9
+        coeffs[line_mask] = line_coeffs
+
+    result = pd.DataFrame(data=coeffs[np.newaxis, :])
+    result.columns = columns
+    return result
+
+
+def _get_coeffs_line_source_batch(
+    positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    electrode_positions: np.ndarray,
+    sigma: float,
+    chunk_size: int = 50,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Compute line-source coefficients for multiple electrodes simultaneously.
+
+    Precomputes segment geometry once and processes electrodes in chunks,
+    broadcasting segment geometry against electrode positions to compute
+    all coefficients in a vectorized manner.
+
+    Args:
+        positions: DataFrame of segment boundary positions.
+        columns: MultiIndex of (gid, section) pairs for the output.
+        electrode_positions: Electrode positions array, shape ``(N_elec, 3)`` (µm).
+        sigma: Extracellular conductivity (S/m), shared by all electrodes.
+        chunk_size: Number of electrodes to process per chunk (controls peak memory).
+        verbose: If True, print chunk progress on rank 0.
+
+    Returns:
+        DataFrame of shape ``(N_elec, N_segments)`` with columns matching ``columns``.
+    """
+    geom = _precompute_segment_geometry(positions)
+
+    is_soma = geom["is_soma"]
+    n_total = len(is_soma)
+    n_elec = len(electrode_positions)
+
+    # Final result: (N_elec, N_segments)
+    all_coeffs = np.empty((n_elec, n_total))
+
+    # Process electrodes in chunks to limit memory usage
+    for chunk_start in range(0, n_elec, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, n_elec)
+        epos_chunk = electrode_positions[chunk_start:chunk_end]  # (chunk, 3)
+        chunk_n = chunk_end - chunk_start
+
+        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+            pct = int(chunk_end / n_elec * 100)
+            print(
+                f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / "
+                f"{n_elec} ({pct}%)"
+            )
+
+        # --- Soma segments (point source) ---
+        if np.any(is_soma):
+            soma_pos = geom["soma_positions"]  # (N_soma, 3) in µm
+            # Broadcast: (N_soma, 1, 3) - (1, chunk, 3) → (N_soma, chunk, 3)
+            soma_delta = (soma_pos[:, np.newaxis, :] - epos_chunk[np.newaxis, :, :]) * 1e-6
+            soma_dist = np.linalg.norm(soma_delta, axis=2)  # (N_soma, chunk)
+            soma_coeffs = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9  # (N_soma, chunk)
+            # Transpose to (chunk, N_soma) and assign
+            all_coeffs[chunk_start:chunk_end][:, is_soma] = soma_coeffs.T
+
+        # --- Line-source segments ---
+        line_mask = ~is_soma
+        if np.any(line_mask):
+            # end_pos: (N_line, 3) in meters
+            end_pos = geom["end_pos"] * 1e-6  # (N_line, 3)
+            seg_lengths = geom["seg_lengths"]  # (N_line,) in meters
+            start_pos = geom["start_pos"] * 1e-6  # (N_line, 3)
+            seg_dir = end_pos - start_pos  # (N_line, 3) — unnormalized direction
+
+            # Broadcast electrode positions: (1, chunk, 3) - (N_line, 1, 3) → (N_line, chunk, 3)
+            epos_m = epos_chunk * 1e-6  # (chunk, 3)
+            delta = epos_m[np.newaxis, :, :] - end_pos[:, np.newaxis, :]  # (N_line, chunk, 3)
+
+            # h = dot(delta, seg_dir) / seg_length for each (segment, electrode) pair
+            # seg_dir: (N_line, 3) → (N_line, 1, 3)
+            # delta: (N_line, chunk, 3)
+            h = np.sum(delta * seg_dir[:, np.newaxis, :], axis=2) / seg_lengths[:, np.newaxis]  # (N_line, chunk)
+            l = h + seg_lengths[:, np.newaxis]  # (N_line, chunk)
+
+            # r2 = |delta|^2 - h^2
+            delta_sq = np.sum(delta * delta, axis=2)  # (N_line, chunk)
+            r2 = np.abs(delta_sq - h**2)  # (N_line, chunk)
+
+            # Vectorized line_source_cases using np.where
+            sqrt_h2_r2 = np.sqrt(h**2 + r2)
+            sqrt_l2_r2 = np.sqrt(l**2 + r2)
+
+            # Case 1: h < 0, l < 0
+            case1 = np.log((sqrt_h2_r2 - h) / (sqrt_l2_r2 - l))
+            # Case 2: h < 0, l > 0
+            case2 = np.log((sqrt_h2_r2 - h) * (l + sqrt_l2_r2) / r2)
+            # Case 3: h > 0, l > 0
+            case3 = np.log((l + sqrt_l2_r2) / (sqrt_h2_r2 + h))
+
+            line_source_term = np.where(
+                h < 0,
+                np.where(l < 0, case1, case2),
+                case3,
+            )
+
+            # (N_line, chunk)
+            line_coeffs = 1 / (4 * np.pi * sigma * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
+            # Transpose to (chunk, N_line) and assign
+            all_coeffs[chunk_start:chunk_end][:, line_mask] = line_coeffs.T
+
+    result = pd.DataFrame(data=all_coeffs, columns=columns)
+    return result
 
 
 def _get_coeffs_point_source(
@@ -778,6 +1033,7 @@ def get_weights(
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
+    verbose: bool = True,
 ) -> pd.DataFrame | None:
     """Compute electrode transfer coefficients from pre-computed positions.
 
@@ -793,6 +1049,7 @@ def get_weights(
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
+        verbose: If True, print progress information on rank 0.
 
     Returns:
         DataFrame of transfer coefficients, or None if this rank has no nodes.
@@ -816,7 +1073,11 @@ def get_weights(
     sigma_idx = 0
     objective_csd_count = 0
 
-    for electrode_idx, electrode in enumerate(electrodes_ordered):
+    n_electrodes = len(electrodes_ordered)
+    electrode_idx = 0
+
+    while electrode_idx < n_electrodes:
+        electrode = electrodes_ordered[electrode_idx]
         epos = electrode.position
 
         if isinstance(electrode.type, ObjectiveCSDParams):
@@ -825,9 +1086,68 @@ def get_weights(
             electrode_type = electrode.type
 
         if electrode_type is ElectrodeType.LINE_SOURCE:
-            coeffs = _get_coeffs_line_source(positions, columns, epos, sigma[sigma_idx])
-            if len(sigma) > 1:
-                sigma_idx += 1
+            # Determine the sigma for this electrode
+            current_sigma = sigma[sigma_idx]
+
+            # Collect consecutive LINE_SOURCE electrodes sharing the same sigma
+            batch_positions = [epos]
+            batch_start_idx = electrode_idx
+
+            if len(sigma) == 1:
+                # All electrodes share the same sigma — batch all consecutive LINE_SOURCE
+                next_idx = electrode_idx + 1
+                while next_idx < n_electrodes:
+                    next_elec = electrodes_ordered[next_idx]
+                    next_type = (
+                        next_elec.type.electrode_type
+                        if isinstance(next_elec.type, ObjectiveCSDParams)
+                        else next_elec.type
+                    )
+                    if next_type is ElectrodeType.LINE_SOURCE:
+                        batch_positions.append(next_elec.position)
+                        next_idx += 1
+                    else:
+                        break
+                # sigma_idx stays 0 (single sigma for all)
+            else:
+                # Multiple sigmas — batch consecutive LINE_SOURCE with same sigma value
+                next_idx = electrode_idx + 1
+                while next_idx < n_electrodes:
+                    next_elec = electrodes_ordered[next_idx]
+                    next_type = (
+                        next_elec.type.electrode_type
+                        if isinstance(next_elec.type, ObjectiveCSDParams)
+                        else next_elec.type
+                    )
+                    next_sigma_idx = sigma_idx + (next_idx - electrode_idx)
+                    if (
+                        next_type is ElectrodeType.LINE_SOURCE
+                        and next_sigma_idx < len(sigma)
+                        and sigma[next_sigma_idx] == current_sigma
+                    ):
+                        batch_positions.append(next_elec.position)
+                        next_idx += 1
+                    else:
+                        break
+                # Advance sigma_idx past the batch
+                sigma_idx += next_idx - electrode_idx
+
+            # Call batch function
+            epos_array = np.array(batch_positions)  # (batch_size, 3)
+            batch_size = len(batch_positions)
+            if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+                print(
+                    f"Computing line-source weights: electrodes "
+                    f"{batch_start_idx + 1}-{batch_start_idx + batch_size} / "
+                    f"{n_electrodes}"
+                )
+            batch_coeffs = _get_coeffs_line_source_batch(
+                positions, columns, epos_array, current_sigma, verbose=verbose
+            )
+            coeff_list.append(batch_coeffs)
+
+            # Advance electrode_idx past the batch
+            electrode_idx = next_idx
 
         else:
             mid_positions = _get_segment_midpts(positions, node_ids)
@@ -869,7 +1189,8 @@ def get_weights(
                     coeffs = _get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
                 reciprocity_idx += 1
 
-        coeff_list.append(coeffs)
+            coeff_list.append(coeffs)
+            electrode_idx += 1
 
     return pd.concat(coeff_list) if len(coeff_list) > 1 else coeff_list[0]
 
