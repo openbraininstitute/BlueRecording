@@ -51,6 +51,28 @@ def test_rat_s1_write_weights(tmp_path):
         np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
 
+def test_rat_s1_write_weights_line_source(tmp_path):
+    """Write_weights pipeline for rat_s1 with LineSource electrodes."""
+    from tests.conftest import EXAMPLE_RAT_S1
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_line_source.csv")
+    ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_line_source_ref.h5")
+    out = str(tmp_path / "weights.h5")
+
+    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    electrodes = Electrode.from_csv(csv)
+    weights = get_weights(pos_df, cols, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
+
+
 @pytest.mark.skip_in_ci
 def test_single_cell_write_weights_near(tmp_path):
     """Write_weights for single_cell_l5_tpc (near electrodes)."""
