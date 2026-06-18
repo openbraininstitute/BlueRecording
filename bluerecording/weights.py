@@ -28,16 +28,6 @@ from .physics import (
     precompute_segment_geometry as _precompute_segment_geometry,
 )
 
-# Backward-compatible aliases (used by tests importing the old underscore-prefixed names)
-_get_coeffs_line_source = get_coeffs_line_source
-_get_coeffs_line_source_batch = get_coeffs_line_source_batch
-_get_coeffs_point_source = get_coeffs_point_source
-_get_coeffs_objective_csd_sphere = get_coeffs_objective_csd_sphere
-_get_coeffs_objective_csd_disk = get_coeffs_objective_csd_disk
-_get_coeffs_objective_csd_plane = get_coeffs_objective_csd_plane
-_get_coeffs_dipole_reciprocity = get_coeffs_dipole_reciprocity
-_get_coeffs_reciprocity = get_coeffs_reciprocity
-
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
 
