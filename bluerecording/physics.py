@@ -171,7 +171,6 @@ def _get_line_coeffs(
     return seg_coeff
 
 
-
 def get_coeffs_line_source(
     positions: pd.DataFrame,
     columns: pd.MultiIndex,
@@ -202,9 +201,7 @@ def get_coeffs_line_source(
     # --- Soma segments (point source) ---
     if np.any(is_soma):
         soma_pos = geom.soma_positions  # (N_soma, 3) in µm
-        coeffs[is_soma] = _point_source_coeffs_batch(
-            soma_pos, electrode_pos[np.newaxis, :], sigma
-        ).ravel()
+        coeffs[is_soma] = _point_source_coeffs_batch(soma_pos, electrode_pos[np.newaxis, :], sigma).ravel()
 
     # --- Line-source segments ---
     line_mask = ~is_soma
@@ -296,10 +293,7 @@ def get_coeffs_line_source_batch(
 
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             pct = int(chunk_end / n_elec * 100)
-            print(
-                f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / "
-                f"{n_elec} ({pct}%)"
-            )
+            print(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)")
 
         # --- Soma segments (point source) ---
         if np.any(is_soma):
@@ -343,7 +337,9 @@ def get_coeffs_line_source_batch(
             )
 
             # sigma_chunk: (chunk,) → (1, chunk) for broadcasting against (N_line, chunk)
-            line_coeffs = 1 / (4 * np.pi * sigma_chunk[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
+            line_coeffs = (
+                1 / (4 * np.pi * sigma_chunk[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
+            )
             # Transpose to (chunk, N_line) and assign
             all_coeffs[chunk_start:chunk_end][:, line_mask] = line_coeffs.T
 
@@ -435,14 +431,9 @@ def get_coeffs_point_source_batch(
 
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             pct = int(chunk_end / n_elec * 100)
-            print(
-                f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / "
-                f"{n_elec} ({pct}%)"
-            )
+            print(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)")
 
-        all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(
-            positions_um, epos_chunk, sigma_chunk
-        )
+        all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(positions_um, epos_chunk, sigma_chunk)
 
     result = pd.DataFrame(data=all_coeffs, columns=columns)
     return result

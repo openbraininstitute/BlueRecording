@@ -11,22 +11,13 @@ from mpi4py import MPI
 from . import positions as _positions
 from .circuit import init_circuit
 from .physics import (
-    SegmentGeometry,
-    _distances_in_planar_coords,
-    _get_array_spacing,
-    _get_line_coeffs,
-    _get_thickness,
-    _line_source_cases,
     get_coeffs_dipole_reciprocity,
-    get_coeffs_line_source,
     get_coeffs_line_source_batch,
     get_coeffs_objective_csd_disk,
     get_coeffs_objective_csd_plane,
     get_coeffs_objective_csd_sphere,
-    get_coeffs_point_source,
     get_coeffs_point_source_batch,
     get_coeffs_reciprocity,
-    precompute_segment_geometry as _precompute_segment_geometry,
 )
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
@@ -300,7 +291,6 @@ def _add_data(
         h5[dset][offset0[i] : offset1[i], :-1] = coeffs.loc[:, node_id].values.T
 
 
-
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
     """Compute segment midpoints for a single neuron.
 
@@ -460,9 +450,7 @@ def get_weights(
         group_sigma = sigma_arr[line_source_indices]
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             print(f"Computing line-source weights: {len(line_source_indices)} electrodes")
-        batch_coeffs = get_coeffs_line_source_batch(
-            positions, columns, epos_array, group_sigma, verbose=verbose
-        )
+        batch_coeffs = get_coeffs_line_source_batch(positions, columns, epos_array, group_sigma, verbose=verbose)
         all_coeffs[line_source_indices] = batch_coeffs.values
 
     # --- Batch compute POINT_SOURCE ---
@@ -473,9 +461,7 @@ def get_weights(
         group_sigma = sigma_arr[point_source_indices]
         if verbose and MPI.COMM_WORLD.Get_rank() == 0:
             print(f"Computing point-source weights: {len(point_source_indices)} electrodes")
-        batch_coeffs = get_coeffs_point_source_batch(
-            mid_positions, columns, epos_array, group_sigma, verbose=verbose
-        )
+        batch_coeffs = get_coeffs_point_source_batch(mid_positions, columns, epos_array, group_sigma, verbose=verbose)
         all_coeffs[point_source_indices] = batch_coeffs.values
 
     # --- Process remaining electrode types one by one ---

@@ -171,7 +171,6 @@ def test_rat_s1_interleaved_electrode_types(tmp_path):
     against computing each electrode individually.
     """
     from bluerecording.physics import get_coeffs_line_source, get_coeffs_point_source
-
     from tests.conftest import EXAMPLE_RAT_S1
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")

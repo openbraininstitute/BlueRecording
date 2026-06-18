@@ -4,19 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bluerecording.weights import (
-    Electrode,
-    ElectrodeType,
-    ObjectiveCSDParams,
-    _add_data,
-    _get_objective_csd_array,
-    _get_offsets,
-    _get_segment_midpts,
-    _sort_electrode_names,
-    _write_electrode_metadata_to_h5,
-)
 from bluerecording.physics import (
-    SegmentGeometry,
     _distances_in_planar_coords,
     _get_array_spacing,
     _get_line_coeffs,
@@ -29,7 +17,20 @@ from bluerecording.physics import (
     get_coeffs_objective_csd_sphere,
     get_coeffs_point_source,
     get_coeffs_reciprocity,
+)
+from bluerecording.physics import (
     precompute_segment_geometry as _precompute_segment_geometry,
+)
+from bluerecording.weights import (
+    Electrode,
+    ElectrodeType,
+    ObjectiveCSDParams,
+    _add_data,
+    _get_objective_csd_array,
+    _get_offsets,
+    _get_segment_midpts,
+    _sort_electrode_names,
+    _write_electrode_metadata_to_h5,
 )
 from tests.helpers import (
     GIDS,
@@ -531,21 +532,41 @@ def test_vectorized_matches_scalar():
     # Column layout: (gid, section_id) pairs
     columns_tuples = [
         # neuron 1
-        (1, 0),   # soma
-        (1, 1), (1, 1), (1, 1), (1, 1),  # section 1: 4 boundary points
+        (1, 0),  # soma
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),  # section 1: 4 boundary points
         # neuron 2
-        (2, 0),   # soma
-        (2, 1), (2, 1), (2, 1),  # section 1: 3 boundary points
-        (2, 2), (2, 2), (2, 2), (2, 2),  # section 2: 4 boundary points
+        (2, 0),  # soma
+        (2, 1),
+        (2, 1),
+        (2, 1),  # section 1: 3 boundary points
+        (2, 2),
+        (2, 2),
+        (2, 2),
+        (2, 2),  # section 2: 4 boundary points
     ]
     mi = pd.MultiIndex.from_tuples(columns_tuples, names=["id", "section"])
 
     # Each column is a 3D position (x, y, z) as the rows
-    values = np.column_stack([
-        n1_soma, n1_s1_p0, n1_s1_p1, n1_s1_p2, n1_s1_p3,
-        n2_soma, n2_s1_p0, n2_s1_p1, n2_s1_p2,
-        n2_s2_p0, n2_s2_p1, n2_s2_p2, n2_s2_p3,
-    ])
+    values = np.column_stack(
+        [
+            n1_soma,
+            n1_s1_p0,
+            n1_s1_p1,
+            n1_s1_p2,
+            n1_s1_p3,
+            n2_soma,
+            n2_s1_p0,
+            n2_s1_p1,
+            n2_s1_p2,
+            n2_s2_p0,
+            n2_s2_p1,
+            n2_s2_p2,
+            n2_s2_p3,
+        ]
+    )
     positions = pd.DataFrame(data=values, columns=mi)
 
     # Output columns: one per segment (soma or line-source segment)
@@ -553,10 +574,15 @@ def test_vectorized_matches_scalar():
     # neuron 2: soma(2,0), seg(2,1), seg(2,1), seg(2,2), seg(2,2), seg(2,2)
     output_columns_tuples = [
         (1, 0),
-        (1, 1), (1, 1), (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
         (2, 0),
-        (2, 1), (2, 1),
-        (2, 2), (2, 2), (2, 2),
+        (2, 1),
+        (2, 1),
+        (2, 2),
+        (2, 2),
+        (2, 2),
     ]
     output_mi = pd.MultiIndex.from_tuples(output_columns_tuples, names=["id", "section"])
 
@@ -601,9 +627,7 @@ def test_vectorized_matches_scalar():
         )
 
     # Also test batch function
-    batch_result = get_coeffs_line_source_batch(
-        positions, output_mi, electrode_positions, sigma, verbose=False
-    )
+    batch_result = get_coeffs_line_source_batch(positions, output_mi, electrode_positions, sigma, verbose=False)
     for i, epos in enumerate(electrode_positions):
         single_result = get_coeffs_line_source(positions, output_mi, epos, sigma)
         np.testing.assert_allclose(
