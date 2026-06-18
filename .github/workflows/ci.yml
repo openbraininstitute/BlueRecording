@@ -76,8 +76,13 @@ jobs:
           mkdir -p "$INSTALL_DIR/lib"
           mkdir -p "$INSTALL_DIR/bin"
 
-          # Copy core MOD files from neurodamus
-          cp ${NEURODAMUS_PYTHON}/mod/*.mod "$INSTALL_DIR/mod/"
+          # Copy core MOD files from neurodamus (exclude reporting mods that need libsonatareport)
+          for f in ${NEURODAMUS_PYTHON}/mod/*.mod; do
+            basename=$(basename "$f")
+            if [ "$basename" != "SonataReportHelper.mod" ] && [ "$basename" != "SonataReports.mod" ]; then
+              cp "$f" "$INSTALL_DIR/mod/"
+            fi
+          done
           # Copy neocortex test mechanisms from neurodamus source
           cp neurodamus-src/tests/mechanisms/neocortex/*.mod "$INSTALL_DIR/mod/"
 
