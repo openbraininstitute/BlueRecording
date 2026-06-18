@@ -384,6 +384,76 @@ def _get_objective_csd_array(
     return array_idx, objective_csd_count
 
 
+def _collect_and_compute_line_source_batch(
+    electrodes: list[Electrode],
+    start_idx: int,
+    sigma: list[float],
+    sigma_idx: int,
+    positions: pd.DataFrame,
+    columns: pd.MultiIndex,
+    n_electrodes: int,
+    verbose: bool,
+) -> tuple[pd.DataFrame, int, int]:
+    """Collect consecutive LineSource electrodes with the same sigma and compute batch.
+
+    Returns:
+        batch_coeffs: DataFrame of coefficients for the batch.
+        next_idx: Index of the next electrode to process after this batch.
+        sigma_idx: Updated sigma index.
+    """
+    current_sigma = sigma[sigma_idx]
+    batch_positions = [electrodes[start_idx].position]
+
+    if len(sigma) == 1:
+        # All electrodes share the same sigma — batch all consecutive LINE_SOURCE
+        next_idx = start_idx + 1
+        while next_idx < n_electrodes:
+            next_elec = electrodes[next_idx]
+            next_type = (
+                next_elec.type.electrode_type
+                if isinstance(next_elec.type, ObjectiveCSDParams)
+                else next_elec.type
+            )
+            if next_type is ElectrodeType.LINE_SOURCE:
+                batch_positions.append(next_elec.position)
+                next_idx += 1
+            else:
+                break
+    else:
+        # Multiple sigmas — batch consecutive LINE_SOURCE with same sigma value
+        next_idx = start_idx + 1
+        while next_idx < n_electrodes:
+            next_elec = electrodes[next_idx]
+            next_type = (
+                next_elec.type.electrode_type
+                if isinstance(next_elec.type, ObjectiveCSDParams)
+                else next_elec.type
+            )
+            next_sigma_idx = sigma_idx + (next_idx - start_idx)
+            if (
+                next_type is ElectrodeType.LINE_SOURCE
+                and next_sigma_idx < len(sigma)
+                and sigma[next_sigma_idx] == current_sigma
+            ):
+                batch_positions.append(next_elec.position)
+                next_idx += 1
+            else:
+                break
+        sigma_idx += next_idx - start_idx
+
+    epos_array = np.array(batch_positions)
+    batch_size = len(batch_positions)
+    if verbose and MPI.COMM_WORLD.Get_rank() == 0:
+        print(
+            f"Computing line-source weights: electrodes "
+            f"{start_idx + 1}-{start_idx + batch_size} / {n_electrodes}"
+        )
+    batch_coeffs = get_coeffs_line_source_batch(
+        positions, columns, epos_array, current_sigma, verbose=verbose
+    )
+    return batch_coeffs, next_idx, sigma_idx
+
+
 def get_weights(
     positions: pd.DataFrame,
     cols: np.ndarray,
@@ -444,67 +514,11 @@ def get_weights(
             electrode_type = electrode.type
 
         if electrode_type is ElectrodeType.LINE_SOURCE:
-            # Determine the sigma for this electrode
-            current_sigma = sigma[sigma_idx]
-
-            # Collect consecutive LINE_SOURCE electrodes sharing the same sigma
-            batch_positions = [epos]
-            batch_start_idx = electrode_idx
-
-            if len(sigma) == 1:
-                # All electrodes share the same sigma — batch all consecutive LINE_SOURCE
-                next_idx = electrode_idx + 1
-                while next_idx < n_electrodes:
-                    next_elec = electrodes_ordered[next_idx]
-                    next_type = (
-                        next_elec.type.electrode_type
-                        if isinstance(next_elec.type, ObjectiveCSDParams)
-                        else next_elec.type
-                    )
-                    if next_type is ElectrodeType.LINE_SOURCE:
-                        batch_positions.append(next_elec.position)
-                        next_idx += 1
-                    else:
-                        break
-                # sigma_idx stays 0 (single sigma for all)
-            else:
-                # Multiple sigmas — batch consecutive LINE_SOURCE with same sigma value
-                next_idx = electrode_idx + 1
-                while next_idx < n_electrodes:
-                    next_elec = electrodes_ordered[next_idx]
-                    next_type = (
-                        next_elec.type.electrode_type
-                        if isinstance(next_elec.type, ObjectiveCSDParams)
-                        else next_elec.type
-                    )
-                    next_sigma_idx = sigma_idx + (next_idx - electrode_idx)
-                    if (
-                        next_type is ElectrodeType.LINE_SOURCE
-                        and next_sigma_idx < len(sigma)
-                        and sigma[next_sigma_idx] == current_sigma
-                    ):
-                        batch_positions.append(next_elec.position)
-                        next_idx += 1
-                    else:
-                        break
-                # Advance sigma_idx past the batch
-                sigma_idx += next_idx - electrode_idx
-
-            # Call batch function
-            epos_array = np.array(batch_positions)  # (batch_size, 3)
-            batch_size = len(batch_positions)
-            if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-                print(
-                    f"Computing line-source weights: electrodes "
-                    f"{batch_start_idx + 1}-{batch_start_idx + batch_size} / "
-                    f"{n_electrodes}"
-                )
-            batch_coeffs = get_coeffs_line_source_batch(
-                positions, columns, epos_array, current_sigma, verbose=verbose
+            batch_coeffs, next_idx, sigma_idx = _collect_and_compute_line_source_batch(
+                electrodes_ordered, electrode_idx, sigma, sigma_idx,
+                positions, columns, n_electrodes, verbose,
             )
             coeff_list.append(batch_coeffs)
-
-            # Advance electrode_idx past the batch
             electrode_idx = next_idx
 
         else:
