@@ -233,16 +233,12 @@ def _init_weights(
 
         # Build node_ids in rank order: for each rank's cols, extract unique GIDs
         # (locally sorted within that rank), concatenate in rank order.
-        # Use dict.fromkeys to preserve first-appearance order across ranks.
-        seen = {}
+        # GIDs are disjoint across ranks (round-robin distribution).
+        node_ids_parts = []
         for rank_cols in all_cols_list:
             if len(rank_cols) > 0:
-                # Unique GIDs for this rank, locally sorted
-                rank_gids = np.unique(rank_cols[:, 0])
-                for gid in rank_gids:
-                    if gid not in seen:
-                        seen[gid] = True
-        node_ids = np.array(list(seen.keys()), dtype=np.int64)
+                node_ids_parts.append(np.unique(rank_cols[:, 0]))
+        node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.int64)
 
         # Build section_ids_frame preserving rank-concatenation order
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
