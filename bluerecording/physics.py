@@ -11,9 +11,10 @@ from dataclasses import dataclass
 import h5py
 import numpy as np
 import pandas as pd
-from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from sklearn.decomposition import PCA
+
+from .utils import log_rank0
 
 
 @dataclass
@@ -291,9 +292,8 @@ def get_coeffs_line_source_batch(
         epos_chunk = electrode_positions[chunk_start:chunk_end]  # (chunk, 3)
         sigma_chunk = sigma_arr[chunk_start:chunk_end]  # (chunk,)
 
-        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            pct = int(chunk_end / n_elec * 100)
-            print(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)")
+        pct = int(chunk_end / n_elec * 100)
+        log_rank0(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)", verbose)
 
         # --- Soma segments (point source) ---
         if np.any(is_soma):
@@ -429,9 +429,8 @@ def get_coeffs_point_source_batch(
         epos_chunk = electrode_positions[chunk_start:chunk_end]
         sigma_chunk = sigma_arr[chunk_start:chunk_end]
 
-        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            pct = int(chunk_end / n_elec * 100)
-            print(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)")
+        pct = int(chunk_end / n_elec * 100)
+        log_rank0(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)", verbose)
 
         all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(positions_um, epos_chunk, sigma_chunk)
 

@@ -20,6 +20,7 @@ from .physics import (
     get_coeffs_point_source_batch,
     get_coeffs_reciprocity,
 )
+from .utils import log_rank0
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 
@@ -194,7 +195,9 @@ def _init_scaling_factors_and_offsets(
     n_electrodes = len(electrodes)
     h5file.create_dataset(
         f"electrodes/{population_name}/scaling_factors",
-        data=np.ones((n_segments, n_electrodes + 1)),
+        shape=(n_segments, n_electrodes + 1),
+        dtype=np.float64,
+        fillvalue=1.0,
     )
     h5file.create_dataset(
         f"{population_name}/offsets",
@@ -290,12 +293,7 @@ def _add_data(
     block = coeffs.values.T  # shape: (N_local_segments, N_electrodes)
     end = start + block.shape[0]
 
-    try:
-        with h5[dset].collective:
-            h5[dset][start:end, :-1] = block
-    except AttributeError:
-        # Non-parallel h5py (single-rank / unit tests without mpio)
-        h5[dset][start:end, :-1] = block
+    h5[dset][start:end, :-1] = block
 
 
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
@@ -455,8 +453,7 @@ def get_weights(
     if line_source_indices:
         epos_array = np.array([electrodes[i].position for i in line_source_indices])
         group_sigma = sigma_arr[line_source_indices]
-        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            print(f"Computing line-source weights: {len(line_source_indices)} electrodes")
+        log_rank0(f"Computing line-source weights: {len(line_source_indices)} electrodes", verbose)
         batch_coeffs = get_coeffs_line_source_batch(positions, columns, epos_array, group_sigma, verbose=verbose)
         all_coeffs[line_source_indices] = batch_coeffs.values
 
@@ -466,8 +463,7 @@ def get_weights(
         mid_positions = _get_segment_midpts(positions, node_ids)
         epos_array = np.array([electrodes[i].position for i in point_source_indices])
         group_sigma = sigma_arr[point_source_indices]
-        if verbose and MPI.COMM_WORLD.Get_rank() == 0:
-            print(f"Computing point-source weights: {len(point_source_indices)} electrodes")
+        log_rank0(f"Computing point-source weights: {len(point_source_indices)} electrodes", verbose)
         batch_coeffs = get_coeffs_point_source_batch(mid_positions, columns, epos_array, group_sigma, verbose=verbose)
         all_coeffs[point_source_indices] = batch_coeffs.values
 
@@ -539,11 +535,7 @@ def _write_neurite_types(
         start: Starting row index for this rank's contiguous block.
     """
     end = start + len(neurite_types)
-    try:
-        with h5[f"{population_name}/neurite_types"].collective:
-            h5[f"{population_name}/neurite_types"][start:end] = neurite_types
-    except AttributeError:
-        h5[f"{population_name}/neurite_types"][start:end] = neurite_types
+    h5[f"{population_name}/neurite_types"][start:end] = neurite_types
 
 
 def compute_weights(
@@ -628,7 +620,11 @@ def save_weights(
     if isinstance(electrodes, str):
         electrodes = Electrode.from_csv(electrodes)
 
+    comm = MPI.COMM_WORLD
+    t0 = MPI.Wtime()
+
     # 1. Initialize the file (gather + rank 0 creates structure + barrier)
+    log_rank0("save_weights: initializing HDF5 file structure...")
     _init_weights(
         cols,
         population_name,
@@ -636,15 +632,15 @@ def save_weights(
         electrodes,
         with_neurite_type=neurite_types is not None,
     )
+    t1 = MPI.Wtime()
+    log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s)")
 
     # 2. Compute each rank's contiguous row offset using MPI_Scan
-    comm = MPI.COMM_WORLD
     local_segments = len(cols)
 
     if comm.Get_size() > 1 and not h5py.get_config().mpi:
         warnings.warn(
-            "h5py was not built with MPI support. "
-            "Collective I/O is unavailable; performance will be degraded with multiple ranks.",
+            "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
             stacklevel=2,
         )
 
@@ -656,29 +652,27 @@ def save_weights(
         h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
     else:
         h5 = h5py.File(outputfile, "a")
+    t2 = MPI.Wtime()
 
-    # 4. Write coefficients — all ranks participate (empty ranks do zero-length write)
+    # 4. Write coefficients — each rank writes its own contiguous slice (independent I/O)
     if weights is not None and local_segments > 0:
         _add_data(h5, weights, population_name, start=start)
-    else:
-        # Empty rank: still must participate in collective I/O
-        dset = f"electrodes/{population_name}/scaling_factors"
-        try:
-            with h5[dset].collective:
-                h5[dset][start:start, :-1] = np.empty((0, h5[dset].shape[1] - 1))
-        except AttributeError:
-            pass  # Single-rank, no-op
+    t3 = MPI.Wtime()
 
     # 5. Write neurite types if requested
-    if neurite_types is not None:
-        if local_segments > 0:
-            _write_neurite_types(h5, neurite_types, population_name, start=start)
-        else:
-            # Empty rank: participate in collective I/O
-            try:
-                with h5[f"{population_name}/neurite_types"].collective:
-                    h5[f"{population_name}/neurite_types"][start:start] = np.empty((0,), dtype=np.int32)
-            except AttributeError:
-                pass
+    if neurite_types is not None and local_segments > 0:
+        _write_neurite_types(h5, neurite_types, population_name, start=start)
 
     h5.close()
+    t4 = MPI.Wtime()
+
+    # Summary
+    total_segments = comm.allreduce(local_segments, op=MPI.SUM)
+    n_electrodes = len(electrodes)
+    file_size_gb = total_segments * (n_electrodes + 1) * 8 / 1e9
+    log_rank0(
+        f"save_weights: done. "
+        f"{total_segments:,} segments × {n_electrodes} electrodes = {file_size_gb:.1f} GB | "
+        f"init {t1 - t0:.1f}s, open {t2 - t1:.1f}s, write {t3 - t2:.1f}s, close {t4 - t3:.1f}s, "
+        f"total {t4 - t0:.1f}s"
+    )
