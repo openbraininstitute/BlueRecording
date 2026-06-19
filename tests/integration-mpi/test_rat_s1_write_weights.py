@@ -61,6 +61,9 @@ def test_rat_s1_write_weights_mpi(tmp_path):
                 ref_sf = _get_node_scaling_factors(r, population_name, node_id)
                 new_sf = _get_node_scaling_factors(n, population_name, node_id)
                 np.testing.assert_allclose(
-                    ref_sf, new_sf, rtol=1e-6, atol=1e-9,
+                    ref_sf,
+                    new_sf,
+                    rtol=1e-6,
+                    atol=1e-9,
                     err_msg=f"scaling_factors mismatch for node_id {node_id}",
                 )

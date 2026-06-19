@@ -61,6 +61,9 @@ def test_sscx_100_cells_write_weights_mpi(tmp_path):
                 ref_sf = _get_node_scaling_factors(ref, population_name, node_id)
                 new_sf = _get_node_scaling_factors(new, population_name, node_id)
                 np.testing.assert_allclose(
-                    ref_sf, new_sf, rtol=1e-6, atol=1e-9,
+                    ref_sf,
+                    new_sf,
+                    rtol=1e-6,
+                    atol=1e-9,
                     err_msg=f"scaling_factors mismatch for node_id {node_id}",
                 )
