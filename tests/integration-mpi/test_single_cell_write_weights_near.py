@@ -13,6 +13,20 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 
+def _get_node_scaling_factors(h5, population_name, node_id):
+    """Extract scaling_factors rows for a given node_id using offsets."""
+    node_ids = h5[f"{population_name}/node_ids"][:]
+    offsets = h5[f"{population_name}/offsets"][:]
+    dset = f"electrodes/{population_name}/scaling_factors"
+
+    idx = np.where(node_ids == node_id)[0]
+    assert len(idx) == 1, f"node_id {node_id} not found or duplicated"
+    i = idx[0]
+    start = offsets[i]
+    end = offsets[i + 1] if i + 1 < len(offsets) else h5[dset].shape[0]
+    return h5[dset][start:end, :]
+
+
 @pytest.mark.skip_in_ci
 @pytest.mark.mpi(ranks=2)
 def test_single_cell_write_weights_near_mpi(tmp_path):
@@ -39,13 +53,15 @@ def test_single_cell_write_weights_near_mpi(tmp_path):
         with h5py.File(ref_path, "r") as ref, h5py.File(output_path, "r") as new:
             ref_ids = ref[population_name + "/node_ids"][:]
             new_ids = new[population_name + "/node_ids"][:]
-            np.testing.assert_array_equal(ref_ids, new_ids)
 
-            ref_offsets = ref[population_name + "/offsets"][:]
-            new_offsets = new[population_name + "/offsets"][:]
-            np.testing.assert_array_equal(ref_offsets, new_offsets)
+            # Both files must contain the same set of node_ids (order may differ)
+            np.testing.assert_array_equal(np.sort(ref_ids), np.sort(new_ids))
 
-            dset = "electrodes/" + population_name + "/scaling_factors"
-            ref_sf = ref[dset][:]
-            new_sf = new[dset][:]
-            np.testing.assert_allclose(ref_sf, new_sf, rtol=1e-6, atol=1e-9)
+            # Compare per-node scaling_factors data (order-independent)
+            for node_id in ref_ids:
+                ref_sf = _get_node_scaling_factors(ref, population_name, node_id)
+                new_sf = _get_node_scaling_factors(new, population_name, node_id)
+                np.testing.assert_allclose(
+                    ref_sf, new_sf, rtol=1e-6, atol=1e-9,
+                    err_msg=f"scaling_factors mismatch for node_id {node_id}",
+                )
