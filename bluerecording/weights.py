@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import warnings
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -234,10 +235,7 @@ def _init_weights(
         # Build node_ids in rank order: for each rank's cols, extract unique GIDs
         # (locally sorted within that rank), concatenate in rank order.
         # GIDs are disjoint across ranks (round-robin distribution).
-        node_ids_parts = []
-        for rank_cols in all_cols_list:
-            if len(rank_cols) > 0:
-                node_ids_parts.append(np.unique(rank_cols[:, 0]))
+        node_ids_parts = [np.unique(rc[:, 0]) for rc in all_cols_list if len(rc) > 0]
         node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.int64)
 
         # Build section_ids_frame preserving rank-concatenation order
@@ -642,6 +640,13 @@ def save_weights(
     # 2. Compute each rank's contiguous row offset using MPI_Scan
     comm = MPI.COMM_WORLD
     local_segments = len(cols)
+
+    if comm.Get_size() > 1 and not h5py.get_config().mpi:
+        warnings.warn(
+            "h5py was not built with MPI support. "
+            "Collective I/O is unavailable; performance will be degraded with multiple ranks.",
+            stacklevel=2,
+        )
 
     # Exclusive scan: each rank's start = sum of all previous ranks' segments
     start = comm.scan(local_segments, op=MPI.SUM) - local_segments
