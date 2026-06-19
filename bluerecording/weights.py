@@ -277,60 +277,31 @@ def _init_weights(
 
 def _add_data(
     h5: h5py.File,
-    ids: np.ndarray,
     coeffs: pd.DataFrame,
     population_name: str,
-    start: int | None = None,
+    start: int,
 ) -> None:
     """Write computed coefficients into the scaling_factors dataset.
 
-    When ``start`` is provided (rank-ordered layout with MPI_Scan offset),
-    writes the full coefficient block in a single contiguous slice.
-    When ``start`` is None (legacy single-rank path used by tests), falls
-    back to offset-based per-node lookup from the file.
+    Writes the full coefficient block in a single contiguous slice
+    starting at row ``start``.
+
+    Args:
+        h5: HDF5 file handle opened for writing.
+        coeffs: DataFrame of shape (N_electrodes, N_local_segments).
+        population_name: SONATA population name.
+        start: Starting row index for this rank's contiguous block.
     """
     dset = f"electrodes/{population_name}/scaling_factors"
+    block = coeffs.values.T  # shape: (N_local_segments, N_electrodes)
+    end = start + block.shape[0]
 
-    if start is not None:
-        # --- Optimized path: single contiguous write per rank ---
-        # coeffs has shape (N_electrodes, N_local_segments) with columns
-        # as MultiIndex (gid, section). The columns should match the rank's
-        # segment order (which is how cols are built in save_weights).
-        block = coeffs.values.T  # shape: (N_local_segments, N_electrodes)
-        end = start + block.shape[0]
-
-        # Use collective I/O if file was opened with mpio driver
-        try:
-            with h5[dset].collective:
-                h5[dset][start:end, :-1] = block
-        except AttributeError:
-            # Non-parallel h5py (single-rank / unit tests without mpio)
+    try:
+        with h5[dset].collective:
             h5[dset][start:end, :-1] = block
-        return
-
-    # --- Legacy path: per-node offset lookup from the file ---
-    # Used by unit tests that call _add_data directly with a pre-built file
-    node_ids = h5[f"{population_name}/node_ids"][:]
-    offsets = h5[f"{population_name}/offsets"][:]
-
-    is_in_input = np.isin(node_ids, ids)
-    nodes_in_input = node_ids[is_in_input]
-    id_index = np.where(is_in_input)[0]
-
-    offset0 = offsets[id_index]
-    offset1 = np.zeros_like(offset0)
-
-    last_offset_idx = len(offsets) - 1
-
-    if np.any(id_index == last_offset_idx):
-        last_node_idx = np.where(id_index == last_offset_idx)[0]
-        offset1[last_node_idx] = len(h5[dset])
-
-    not_last = np.where(id_index != last_offset_idx)[0]
-    offset1[not_last] = offsets[id_index[not_last] + 1]
-
-    for i, node_id in enumerate(nodes_in_input):
-        h5[dset][offset0[i] : offset1[i], :-1] = coeffs.loc[:, node_id].values.T
+    except AttributeError:
+        # Non-parallel h5py (single-rank / unit tests without mpio)
+        h5[dset][start:end, :-1] = block
 
 
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
@@ -559,43 +530,26 @@ def get_weights(
 
 def _write_neurite_types(
     h5: h5py.File,
-    cols: np.ndarray,
-    node_ids: np.ndarray,
     neurite_types: np.ndarray,
     population_name: str,
-    start: int | None = None,
+    start: int,
 ) -> None:
     """Write neurite type codes into the H5 file.
 
-    When ``start`` is provided, writes the full local neurite_types array
-    in a single contiguous slice. Otherwise falls back to per-node lookup.
+    Writes the full local neurite_types array in a single contiguous slice.
+
+    Args:
+        h5: HDF5 file handle opened for writing.
+        neurite_types: (N,) int32 array of neurite type codes.
+        population_name: SONATA population name.
+        start: Starting row index for this rank's contiguous block.
     """
-    if start is not None:
-        # --- Optimized path: single contiguous write ---
-        end = start + len(neurite_types)
-        try:
-            with h5[f"{population_name}/neurite_types"].collective:
-                h5[f"{population_name}/neurite_types"][start:end] = neurite_types
-        except AttributeError:
+    end = start + len(neurite_types)
+    try:
+        with h5[f"{population_name}/neurite_types"].collective:
             h5[f"{population_name}/neurite_types"][start:end] = neurite_types
-        return
-
-    # --- Legacy path: per-node offset lookup ---
-    offsets = h5[f"{population_name}/offsets"][:]
-    all_node_ids = h5[f"{population_name}/node_ids"][:]
-
-    for gid in node_ids:
-        gid_mask = cols[:, 0] == gid
-        ntypes = neurite_types[gid_mask]
-
-        id_index = np.where(all_node_ids == gid)[0][0]
-        offset0 = offsets[id_index]
-        if id_index == len(offsets) - 1:
-            offset1 = h5[f"electrodes/{population_name}/scaling_factors"].shape[0]
-        else:
-            offset1 = offsets[id_index + 1]
-
-        h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
+    except AttributeError:
+        h5[f"{population_name}/neurite_types"][start:end] = neurite_types
 
 
 def compute_weights(
@@ -704,7 +658,7 @@ def save_weights(
 
     # 4. Write coefficients — all ranks participate (empty ranks do zero-length write)
     if weights is not None and local_segments > 0:
-        _add_data(h5, None, weights, population_name, start=start)
+        _add_data(h5, weights, population_name, start=start)
     else:
         # Empty rank: still must participate in collective I/O
         dset = f"electrodes/{population_name}/scaling_factors"
@@ -717,7 +671,7 @@ def save_weights(
     # 5. Write neurite types if requested
     if neurite_types is not None:
         if local_segments > 0:
-            _write_neurite_types(h5, cols, None, neurite_types, population_name, start=start)
+            _write_neurite_types(h5, neurite_types, population_name, start=start)
         else:
             # Empty rank: participate in collective I/O
             try:
