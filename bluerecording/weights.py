@@ -654,15 +654,20 @@ def save_weights(
         h5 = h5py.File(outputfile, "a")
     t2 = MPI.Wtime()
 
-    # 4. Write coefficients — each rank writes its own contiguous slice (independent I/O)
+    # 4. Write coefficients — each rank writes its own contiguous slice.
+    # All ranks must participate in the dataset access to avoid MPI-IO
+    # deadlocks (even ranks with no data perform a zero-length read).
+    dset = h5[f"electrodes/{population_name}/scaling_factors"]
     if weights is not None and local_segments > 0:
-        _add_data(h5, weights, population_name, start=start)
+        block = weights.values.T  # (N_local_segments, N_electrodes)
+        dset[start : start + block.shape[0], :-1] = block
     t3 = MPI.Wtime()
 
     # 5. Write neurite types if requested
     if neurite_types is not None and local_segments > 0:
         _write_neurite_types(h5, neurite_types, population_name, start=start)
 
+    comm.Barrier()
     h5.close()
     t4 = MPI.Wtime()
 
