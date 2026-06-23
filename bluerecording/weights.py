@@ -244,18 +244,44 @@ def _init_weights(
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    size = comm.Get_size()
 
-    # Gather all rank-local cols to rank 0
-    all_cols_list = comm.gather(cols, root=0)
+    # Use Gatherv for efficient buffer-based transfer (no pickle overhead)
+    local_count = len(cols)
+    counts = np.array(comm.gather(local_count, root=0))
+
+    all_cols = None
+    all_cols_list = None
+    if rank == 0:
+        total = int(counts.sum())
+        all_cols = np.empty((total, 2), dtype=np.int64)
+        recvcounts = counts * 2  # each row has 2 int64 elements
+        displacements = np.zeros(size, dtype=np.intp)
+        np.cumsum(recvcounts[:-1], out=displacements[1:])
+    else:
+        recvcounts = None
+        displacements = None
+
+    comm.Gatherv(
+        [cols, MPI.INT64_T],
+        [all_cols, recvcounts, displacements, MPI.INT64_T] if rank == 0 else None,
+        root=0,
+    )
 
     if rank == 0:
-        # Keep all_cols in rank-concatenation order (rank 0 first, rank 1 next, etc.)
-        all_cols = np.concatenate(all_cols_list, axis=0)
+        # Split all_cols back into per-rank arrays for node_ids construction
+        offsets_per_rank = np.zeros(size + 1, dtype=np.intp)
+        np.cumsum(counts, out=offsets_per_rank[1:])
 
         # Build node_ids in rank order: for each rank's cols, extract unique GIDs
         # (locally sorted within that rank), concatenate in rank order.
         # GIDs are disjoint across ranks (round-robin distribution).
-        node_ids_parts = [np.unique(rc[:, 0]) for rc in all_cols_list if len(rc) > 0]
+        node_ids_parts = []
+        for r in range(size):
+            start_r = int(offsets_per_rank[r])
+            end_r = int(offsets_per_rank[r + 1])
+            if end_r > start_r:
+                node_ids_parts.append(np.unique(all_cols[start_r:end_r, 0]))
         node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.int64)
 
         # Build section_ids_frame preserving rank-concatenation order
