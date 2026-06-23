@@ -660,7 +660,7 @@ def save_weights(
         with_neurite_type=neurite_types is not None,
     )
     t1 = MPI.Wtime()
-    log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s)")
+    log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s, includes MPI sync)")
 
     # 2. Compute each rank's contiguous row offset using MPI_Scan
     local_segments = len(cols)
