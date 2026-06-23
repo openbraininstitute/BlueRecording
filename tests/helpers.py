@@ -147,6 +147,9 @@ def create_weights_file(path, electrodes=None, gids=GIDS, population=POPULATION_
         _write_electrode_metadata_to_h5(h5file, gids, electrodes, population)
         sec_counts = make_sec_counts()
         _init_scaling_factors_and_offsets(sec_counts, population, h5file, electrodes)
+        # Fill with ones (production code does this during the parallel write phase)
+        dset = h5file[f"electrodes/{population}/scaling_factors"]
+        dset[...] = 1.0
     return path
 
 
