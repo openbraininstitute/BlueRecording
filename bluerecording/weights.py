@@ -193,12 +193,29 @@ def _init_scaling_factors_and_offsets(
     """
     n_segments = len(section_ids_frame)
     n_electrodes = len(electrodes)
-    h5file.create_dataset(
-        f"electrodes/{population_name}/scaling_factors",
-        shape=(n_segments, n_electrodes + 1),
-        dtype=np.float64,
-        fillvalue=1.0,
-    )
+    n_cols = n_electrodes + 1
+    # Create dataset with late allocation — space is not physically allocated
+    # (or zeroed) until the first write, eliminating the costly pre-fill.
+    # Each rank writes its full row block (including the ones column) during
+    # the parallel write phase.
+    import h5py.h5d
+    import h5py.h5p
+    import h5py.h5s
+    import h5py.h5t
+
+    dset_name = f"electrodes/{population_name}/scaling_factors"
+    # Ensure parent groups exist
+    h5file.require_group(f"electrodes/{population_name}")
+
+    space = h5py.h5s.create_simple((n_segments, n_cols), (n_segments, n_cols))
+    dcpl = h5py.h5p.create(h5py.h5p.DATASET_CREATE)
+    dcpl.set_alloc_time(h5py.h5d.ALLOC_TIME_LATE)
+    dcpl.set_fill_time(h5py.h5d.FILL_TIME_NEVER)
+    dcpl.set_layout(h5py.h5d.CONTIGUOUS)
+    tid = h5py.h5t.py_create(np.dtype("float64"))
+    loc = h5file["/"].id
+    h5py.h5d.create(loc, dset_name.encode(), tid, space, dcpl)
+    h5file.flush()
     h5file.create_dataset(
         f"{population_name}/offsets",
         data=_get_offsets(section_ids_frame),
@@ -294,6 +311,7 @@ def _add_data(
     end = start + block.shape[0]
 
     h5[dset][start:end, :-1] = block
+    h5[dset][start:end, -1] = 1.0
 
 
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
@@ -660,7 +678,11 @@ def save_weights(
     dset = h5[f"electrodes/{population_name}/scaling_factors"]
     if weights is not None and local_segments > 0:
         block = weights.values.T  # (N_local_segments, N_electrodes)
-        dset[start : start + block.shape[0], :-1] = block
+        # Append a column of ones (the identity/normalization column)
+        full_block = np.empty((block.shape[0], block.shape[1] + 1), dtype=np.float64)
+        full_block[:, :-1] = block
+        full_block[:, -1] = 1.0
+        dset[start : start + full_block.shape[0], :] = full_block
     t3 = MPI.Wtime()
 
     # 5. Write neurite types if requested
