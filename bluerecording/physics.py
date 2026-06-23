@@ -7,6 +7,7 @@ reciprocity, dipole-reciprocity, and objective CSD methods.
 """
 
 from dataclasses import dataclass
+import time
 
 import h5py
 import numpy as np
@@ -287,13 +288,18 @@ def get_coeffs_line_source_batch(
     all_coeffs = np.empty((n_elec, n_total))
 
     # Process electrodes in chunks to limit memory usage
+    t0 = time.perf_counter()
     for chunk_start in range(0, n_elec, chunk_size):
         chunk_end = min(chunk_start + chunk_size, n_elec)
         epos_chunk = electrode_positions[chunk_start:chunk_end]  # (chunk, 3)
         sigma_chunk = sigma_arr[chunk_start:chunk_end]  # (chunk,)
 
         pct = int(chunk_end / n_elec * 100)
-        log_rank0(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)", verbose)
+        elapsed = time.perf_counter() - t0
+        log_rank0(
+            f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%) — {elapsed:.1f}s",
+            verbose,
+        )
 
         # --- Soma segments (point source) ---
         if np.any(is_soma):
@@ -424,13 +430,18 @@ def get_coeffs_point_source_batch(
 
     all_coeffs = np.empty((n_elec, n_segments))
 
+    t0 = time.perf_counter()
     for chunk_start in range(0, n_elec, chunk_size):
         chunk_end = min(chunk_start + chunk_size, n_elec)
         epos_chunk = electrode_positions[chunk_start:chunk_end]
         sigma_chunk = sigma_arr[chunk_start:chunk_end]
 
         pct = int(chunk_end / n_elec * 100)
-        log_rank0(f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%)", verbose)
+        elapsed = time.perf_counter() - t0
+        log_rank0(
+            f"  Processing chunk: electrodes {chunk_start + 1}-{chunk_end} / {n_elec} ({pct}%) — {elapsed:.1f}s",
+            verbose,
+        )
 
         all_coeffs[chunk_start:chunk_end] = _point_source_coeffs_batch(positions_um, epos_chunk, sigma_chunk)
 
