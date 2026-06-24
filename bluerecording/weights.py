@@ -620,7 +620,7 @@ def compute_weights(
 
 
 @dataclass
-class ElectrodeTask:
+class ComputeWeightsTask:
     """Specification for a single electrode weights computation.
 
     Used with :func:`compute_and_save_weights` to process multiple electrode
@@ -650,7 +650,7 @@ class ElectrodeTask:
 
 def compute_and_save_weights(
     path_to_config: str | Path,
-    tasks: list[ElectrodeTask],
+    tasks: list[ComputeWeightsTask],
     replace_axons: bool = True,
 ) -> None:
     """Compute and save weights for multiple electrode configurations.
@@ -667,7 +667,7 @@ def compute_and_save_weights(
     Args:
         path_to_config: Path to a SONATA simulation or circuit configuration
             file.
-        tasks: List of :class:`ElectrodeTask` objects, each specifying an
+        tasks: List of :class:`ComputeWeightsTask` objects, each specifying an
             electrode configuration and output path.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).
