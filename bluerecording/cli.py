@@ -74,9 +74,7 @@ def main():
     )
 
     # compare_weights command
-    cw_parser = subparsers.add_parser(
-        "compare_weights", help="Compare two weights H5 files (order-agnostic)"
-    )
+    cw_parser = subparsers.add_parser("compare_weights", help="Compare two weights H5 files (order-agnostic)")
     cw_parser.add_argument("reference", type=str, help="Path to the reference weights H5 file")
     cw_parser.add_argument("target", type=str, help="Path to the target weights H5 file")
     cw_parser.add_argument("--rtol", type=float, default=1e-6, help="Relative tolerance (default: 1e-6)")

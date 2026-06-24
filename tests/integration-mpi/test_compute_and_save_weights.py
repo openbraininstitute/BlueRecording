@@ -1,23 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Integration test for compute_and_save_weights with multiple tasks."""
-<<<<<<< HEAD
+
 import pytest
 from mpi4py import MPI
 
 from bluerecording.compare import compare_weights
 from bluerecording.weights import ComputeWeightsTask, compute_and_save_weights
-=======
-
-import h5py
-import numpy as np
-import pytest
-from mpi4py import MPI
-
-from bluerecording.weights import (
-    ComputeWeightsTask,
-    compute_and_save_weights,
-)
->>>>>>> katta/multi-electrode-weights
 from tests.conftest import EXAMPLE_RAT_S1
 
 comm = MPI.COMM_WORLD
@@ -52,7 +40,6 @@ def test_compute_and_save_weights_multi_task(tmp_path):
 
     if rank == 0:
         ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
-
         for output_path in [output_1, output_2]:
             match, report = compare_weights(ref, output_path)
             assert match, f"{output_path}: {report}"

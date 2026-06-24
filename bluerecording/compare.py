@@ -11,15 +11,13 @@ import numpy as np
 
 def _find_population(h5: h5py.File) -> str:
     """Auto-detect the population name (first group with node_ids)."""
-    for key in h5.keys():
+    for key in h5:
         if key != "electrodes" and isinstance(h5[key], h5py.Group) and "node_ids" in h5[key]:
             return key
     raise ValueError("Could not find a population group with node_ids in the file")
 
 
-def _get_node_scaling_factors(
-    h5: h5py.File, population_name: str, node_id: int
-) -> np.ndarray:
+def _get_node_scaling_factors(h5: h5py.File, population_name: str, node_id: int) -> np.ndarray:
     """Extract scaling_factors rows for a given node_id using offsets."""
     node_ids = h5[f"{population_name}/node_ids"][:]
     offsets = h5[f"{population_name}/offsets"][:]
@@ -85,10 +83,7 @@ def compare_weights(
             tgt_sf = _get_node_scaling_factors(tgt, population_name, node_id)
 
             if ref_sf.shape != tgt_sf.shape:
-                return False, (
-                    f"node_id {node_id}: shape mismatch "
-                    f"(reference={ref_sf.shape}, target={tgt_sf.shape})"
-                )
+                return False, (f"node_id {node_id}: shape mismatch (reference={ref_sf.shape}, target={tgt_sf.shape})")
 
             if not np.allclose(ref_sf, tgt_sf, rtol=rtol, atol=atol):
                 abs_diff = np.abs(ref_sf - tgt_sf)

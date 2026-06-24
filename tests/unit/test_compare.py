@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for bluerecording.compare."""
+
 import h5py
 import numpy as np
 
