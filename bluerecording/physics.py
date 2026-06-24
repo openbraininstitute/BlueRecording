@@ -6,8 +6,8 @@ between neural segments and electrodes: line-source, point-source,
 reciprocity, dipole-reciprocity, and objective CSD methods.
 """
 
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 
 import h5py
 import numpy as np

@@ -234,7 +234,6 @@ def _init_weights(
     counts = np.array(comm.gather(local_count, root=0))
 
     all_cols = None
-    all_cols_list = None
     if rank == 0:
         total = int(counts.sum())
         all_cols = np.empty((total, 2), dtype=np.int64)
