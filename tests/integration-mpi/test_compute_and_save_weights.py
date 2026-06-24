@@ -1,18 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Integration test for compute_and_save_weights with multiple tasks."""
+
 import h5py
 import numpy as np
 import pytest
 from mpi4py import MPI
 
-from bluerecording import positions
-from bluerecording.circuit import init_circuit
 from bluerecording.weights import (
     ComputeWeightsTask,
-    Electrode,
     compute_and_save_weights,
-    get_weights,
-    save_weights,
 )
 from tests.conftest import EXAMPLE_RAT_S1
 
@@ -64,7 +60,7 @@ def test_compute_and_save_weights_multi_task(tmp_path):
         # Both outputs should exist and contain the same data
         ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
         with h5py.File(ref, "r") as r:
-            ref_pop = [k for k in r.keys() if k != "electrodes"][0]
+            ref_pop = [k for k in r if k != "electrodes"][0]
             ref_ids = r[f"{ref_pop}/node_ids"][:]
 
         for output_path in [output_1, output_2]:
