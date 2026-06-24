@@ -1,8 +1,10 @@
 import argparse
+import sys
 from pathlib import Path
 
 from . import __version__, positions
 from .circuit import init_circuit
+from .compare import compare_weights
 from .positions import compute_positions, save_positions
 from .weights import DEFAULT_SIGMA, Electrode, get_weights, save_weights
 
@@ -71,6 +73,16 @@ def main():
         help="Also save segment positions alongside the weights file",
     )
 
+    # compare_weights command
+    cw_parser = subparsers.add_parser(
+        "compare_weights", help="Compare two weights H5 files (order-agnostic)"
+    )
+    cw_parser.add_argument("reference", type=str, help="Path to the reference weights H5 file")
+    cw_parser.add_argument("target", type=str, help="Path to the target weights H5 file")
+    cw_parser.add_argument("--rtol", type=float, default=1e-6, help="Relative tolerance (default: 1e-6)")
+    cw_parser.add_argument("--atol", type=float, default=1e-9, help="Absolute tolerance (default: 1e-9)")
+    cw_parser.add_argument("--population", type=str, default=None, help="Population name (auto-detected if omitted)")
+
     args = parser.parse_args()
 
     if args.command == "write_positions":
@@ -110,3 +122,14 @@ def main():
         )
         if args.write_positions:
             save_positions(positions_df, output_file.parent)
+
+    elif args.command == "compare_weights":
+        match, report = compare_weights(
+            args.reference,
+            args.target,
+            rtol=args.rtol,
+            atol=args.atol,
+            population_name=args.population,
+        )
+        print(report)
+        sys.exit(0 if match else 1)
