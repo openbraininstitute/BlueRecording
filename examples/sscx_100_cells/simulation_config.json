@@ -3,8 +3,7 @@
   "run": {
     "dt": 0.025,
     "random_seed": 1,
-    "tstop": 100,
-    "electrodes_file": "./reference/weights_ref.h5"
+    "tstop": 100
   },
   "network": "./configuration/circuit_config.json",
   "node_sets_file": "user_node_sets.json",
@@ -31,9 +30,9 @@
   "reports": {
     "extracellular_report": {
       "type": "lfp",
+      "electrodes_file": "./reference/weights_ref.h5",
       "cells": "All",
       "sections": "all",
-      "variable_name": "v",
       "dt": 0.1,
       "start_time": 0.0,
       "end_time": 5000.0
