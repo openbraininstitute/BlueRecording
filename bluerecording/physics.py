@@ -12,9 +12,9 @@ import h5py
 import numpy as np
 import pandas as pd
 from scipy.interpolate import RegularGridInterpolator
+from sklearn.decomposition import PCA
 
 from .utils import log_rank0
-from sklearn.decomposition import PCA
 
 
 @dataclass
@@ -102,8 +102,6 @@ class SegmentGeometry:
             is_soma=is_soma,
             soma_positions=soma_positions,
         )
-
-
 
 
 def get_coeffs_line_source(

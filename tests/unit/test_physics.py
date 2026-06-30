@@ -35,6 +35,7 @@ def _scalar_line_coeff(start_pos, end_pos, electrode_pos, sigma):
     sigma_arr = np.array([sigma])
     return _line_source_coeffs(start, end, seg_lengths, epos, sigma_arr).item()
 
+
 # ---------------------------------------------------------------------------
 # Line-source coefficient tests
 # ---------------------------------------------------------------------------
@@ -433,30 +434,51 @@ def test_vectorized_matches_scalar():
 
     columns_tuples = [
         (1, 0),
-        (1, 1), (1, 1), (1, 1), (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
         (2, 0),
-        (2, 1), (2, 1), (2, 1),
-        (2, 2), (2, 2), (2, 2), (2, 2),
+        (2, 1),
+        (2, 1),
+        (2, 1),
+        (2, 2),
+        (2, 2),
+        (2, 2),
+        (2, 2),
     ]
     mi = pd.MultiIndex.from_tuples(columns_tuples, names=["id", "section"])
 
     values = np.column_stack(
         [
             n1_soma,
-            n1_s1_p0, n1_s1_p1, n1_s1_p2, n1_s1_p3,
+            n1_s1_p0,
+            n1_s1_p1,
+            n1_s1_p2,
+            n1_s1_p3,
             n2_soma,
-            n2_s1_p0, n2_s1_p1, n2_s1_p2,
-            n2_s2_p0, n2_s2_p1, n2_s2_p2, n2_s2_p3,
+            n2_s1_p0,
+            n2_s1_p1,
+            n2_s1_p2,
+            n2_s2_p0,
+            n2_s2_p1,
+            n2_s2_p2,
+            n2_s2_p3,
         ]
     )
     positions = pd.DataFrame(data=values, columns=mi)
 
     output_columns_tuples = [
         (1, 0),
-        (1, 1), (1, 1), (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 1),
         (2, 0),
-        (2, 1), (2, 1),
-        (2, 2), (2, 2), (2, 2),
+        (2, 1),
+        (2, 1),
+        (2, 2),
+        (2, 2),
+        (2, 2),
     ]
     output_mi = pd.MultiIndex.from_tuples(output_columns_tuples, names=["id", "section"])
 
