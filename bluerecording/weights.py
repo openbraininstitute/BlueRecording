@@ -12,17 +12,19 @@ from mpi4py import MPI
 from . import positions as _positions
 from .circuit import init_circuit
 from .physics import (
+    SegmentGeometry,
     get_coeffs_dipole_reciprocity,
-    get_coeffs_line_source_batch,
+    get_coeffs_line_source,
     get_coeffs_objective_csd_disk,
     get_coeffs_objective_csd_plane,
     get_coeffs_objective_csd_sphere,
-    get_coeffs_point_source_batch,
+    get_coeffs_point_source,
     get_coeffs_reciprocity,
 )
 from .utils import log_rank0
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
+DEFAULT_ELECTRODE_CHUNK_SIZE = 50  # Max electrodes per physics call to limit peak memory
 
 
 class ElectrodeType(StrEnum):
@@ -420,11 +422,12 @@ def get_weights(
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
+    electrode_chunk_size: int = DEFAULT_ELECTRODE_CHUNK_SIZE,
     verbose: bool = True,
 ) -> pd.DataFrame | None:
     """Compute electrode transfer coefficients from pre-computed positions.
 
-    Groups electrodes by (type, sigma), computes each group as a batch,
+    Groups electrodes by type, computes each group in chunks,
     then reassembles results in original electrode order.
     Pure computation — no file I/O.
 
@@ -436,6 +439,7 @@ def get_weights(
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
+        electrode_chunk_size: Max electrodes per physics call (limits peak memory).
         verbose: If True, print progress information on rank 0.
 
     Returns:
@@ -456,10 +460,8 @@ def get_weights(
     n_electrodes = len(electrodes)
     n_segments = len(cols)
 
-    # Result array: (N_electrodes, N_segments), filled per group then reordered
     all_coeffs = np.empty((n_electrodes, n_segments))
 
-    # --- Group electrodes by type ---
     line_source_indices: list[int] = []
     point_source_indices: list[int] = []
     other_indices: list[int] = []
@@ -475,25 +477,33 @@ def get_weights(
         else:
             other_indices.append(idx)
 
-    # --- Batch compute LINE_SOURCE ---
+    # --- Compute LINE_SOURCE ---
     if line_source_indices:
         epos_array = np.array([electrodes[i].position for i in line_source_indices])
         group_sigma = sigma_arr[line_source_indices]
         log_rank0(f"Computing line-source weights: {len(line_source_indices)} electrodes", verbose)
-        batch_coeffs = get_coeffs_line_source_batch(positions, columns, epos_array, group_sigma, verbose=verbose)
-        all_coeffs[line_source_indices] = batch_coeffs.values
+        geom = SegmentGeometry.from_positions(positions)
+        for chunk_start in range(0, len(line_source_indices), electrode_chunk_size):
+            chunk_end = min(chunk_start + electrode_chunk_size, len(line_source_indices))
+            chunk_coeffs = get_coeffs_line_source(
+                geom, columns, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
+            )
+            all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
 
-    # --- Batch compute POINT_SOURCE ---
+    # --- Compute POINT_SOURCE ---
     mid_positions = None
     if point_source_indices:
         mid_positions = _get_segment_midpts(positions, node_ids)
         epos_array = np.array([electrodes[i].position for i in point_source_indices])
         group_sigma = sigma_arr[point_source_indices]
         log_rank0(f"Computing point-source weights: {len(point_source_indices)} electrodes", verbose)
-        batch_coeffs = get_coeffs_point_source_batch(mid_positions, columns, epos_array, group_sigma, verbose=verbose)
-        all_coeffs[point_source_indices] = batch_coeffs.values
+        for chunk_start in range(0, len(point_source_indices), electrode_chunk_size):
+            chunk_end = min(chunk_start + electrode_chunk_size, len(point_source_indices))
+            chunk_coeffs = get_coeffs_point_source(
+                mid_positions, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
+            )
+            all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
 
-    # --- Process remaining electrode types one by one ---
     reciprocity_idx = 0
     objective_csd_count = 0
 
@@ -530,8 +540,7 @@ def get_weights(
                 coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
 
         elif electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
-            center = mid_positions.mean(axis=1)
-            coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
+            coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
             reciprocity_idx += 1
 
         else:

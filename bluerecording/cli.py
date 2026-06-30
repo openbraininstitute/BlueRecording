@@ -4,7 +4,7 @@ from pathlib import Path
 from . import __version__, positions
 from .circuit import init_circuit
 from .positions import compute_positions, save_positions
-from .weights import DEFAULT_SIGMA, Electrode, get_weights, save_weights
+from .weights import DEFAULT_ELECTRODE_CHUNK_SIZE, DEFAULT_SIGMA, Electrode, get_weights, save_weights
 
 
 def main():
@@ -70,6 +70,13 @@ def main():
         dest="write_positions",
         help="Also save segment positions alongside the weights file",
     )
+    ww_parser.add_argument(
+        "--electrode-chunk-size",
+        type=int,
+        default=DEFAULT_ELECTRODE_CHUNK_SIZE,
+        dest="electrode_chunk_size",
+        help=f"Max electrodes per computation chunk (default: {DEFAULT_ELECTRODE_CHUNK_SIZE})",
+    )
 
     args = parser.parse_args()
 
@@ -99,6 +106,7 @@ def main():
             electrodes=electrodes,
             sigma=args.sigma,
             path_to_fields=args.path_to_fields,
+            electrode_chunk_size=args.electrode_chunk_size,
         )
         save_weights(
             weights,
