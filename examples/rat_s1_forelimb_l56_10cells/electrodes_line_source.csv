@@ -1,0 +1,4 @@
+name,x,y,z,layer,region,type
+0,0,0,0,Outside,Outside,LineSource
+1,50,50,50,Outside,Outside,LineSource
+2,100,-25,75,Outside,Outside,LineSource
