@@ -109,8 +109,8 @@ def test_get_coeffs_line_source():
 
     coeffs = _get_coeffs_line_source(positions, data.columns, electrode_pos, sigma)
 
-    soma_dist = np.sqrt(3 * 10**2) * 1e-6
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
+    soma_dist = np.sqrt(3 * 10**2)
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
     expected_line = _get_line_coeffs(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_line))[np.newaxis, :], columns=data.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
@@ -120,33 +120,33 @@ def test_line_source():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([2, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = 1e-6, 1e-6, 2e-6
+    ds = 1  # µm
+    h, r, l = 1, 1, 2  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    np.testing.assert_almost_equal(result, expected)
 
 
 def test_line_source_2():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([-2, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = -3e-6, 1e-6, -2e-6
+    ds = 1  # µm
+    h, r, l = -3, 1, -2  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    np.testing.assert_almost_equal(result, expected)
 
 
 def test_line_source_3():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([0.5, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = -0.5e-6, 1e-6, 0.5e-6
+    ds = 1  # µm
+    h, r, l = -0.5, 1, 0.5  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    np.testing.assert_almost_equal(result, expected)
 
 
 def test_get_coeffs_point_source():
@@ -156,10 +156,10 @@ def test_get_coeffs_point_source():
     midpts = _get_segment_midpts(positions, GIDS)
     coeffs = _get_coeffs_point_source(midpts, electrode_pos, sigma)
 
-    soma_dist = np.sqrt(3 * 10**2) * 1e-6
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
-    seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2) * 1e-6
-    expected_seg = 1 / (4 * np.pi * sigma * seg_dist) * 1e-9
+    soma_dist = np.sqrt(3 * 10**2)  # µm
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
+    seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2)  # µm
+    expected_seg = 1 / (4 * np.pi * sigma * seg_dist)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_seg))[np.newaxis, :], columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
