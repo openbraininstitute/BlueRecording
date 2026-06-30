@@ -510,8 +510,7 @@ def get_weights(
                 coeffs = get_coeffs_objective_csd_plane(mid_positions, epos, all_epos, thickness)
 
         elif electrode_type is ElectrodeType.DIPOLE_RECIPROCITY:
-            center = mid_positions.mean(axis=1)
-            coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx], center)
+            coeffs = get_coeffs_dipole_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
             reciprocity_idx += 1
 
         else:
