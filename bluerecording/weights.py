@@ -316,8 +316,7 @@ def _get_line_coeffs(
 ) -> float:
     """Compute the line-source coefficient for a single segment.
 
-    All positions are in µm and are converted to m internally.
-    The returned coefficient converts a current in nA to a potential in V.
+    All positions in µm, sigma in S/m. Result in mV/nA.
 
     Args:
         start_pos: Starting position of the segment (µm).
@@ -325,10 +324,6 @@ def _get_line_coeffs(
         electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    start_pos = start_pos * 1e-6
-    end_pos = end_pos * 1e-6
-    electrode_pos = electrode_pos * 1e-6
-
     seg_length = np.linalg.norm(start_pos - end_pos)
 
     # Vector from segment end to electrode
@@ -344,7 +339,6 @@ def _get_line_coeffs(
     line_source_term = _line_source_cases(h, r2, l)
 
     seg_coeff = 1 / (4 * np.pi * sigma * seg_length) * line_source_term
-    seg_coeff *= 1e-9
 
     return seg_coeff
 
@@ -371,9 +365,8 @@ def _get_coeffs_line_source(
     for i in range(len(positions.columns) - 1):
         if positions.columns[i][-1] == 0:
             soma_pos = positions.iloc[:, i]
-            dist = np.linalg.norm(soma_pos - electrode_pos) * 1e-6
+            dist = np.linalg.norm(soma_pos - electrode_pos)
             soma_coeff = 1 / (4 * np.pi * sigma * dist)
-            soma_coeff *= 1e-9
             coeff_list.append(soma_coeff)
 
         elif positions.columns[i][-1] == positions.columns[i + 1][-1]:
@@ -391,17 +384,16 @@ def _get_coeffs_point_source(
 ) -> pd.DataFrame:
     """Compute point-source coefficients for all segments.
 
-    Each segment is treated as a point source. Distances are converted
-    from µm to m and currents from nA to A.
+    Each segment is treated as a point source. With positions in µm and
+    sigma in S/m, the result is directly in mV/nA.
 
     Args:
         positions: DataFrame of segment midpoint positions (µm).
         electrode_pos: Electrode position (µm).
         sigma: Extracellular conductivity (S/m).
     """
-    distances = np.linalg.norm(positions.values - electrode_pos[:, np.newaxis], axis=0) * 1e-6
+    distances = np.linalg.norm(positions.values - electrode_pos[:, np.newaxis], axis=0)
     coeffs = 1 / (4 * np.pi * sigma * distances)
-    coeffs *= 1e-9
     return pd.DataFrame(data=coeffs[np.newaxis, :], columns=positions.columns)
 
 
