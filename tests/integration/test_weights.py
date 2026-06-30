@@ -5,7 +5,9 @@ import pytest
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import Electrode, get_weights, save_weights
+from bluerecording.physics import SegmentGeometry, get_coeffs_line_source, get_coeffs_point_source
+from bluerecording.weights import Electrode, _get_segment_midpts, get_weights, save_weights
+from tests.conftest import EXAMPLE_RAT_S1
 
 
 @pytest.mark.skip_in_ci
@@ -170,9 +172,6 @@ def test_rat_s1_interleaved_electrode_types(tmp_path):
     per-electrode sigma values (0.3 and 0.4). Compares the batched result
     against computing each electrode individually.
     """
-    from bluerecording.physics import get_coeffs_line_source, get_coeffs_point_source
-    from tests.conftest import EXAMPLE_RAT_S1
-
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
     csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.csv")
 
@@ -190,14 +189,13 @@ def test_rat_s1_interleaved_electrode_types(tmp_path):
     columns = weights.columns
     node_ids = np.unique(cols[:, 0])
 
-    from bluerecording.weights import _get_segment_midpts
-
     mid_positions = _get_segment_midpts(pos_df, node_ids)
+    geom = SegmentGeometry.from_positions(pos_df)
 
     for i, electrode in enumerate(electrodes):
         s = sigma[i]
         if electrode.type.value == "LineSource":
-            expected = get_coeffs_line_source(pos_df, columns, electrode.position, s)
+            expected = get_coeffs_line_source(geom, columns, electrode.position, s)
         else:
             expected = get_coeffs_point_source(mid_positions, electrode.position, s)
 
