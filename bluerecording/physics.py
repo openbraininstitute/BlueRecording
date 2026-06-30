@@ -44,6 +44,8 @@ class SegmentGeometry:
         Args:
             positions: DataFrame of segment boundary positions (µm), shape
                 ``(3, N_columns)`` with MultiIndex columns ``(gid, section_id)``.
+
+        .. todo:: Flip the positions DataFrame to (N, 3) layout — see GitHub issue.
         """
         n_cols = len(positions.columns)
         col_section_ids = np.array([c[-1] for c in positions.columns])
@@ -101,10 +103,6 @@ class SegmentGeometry:
             soma_positions=soma_positions,
         )
 
-
-def precompute_segment_geometry(positions: pd.DataFrame) -> SegmentGeometry:
-    """Precompute segment geometry arrays. Use ``SegmentGeometry.from_positions()`` instead."""
-    return SegmentGeometry.from_positions(positions)
 
 
 

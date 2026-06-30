@@ -16,9 +16,6 @@ from bluerecording.physics import (
     get_coeffs_point_source,
     get_coeffs_reciprocity,
 )
-from bluerecording.physics import (
-    precompute_segment_geometry as _precompute_segment_geometry,
-)
 from bluerecording.weights import _get_segment_midpts
 from tests.helpers import (
     GIDS,
@@ -90,6 +87,27 @@ def test_line_source_3():
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
     np.testing.assert_almost_equal(result, expected)
+
+
+def test_coefficients_are_in_mV_per_nA():
+    """Verify output units are mV/nA as required by the SONATA electrodes spec.
+
+    For a point source at distance r (µm) with sigma (S/m):
+        coeff = 1 / (4π σ r)  [mV/nA]
+
+    With σ=1 S/m and r=1 µm: coeff = 1/(4π) ≈ 0.0796 mV/nA.
+    """
+    positions = pd.DataFrame(
+        data=np.array([[0.0, 0.0, 0.0]]).T,
+        columns=pd.MultiIndex.from_tuples([(1, 0)], names=["id", "section"]),
+    )
+    electrode_pos = np.array([1.0, 0.0, 0.0])  # 1 µm away
+    sigma = 1.0  # S/m
+
+    result = get_coeffs_point_source(positions, electrode_pos, sigma)
+    expected_mV_per_nA = 1 / (4 * np.pi * 1.0 * 1.0)  # ≈ 0.0796
+
+    np.testing.assert_allclose(result.values.item(), expected_mV_per_nA, rtol=1e-10)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +301,7 @@ def test_precompute_segment_geometry_basic():
     """Test _precompute_segment_geometry with soma + one line-source segment."""
     positions = make_two_section_positions()
 
-    result = _precompute_segment_geometry(positions)
+    result = SegmentGeometry.from_positions(positions)
 
     # Should identify 1 soma and 1 line-source segment
     assert result.is_soma.shape == (2,)
@@ -330,7 +348,7 @@ def test_precompute_segment_geometry_multi_neuron():
     ).T
     positions = pd.DataFrame(data=values, columns=mi)
 
-    result = _precompute_segment_geometry(positions)
+    result = SegmentGeometry.from_positions(positions)
 
     # Expected: 2 somas, 3 line-source segments
     assert np.sum(result.is_soma) == 2
@@ -355,7 +373,7 @@ def test_precompute_segment_geometry_no_soma():
     values = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]).T
     positions = pd.DataFrame(data=values, columns=mi)
 
-    result = _precompute_segment_geometry(positions)
+    result = SegmentGeometry.from_positions(positions)
 
     assert np.sum(result.is_soma) == 0
     assert result.soma_positions.shape == (0, 3)
@@ -372,7 +390,7 @@ def test_precompute_segment_geometry_only_soma():
     values = np.array([[5.0, 3.0, 1.0]]).T
     positions = pd.DataFrame(data=values, columns=mi)
 
-    result = _precompute_segment_geometry(positions)
+    result = SegmentGeometry.from_positions(positions)
 
     assert np.sum(result.is_soma) == 1
     assert np.sum(~result.is_soma) == 0
