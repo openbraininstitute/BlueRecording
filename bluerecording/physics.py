@@ -212,33 +212,27 @@ def get_coeffs_line_source(
     n_total = len(is_soma)
     all_coeffs = np.empty((n_elec, n_total))
 
-    # --- Soma segments (point source) ---
     if np.any(is_soma):
-        soma_pos = geom.soma_positions  # (N_soma, 3) in µm
-        all_coeffs[:, is_soma] = _point_source_coeffs(soma_pos, electrode_positions, sigma_arr)
+        all_coeffs[:, is_soma] = _point_source_coeffs(geom.soma_positions, electrode_positions, sigma_arr)
 
-    # --- Line-source segments ---
     line_mask = ~is_soma
     if np.any(line_mask):
-        end_pos = geom.end_pos * 1e-6  # (N_line, 3)
-        start_pos = geom.start_pos * 1e-6  # (N_line, 3)
-        seg_lengths = geom.seg_lengths  # (N_line,) in meters
-        seg_dir = end_pos - start_pos  # (N_line, 3)
+        end_pos = geom.end_pos * 1e-6
+        start_pos = geom.start_pos * 1e-6
+        seg_lengths = geom.seg_lengths
+        seg_dir = end_pos - start_pos
 
-        epos_m = electrode_positions * 1e-6  # (N_elec, 3)
+        epos_m = electrode_positions * 1e-6
 
         # (N_line, N_elec, 3) = (1, N_elec, 3) - (N_line, 1, 3)
         delta = epos_m[np.newaxis, :, :] - end_pos[:, np.newaxis, :]
 
-        # h = dot(delta, seg_dir) / seg_length → (N_line, N_elec)
         h = np.sum(delta * seg_dir[:, np.newaxis, :], axis=2) / seg_lengths[:, np.newaxis]
         l = h + seg_lengths[:, np.newaxis]
 
-        # r2 = |delta|^2 - h^2 → (N_line, N_elec)
         delta_sq = np.sum(delta * delta, axis=2)
         r2 = np.abs(delta_sq - h**2)
 
-        # Vectorized line_source_cases using np.where
         sqrt_h2_r2 = np.sqrt(h**2 + r2)
         sqrt_l2_r2 = np.sqrt(l**2 + r2)
 
@@ -249,18 +243,15 @@ def get_coeffs_line_source(
         # Case 3: h > 0, l > 0
         case3 = np.log((l + sqrt_l2_r2) / (sqrt_h2_r2 + h))
 
-        # Select cases using np.where
         line_source_term = np.where(
             h < 0,
             np.where(l < 0, case1, case2),
             case3,
         )
 
-        # sigma_arr: (N_elec,) → (1, N_elec) for broadcasting against (N_line, N_elec)
         line_coeffs = (
             1 / (4 * np.pi * sigma_arr[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
         )
-        # Transpose to (N_elec, N_line) and assign
         all_coeffs[:, line_mask] = line_coeffs.T
 
     if n_elec > 1:
@@ -286,14 +277,13 @@ def _point_source_coeffs(
     """
     # (N_points, 1, 3) - (1, N_elec, 3) → (N_points, N_elec, 3)
     delta = (positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]) * 1e-6
-    dist = np.linalg.norm(delta, axis=2)  # (N_points, N_elec)
-    # sigma: scalar → broadcast; array (N_elec,) → (1, N_elec) for broadcast
+    dist = np.linalg.norm(delta, axis=2)
     if np.ndim(sigma) == 0:
         coeffs = 1 / (4 * np.pi * sigma * dist) * 1e-9
     else:
-        sigma_row = np.asarray(sigma)[np.newaxis, :]  # (1, N_elec)
+        sigma_row = np.asarray(sigma)[np.newaxis, :]
         coeffs = 1 / (4 * np.pi * sigma_row * dist) * 1e-9
-    return coeffs.T  # (N_elec, N_points)
+    return coeffs.T
 
 
 def get_coeffs_point_source(

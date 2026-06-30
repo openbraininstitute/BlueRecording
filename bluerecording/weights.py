@@ -430,10 +430,8 @@ def get_weights(
     n_electrodes = len(electrodes)
     n_segments = len(cols)
 
-    # Result array: (N_electrodes, N_segments), filled per group then reordered
     all_coeffs = np.empty((n_electrodes, n_segments))
 
-    # --- Group electrodes by type ---
     line_source_indices: list[int] = []
     point_source_indices: list[int] = []
     other_indices: list[int] = []
@@ -449,7 +447,7 @@ def get_weights(
         else:
             other_indices.append(idx)
 
-    # --- Compute LINE_SOURCE (chunked to limit memory) ---
+    # --- Compute LINE_SOURCE ---
     if line_source_indices:
         epos_array = np.array([electrodes[i].position for i in line_source_indices])
         group_sigma = sigma_arr[line_source_indices]
@@ -462,7 +460,7 @@ def get_weights(
             )
             all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
 
-    # --- Compute POINT_SOURCE (chunked to limit memory) ---
+    # --- Compute POINT_SOURCE ---
     mid_positions = None
     if point_source_indices:
         mid_positions = _get_segment_midpts(positions, node_ids)
@@ -476,7 +474,6 @@ def get_weights(
             )
             all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
 
-    # --- Process remaining electrode types one by one ---
     reciprocity_idx = 0
     objective_csd_count = 0
 
