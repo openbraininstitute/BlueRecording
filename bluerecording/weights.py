@@ -627,6 +627,102 @@ def compute_weights(
     return weights, positions_df, cols, neurite_types, population_name
 
 
+@dataclass
+class ComputeWeightsTask:
+    """Specification for a single electrode weights computation.
+
+    Used with :func:`compute_and_save_weights` to process multiple electrode
+    configurations in a single circuit load.
+
+    Args:
+        electrodes: Path to an electrode CSV file, or a pre-built list of
+            :class:`Electrode` objects.
+        output: Path to the output HDF5 weights file.
+        sigma: Extracellular conductivity value(s) in S/m. If None, uses
+            the default (0.277 S/m).
+        path_to_fields: Path(s) to potential/E-field files for reciprocity
+            electrode types.
+        with_neurite_type: If True, include a neurite_types dataset in the
+            output file.
+        objective_csd_array_indices: Subsampling indices for objective CSD
+            electrode types.
+    """
+
+    electrodes: str | list[Electrode]
+    output: str
+    sigma: list[float] | None = None
+    path_to_fields: list[str] | None = None
+    with_neurite_type: bool = False
+    objective_csd_array_indices: list[str] | None = None
+
+
+def compute_and_save_weights(
+    path_to_config: str | Path,
+    tasks: list[ComputeWeightsTask],
+    replace_axons: bool = True,
+) -> None:
+    """Compute and save weights for multiple electrode configurations.
+
+    Loads the circuit and computes segment positions once, then iterates
+    over each task to compute and save electrode weights. This avoids
+    redundant circuit loading and position computation when generating
+    weights for multiple electrode setups on the same circuit.
+
+    Equivalent to calling :func:`compute_weights` + :func:`save_weights`
+    for each electrode file, but without re-initializing NEURON each time
+    (which is impossible within a single process).
+
+    Args:
+        path_to_config: Path to a SONATA simulation or circuit configuration
+            file.
+        tasks: List of :class:`ComputeWeightsTask` objects, each specifying an
+            electrode configuration and output path.
+        replace_axons: If True, replace morphological axons with a standardized
+            stub (two 30 µm AIS sections + 1000 µm myelinated section).
+    """
+    n_tasks = len(tasks)
+    log_rank0(f"compute_and_save_weights: {n_tasks} task(s)")
+
+    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
+
+    positions_df, cols, neurite_types = _positions.get_positions(
+        node_manager,
+        ids,
+        cols,
+        population,
+        morphologies_dir=morphologies_dir,
+        replace_axons=replace_axons,
+    )
+
+    for i, task in enumerate(tasks):
+        electrodes = task.electrodes
+        if isinstance(electrodes, str):
+            label = Path(electrodes).name
+        else:
+            label = f"{len(electrodes)} electrodes"
+        log_rank0(f"compute_and_save_weights: task {i + 1}/{n_tasks} — {label}")
+
+        weights = get_weights(
+            positions_df,
+            cols,
+            electrodes,
+            sigma=task.sigma,
+            path_to_fields=task.path_to_fields,
+            objective_csd_array_indices=task.objective_csd_array_indices,
+        )
+
+        save_weights(
+            weights,
+            cols,
+            population_name,
+            task.output,
+            electrodes,
+            neurite_types=neurite_types if task.with_neurite_type else None,
+        )
+
+    log_rank0(f"compute_and_save_weights: all {n_tasks} task(s) complete")
+
+
 def save_weights(
     weights: pd.DataFrame | None,
     cols: np.ndarray,
