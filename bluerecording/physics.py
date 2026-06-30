@@ -21,12 +21,12 @@ from sklearn.decomposition import PCA
 class SegmentGeometry:
     """Precomputed segment geometry for vectorized line-source computation."""
 
-    start_pos: np.ndarray  # (N_line_segments, 3) — segment start positions (µm)
-    end_pos: np.ndarray  # (N_line_segments, 3) — segment end positions (µm)
-    seg_lengths: np.ndarray  # (N_line_segments,) — lengths in meters
-    seg_dirs: np.ndarray  # (N_line_segments, 3) — unit direction vectors
-    is_soma: np.ndarray  # (N_total_segments,) — bool, True for soma entries
-    soma_positions: np.ndarray  # (N_soma, 3) — soma positions (µm)
+    start_pos: np.ndarray  # (N_line_segments, 3) segment start positions (µm)
+    end_pos: np.ndarray  # (N_line_segments, 3) segment end positions (µm)
+    seg_lengths: np.ndarray  # (N_line_segments,) lengths (µm)
+    seg_dirs: np.ndarray  # (N_line_segments, 3) unit direction vectors
+    is_soma: np.ndarray  # (N_total_segments,) bool, True for soma entries
+    soma_positions: np.ndarray  # (N_soma, 3) soma positions (µm)
 
     @classmethod
     def from_positions(cls, positions: pd.DataFrame) -> "SegmentGeometry":
@@ -81,7 +81,7 @@ class SegmentGeometry:
             start_pos = np.array(start_positions_list)
             end_pos = np.array(end_positions_list)
 
-            diff = (end_pos - start_pos) * 1e-6
+            diff = end_pos - start_pos
             seg_lengths = np.linalg.norm(diff, axis=1)
 
             safe_lengths = np.where(seg_lengths > 0, seg_lengths, 1.0)
@@ -106,70 +106,6 @@ def precompute_segment_geometry(positions: pd.DataFrame) -> SegmentGeometry:
     """Precompute segment geometry arrays. Use ``SegmentGeometry.from_positions()`` instead."""
     return SegmentGeometry.from_positions(positions)
 
-
-def _line_source_cases(h: float, r2: float, l: float) -> float:
-    """Return the line-source potential term for the given geometry case.
-
-    Selects the appropriate logarithmic formula depending on the signs
-    of the axial projections *h* (segment end) and *l* (segment start).
-
-    Args:
-        h: Axial projection of the electrode onto the segment direction
-            relative to the segment end (m).
-        r2: Squared perpendicular distance from the electrode to the
-            segment axis (m²).
-        l: Axial projection relative to the segment start; always
-            ``h + segment_length``, so ``l > h``.
-    """
-    if h < 0 and l < 0:
-        return np.log(((h**2 + r2) ** 0.5 - h) / ((l**2 + r2) ** 0.5 - l))
-    elif h < 0 and l > 0:
-        return np.log(((h**2 + r2) ** 0.5 - h) * (l + (l**2 + r2) ** 0.5) / r2)
-    elif h > 0 and l > 0:
-        return np.log((l + (l**2 + r2) ** 0.5) / ((r2 + h**2) ** 0.5 + h))
-    else:
-        raise ValueError(f"Unhandled line-source geometry: h={h}, l={l} (expected l > h with segment_length > 0)")
-
-
-def _get_line_coeffs(
-    start_pos: np.ndarray,
-    end_pos: np.ndarray,
-    electrode_pos: np.ndarray,
-    sigma: float,
-) -> float:
-    """Compute the line-source coefficient for a single segment.
-
-    All positions are in µm and are converted to m internally.
-    The returned coefficient converts a current in nA to a potential in V.
-
-    Args:
-        start_pos: Starting position of the segment (µm).
-        end_pos: Ending position of the segment (µm).
-        electrode_pos: Electrode position (µm).
-        sigma: Extracellular conductivity (S/m).
-    """
-    start_pos = start_pos * 1e-6
-    end_pos = end_pos * 1e-6
-    electrode_pos = electrode_pos * 1e-6
-
-    seg_length = np.linalg.norm(start_pos - end_pos)
-
-    # Vector from segment end to electrode
-    delta = electrode_pos - end_pos
-    # Segment direction (end - start)
-    seg_dir = end_pos - start_pos
-
-    h = np.dot(delta, seg_dir) / seg_length
-    l = h + seg_length
-
-    r2 = np.abs(np.dot(delta, delta) - h**2)
-
-    line_source_term = _line_source_cases(h, r2, l)
-
-    seg_coeff = 1 / (4 * np.pi * sigma * seg_length) * line_source_term
-    seg_coeff *= 1e-9
-
-    return seg_coeff
 
 
 def get_coeffs_line_source(
@@ -217,47 +153,68 @@ def get_coeffs_line_source(
 
     line_mask = ~is_soma
     if np.any(line_mask):
-        end_pos = geom.end_pos * 1e-6
-        start_pos = geom.start_pos * 1e-6
-        seg_lengths = geom.seg_lengths
-        seg_dir = end_pos - start_pos
-
-        epos_m = electrode_positions * 1e-6
-
-        # (N_line, N_elec, 3) = (1, N_elec, 3) - (N_line, 1, 3)
-        delta = epos_m[np.newaxis, :, :] - end_pos[:, np.newaxis, :]
-
-        h = np.sum(delta * seg_dir[:, np.newaxis, :], axis=2) / seg_lengths[:, np.newaxis]
-        l = h + seg_lengths[:, np.newaxis]
-
-        delta_sq = np.sum(delta * delta, axis=2)
-        r2 = np.abs(delta_sq - h**2)
-
-        sqrt_h2_r2 = np.sqrt(h**2 + r2)
-        sqrt_l2_r2 = np.sqrt(l**2 + r2)
-
-        # Case 1: h < 0, l < 0
-        case1 = np.log((sqrt_h2_r2 - h) / (sqrt_l2_r2 - l))
-        # Case 2: h < 0, l > 0
-        case2 = np.log((sqrt_h2_r2 - h) * (l + sqrt_l2_r2) / r2)
-        # Case 3: h > 0, l > 0
-        case3 = np.log((l + sqrt_l2_r2) / (sqrt_h2_r2 + h))
-
-        line_source_term = np.where(
-            h < 0,
-            np.where(l < 0, case1, case2),
-            case3,
+        all_coeffs[:, line_mask] = _line_source_coeffs(
+            geom.start_pos, geom.end_pos, geom.seg_lengths, electrode_positions, sigma_arr
         )
 
-        line_coeffs = (
-            1 / (4 * np.pi * sigma_arr[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term * 1e-9
-        )
-        all_coeffs[:, line_mask] = line_coeffs.T
+    # No unit conversion needed: µm + S/m → mV/nA directly
 
     if n_elec > 1:
         log_rank0(f"  Line-source: computed {n_elec} electrodes", verbose)
 
     return pd.DataFrame(data=all_coeffs, columns=columns)
+
+
+def _line_source_coeffs(
+    start_pos: np.ndarray,
+    end_pos: np.ndarray,
+    seg_lengths: np.ndarray,
+    electrode_positions: np.ndarray,
+    sigma: np.ndarray,
+) -> np.ndarray:
+    """Compute line-source coefficients for segments × electrodes.
+
+    All positions in µm, sigma in S/m. Result in mV/nA.
+
+    Args:
+        start_pos: Segment start positions (µm), shape ``(N_line, 3)``.
+        end_pos: Segment end positions (µm), shape ``(N_line, 3)``.
+        seg_lengths: Segment lengths (µm), shape ``(N_line,)``.
+        electrode_positions: Electrode positions (µm), shape ``(N_elec, 3)``.
+        sigma: Conductivity per electrode (S/m), shape ``(N_elec,)``.
+
+    Returns:
+        Coefficients array (mV/nA), shape ``(N_elec, N_line)``.
+    """
+    seg_dir = end_pos - start_pos
+
+    # (N_line, N_elec, 3) = (1, N_elec, 3) - (N_line, 1, 3)
+    delta = electrode_positions[np.newaxis, :, :] - end_pos[:, np.newaxis, :]
+
+    h = np.sum(delta * seg_dir[:, np.newaxis, :], axis=2) / seg_lengths[:, np.newaxis]
+    l = h + seg_lengths[:, np.newaxis]
+
+    delta_sq = np.sum(delta * delta, axis=2)
+    r2 = np.abs(delta_sq - h**2)
+
+    sqrt_h2_r2 = np.sqrt(h**2 + r2)
+    sqrt_l2_r2 = np.sqrt(l**2 + r2)
+
+    # Case 1: h < 0, l < 0
+    case1 = np.log((sqrt_h2_r2 - h) / (sqrt_l2_r2 - l))
+    # Case 2: h < 0, l > 0
+    case2 = np.log((sqrt_h2_r2 - h) * (l + sqrt_l2_r2) / r2)
+    # Case 3: h > 0, l > 0
+    case3 = np.log((l + sqrt_l2_r2) / (sqrt_h2_r2 + h))
+
+    line_source_term = np.where(
+        h < 0,
+        np.where(l < 0, case1, case2),
+        case3,
+    )
+
+    coeffs = 1 / (4 * np.pi * sigma[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term
+    return coeffs.T
 
 
 def _point_source_coeffs(
@@ -267,22 +224,24 @@ def _point_source_coeffs(
 ) -> np.ndarray:
     """Compute point-source coefficients for positions × electrodes.
 
+    All positions in µm, sigma in S/m. Result in mV/nA.
+
     Args:
-        positions_um: Segment positions in µm, shape ``(N_points, 3)``.
-        electrode_positions_um: Electrode positions in µm, shape ``(N_elec, 3)``.
+        positions_um: Segment positions (µm), shape ``(N_points, 3)``.
+        electrode_positions_um: Electrode positions (µm), shape ``(N_elec, 3)``.
         sigma: Extracellular conductivity (S/m). Scalar or array of shape ``(N_elec,)``.
 
     Returns:
-        Coefficients array, shape ``(N_elec, N_points)``.
+        Coefficients array (mV/nA), shape ``(N_elec, N_points)``.
     """
     # (N_points, 1, 3) - (1, N_elec, 3) → (N_points, N_elec, 3)
-    delta = (positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]) * 1e-6
+    delta = positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]
     dist = np.linalg.norm(delta, axis=2)
     if np.ndim(sigma) == 0:
-        coeffs = 1 / (4 * np.pi * sigma * dist) * 1e-9
+        coeffs = 1 / (4 * np.pi * sigma * dist)
     else:
         sigma_row = np.asarray(sigma)[np.newaxis, :]
-        coeffs = 1 / (4 * np.pi * sigma_row * dist) * 1e-9
+        coeffs = 1 / (4 * np.pi * sigma_row * dist)
     return coeffs.T
 
 
@@ -310,7 +269,7 @@ def get_coeffs_point_source(
     if electrode_positions.ndim == 1:
         electrode_positions = electrode_positions[np.newaxis, :]
 
-    positions_um = positions.values.T  # (N_segments, 3)
+    positions_um = positions.values.T
     coeffs = _point_source_coeffs(positions_um, electrode_positions, sigma)
     return pd.DataFrame(data=coeffs, columns=positions.columns)
 
@@ -472,14 +431,14 @@ def _get_h5_dataset(h5f: str, group_name: str, dataset_name: str) -> np.ndarray:
 def get_coeffs_dipole_reciprocity(
     compartment_positions: pd.DataFrame,
     path_to_fields: str,
-    center: pd.Series,
 ) -> pd.DataFrame:
     """Compute dipole-reciprocity coefficients from a Sim4Life E-field file.
 
-    Interpolates the E-field at the neural center and computes the
+    Interpolates the E-field at the neural centroid and computes the
     transfer coefficient for each compartment via the dipole approximation.
     """
     position_columns = compartment_positions.columns
+    center = compartment_positions.mean(axis=1)
     compartment_positions = compartment_positions.values
 
     with h5py.File(path_to_fields, "r") as f:

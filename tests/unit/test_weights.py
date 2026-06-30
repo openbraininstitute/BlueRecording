@@ -14,6 +14,7 @@ from bluerecording.weights import (
     _get_segment_midpts,
     _sort_electrode_names,
     _write_electrode_metadata_to_h5,
+    save_weights,
 )
 from tests.helpers import (
     GIDS,
@@ -54,8 +55,6 @@ def test_write_neuron(tmp_path):
 
 def test_write_neuron_creates_missing_directory(tmp_path):
     """save_weights creates parent directories if they don't exist."""
-    from bluerecording.weights import save_weights
-
     path = tmp_path / "nested" / "subdir" / "weights.h5"
     assert not path.parent.exists()
 

@@ -6,8 +6,8 @@ from bluerecording.physics import (
     SegmentGeometry,
     _distances_in_planar_coords,
     _get_array_spacing,
-    _get_line_coeffs,
     _get_thickness,
+    _line_source_coeffs,
     get_coeffs_dipole_reciprocity,
     get_coeffs_line_source,
     get_coeffs_objective_csd_disk,
@@ -28,12 +28,22 @@ from tests.helpers import (
     make_two_section_positions,
 )
 
+
+def _scalar_line_coeff(start_pos, end_pos, electrode_pos, sigma):
+    """Compute a single line-source coefficient via _line_source_coeffs (test helper)."""
+    start = np.array(start_pos, dtype=np.float64).reshape(1, 3)
+    end = np.array(end_pos, dtype=np.float64).reshape(1, 3)
+    epos = np.array(electrode_pos, dtype=np.float64).reshape(1, 3)
+    seg_lengths = np.linalg.norm(end - start, axis=1)
+    sigma_arr = np.array([sigma])
+    return _line_source_coeffs(start, end, seg_lengths, epos, sigma_arr).item()
+
 # ---------------------------------------------------------------------------
 # Line-source coefficient tests
 # ---------------------------------------------------------------------------
 
 
-def testget_coeffs_line_source():
+def test_get_coeffs_line_source():
     positions = make_two_section_positions()
     data = make_two_section_data()
     electrode_pos = np.array([10, 10, 10])
@@ -42,9 +52,9 @@ def testget_coeffs_line_source():
     geom = SegmentGeometry.from_positions(positions)
     coeffs = get_coeffs_line_source(geom, data.columns, electrode_pos, sigma)
 
-    soma_dist = np.sqrt(3 * 10**2) * 1e-6
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
-    expected_line = _get_line_coeffs(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
+    soma_dist = np.sqrt(3 * 10**2)  # µm
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
+    expected_line = _scalar_line_coeff(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_line))[np.newaxis, :], columns=data.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
@@ -53,33 +63,33 @@ def test_line_source():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([2, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = 1e-6, 1e-6, 2e-6
+    ds = 1  # µm
+    h, r, l = 1, 1, 2  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected)
 
 
 def test_line_source_2():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([-2, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = -3e-6, 1e-6, -2e-6
+    ds = 1  # µm
+    h, r, l = -3, 1, -2  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected)
 
 
 def test_line_source_3():
     seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
     epos = np.array([0.5, 0, 1])
     sigma = 1
-    ds = 1e-6
-    h, r, l = -0.5e-6, 1e-6, 0.5e-6
+    ds = 1  # µm
+    h, r, l = -0.5, 1, 0.5  # µm
     expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected * 1e-9)
+    result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
+    np.testing.assert_almost_equal(result, expected)
 
 
 # ---------------------------------------------------------------------------
@@ -87,17 +97,17 @@ def test_line_source_3():
 # ---------------------------------------------------------------------------
 
 
-def testget_coeffs_point_source():
+def test_get_coeffs_point_source():
     positions = make_two_section_positions()
     electrode_pos = np.array([10, 10, 10])
     sigma = 1
     midpts = _get_segment_midpts(positions, GIDS)
     coeffs = get_coeffs_point_source(midpts, electrode_pos, sigma)
 
-    soma_dist = np.sqrt(3 * 10**2) * 1e-6
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist) * 1e-9
-    seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2) * 1e-6
-    expected_seg = 1 / (4 * np.pi * sigma * seg_dist) * 1e-9
+    soma_dist = np.sqrt(3 * 10**2)  # µm
+    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
+    seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2)  # µm
+    expected_seg = 1 / (4 * np.pi * sigma * seg_dist)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_seg))[np.newaxis, :], columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
@@ -129,8 +139,8 @@ def test_point_source_multi_electrode_varying_sigma():
     positions_um = midpts.values.T  # (3, 3)
     for i in range(4):
         for j in range(3):
-            dist = np.linalg.norm((positions_um[j] - electrode_positions[i]) * 1e-6)
-            expected = 1 / (4 * np.pi * sigmas[i] * dist) * 1e-9
+            dist = np.linalg.norm(positions_um[j] - electrode_positions[i])  # µm
+            expected = 1 / (4 * np.pi * sigmas[i] * dist)
             np.testing.assert_allclose(
                 result.iloc[i, j],
                 expected,
@@ -154,7 +164,7 @@ def test_point_source_multi_electrode_varying_sigma():
 # ---------------------------------------------------------------------------
 
 
-def testget_coeffs_reciprocity(tmp_path):
+def test_get_coeffs_reciprocity(tmp_path):
     positions = make_two_section_positions()
     field_path = create_potential_field(tmp_path / "potential.h5")
     midpts = _get_segment_midpts(positions, GIDS)
@@ -166,12 +176,11 @@ def testget_coeffs_reciprocity(tmp_path):
     pd.testing.assert_frame_equal(potentials, expected)
 
 
-def testget_coeffs_dipole_reciprocity(tmp_path):
+def test_get_coeffs_dipole_reciprocity(tmp_path):
     positions = make_two_section_positions()
     field_path = create_e_field(tmp_path / "efield.h5")
     midpts = _get_segment_midpts(positions, GIDS)
-    center = midpts.mean(axis=1)
-    potentials = get_coeffs_dipole_reciprocity(midpts, field_path, center)
+    potentials = get_coeffs_dipole_reciprocity(midpts, field_path)
 
     columns = [[1, 1], [0, 1]]
     mi = pd.MultiIndex.from_tuples(list(zip(*columns, strict=False)), names=["id", "section"])
@@ -291,9 +300,9 @@ def test_precompute_segment_geometry_basic():
     np.testing.assert_array_equal(result.start_pos[0], [0.0, 0.0, 0.0])
     np.testing.assert_array_equal(result.end_pos[0], [0.0, 0.0, 1.0])
 
-    # Length should be 1 µm = 1e-6 m
+    # Length should be 1 µm
     assert result.seg_lengths.shape == (1,)
-    np.testing.assert_almost_equal(result.seg_lengths[0], 1e-6)
+    np.testing.assert_almost_equal(result.seg_lengths[0], 1.0)
 
     # Direction should be along z-axis
     assert result.seg_dirs.shape == (1, 3)
@@ -334,8 +343,8 @@ def test_precompute_segment_geometry_multi_neuron():
     assert result.start_pos.shape == (3, 3)
     assert result.end_pos.shape == (3, 3)
 
-    # All segments are 1 µm long along x or y axis
-    np.testing.assert_array_almost_equal(result.seg_lengths, [1e-6, 1e-6, 1e-6])
+    # All segments are 1 µm long
+    np.testing.assert_array_almost_equal(result.seg_lengths, [1.0, 1.0, 1.0])
 
 
 def test_precompute_segment_geometry_no_soma():
@@ -352,7 +361,7 @@ def test_precompute_segment_geometry_no_soma():
     assert result.soma_positions.shape == (0, 3)
     assert result.start_pos.shape == (1, 3)
     assert result.end_pos.shape == (1, 3)
-    np.testing.assert_almost_equal(result.seg_lengths[0], 1e-6)
+    np.testing.assert_almost_equal(result.seg_lengths[0], 1.0)
 
 
 def test_precompute_segment_geometry_only_soma():
@@ -448,14 +457,14 @@ def test_vectorized_matches_scalar():
             if section_id == 0:
                 # Soma: point source
                 soma_pos = positions.iloc[:, i].values
-                dist = np.linalg.norm(soma_pos - epos) * 1e-6
-                scalar_coeffs.append(1 / (4 * np.pi * sigma * dist) * 1e-9)
+                dist = np.linalg.norm(soma_pos - epos)  # µm
+                scalar_coeffs.append(1 / (4 * np.pi * sigma * dist))
                 i += 1
             elif i + 1 < n_cols and col_section_ids[i] == col_section_ids[i + 1]:
                 # Line-source segment: start at i, end at i+1
                 start = positions.iloc[:, i].values
                 end = positions.iloc[:, i + 1].values
-                scalar_coeffs.append(_get_line_coeffs(start, end, epos, sigma))
+                scalar_coeffs.append(_scalar_line_coeff(start, end, epos, sigma))
                 i += 1
             else:
                 # Last boundary point of a section (no next pair) — skip
