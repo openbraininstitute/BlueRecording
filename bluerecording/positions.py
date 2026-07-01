@@ -595,7 +595,7 @@ def get_positions(
 
     if not cell_arrays:
         empty_idx = pd.MultiIndex.from_arrays(
-            [np.array([], dtype=np.int64), np.array([], dtype=np.int64)],
+            [np.array([], dtype=np.uint64), np.array([], dtype=np.uint64)],
             names=["id", "section"],
         )
         positions_df = pd.DataFrame(np.empty((3, 0)), columns=empty_idx)
