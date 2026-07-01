@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  NEURODAMUS_COMMIT: "main"
+  NEURODAMUS_COMMIT: "4.2.4"
   NEURODAMUS_NEOCORTEX_ROOT: ${{ github.workspace }}/install/neurodamus-neocortex
 
 jobs:
