@@ -231,8 +231,8 @@ def _init_weights(
     all_cols = None
     if rank == 0:
         total = int(counts.sum())
-        all_cols = np.empty((total, 2), dtype=np.int64)
-        recvcounts = counts * 2  # each row has 2 int64 elements
+        all_cols = np.empty((total, 2), dtype=np.uint64)
+        recvcounts = counts * 2  # each row has 2 uint32 elements
         displacements = np.zeros(size, dtype=np.intp)
         np.cumsum(recvcounts[:-1], out=displacements[1:])
     else:
@@ -240,8 +240,8 @@ def _init_weights(
         displacements = None
 
     comm.Gatherv(
-        [cols, MPI.INT64_T],
-        [all_cols, recvcounts, displacements, MPI.INT64_T] if rank == 0 else None,
+        [cols, MPI.UINT64_T],
+        [all_cols, recvcounts, displacements, MPI.UINT64_T] if rank == 0 else None,
         root=0,
     )
 
@@ -259,7 +259,7 @@ def _init_weights(
             end_r = int(offsets_per_rank[r + 1])
             if end_r > start_r:
                 node_ids_parts.append(np.unique(all_cols[start_r:end_r, 0]))
-        node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.int64)
+        node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.uint64)
 
         # Build section_ids_frame preserving rank-concatenation order
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
