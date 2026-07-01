@@ -20,8 +20,7 @@ def test_single_cell_get_positions(tmp_path):
     df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
 
     assert df_ref.index.equals(df_new.index)
-    assert df_ref.columns.equals(df_new.columns)
-    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False)
+    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, check_column_type=False)
 
 
 @pytest.mark.skip_in_ci
@@ -38,8 +37,7 @@ def test_sscx_100_cells_get_positions(tmp_path):
     df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
 
     assert df_ref.index.equals(df_new.index)
-    assert df_ref.columns.equals(df_new.columns)
-    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False)
+    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, check_column_type=False)
 
 
 def test_rat_s1_get_positions(tmp_path):
@@ -68,5 +66,4 @@ def test_rat_s1_get_positions(tmp_path):
     df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
 
     assert df_ref.index.equals(df_new.index)
-    assert df_ref.columns.equals(df_new.columns)
-    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False)
+    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, check_column_type=False)

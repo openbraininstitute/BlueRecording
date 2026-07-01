@@ -65,9 +65,10 @@ def init_circuit(path_to_config: str):
             libsonata.SimulationConfig.Report.Sections.all,
             libsonata.SimulationConfig.Report.Compartments.all,
         )
+        # uint64 to match libsonata's node ID convention (Selection.flatten() dtype)
         cols = np.array(
             [(p.gid, s) for p in points for s in sorted(p.sclst_ids)],
-            dtype=np.int64,
+            dtype=np.uint64,
         ).reshape(-1, 2)
 
         population_name = node_manager.population_name
