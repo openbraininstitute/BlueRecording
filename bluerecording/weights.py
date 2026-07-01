@@ -167,17 +167,11 @@ def _write_electrode_metadata_to_h5(
 def _get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     """Compute per-node offsets into the flat segment array.
 
-    Counts segments per node in the order they appear (preserving
-    rank-concatenation order) and returns their prefix sum (partial sum),
-    with a leading zero.  The result has length ``n_nodes + 1``: entry *i*
-    is the index of the first segment for the *i*-th node, and the last
-    entry is the total number of segments.
-
-    Uses pandas groupby to preserve appearance order (stable), unlike
-    np.unique which sorts globally.
+    Returns an array of length ``n_nodes + 1``: entry *i* is the index
+    of the first segment for the *i*-th node, and the last entry is the
+    total number of segments.
     """
-    # Group by 'id' in order of first appearance, count segments per node
-    counts = section_ids_frame.groupby("id", sort=False).size().values
+    counts = section_ids_frame.groupby("id", sort=False).size().to_numpy()
     return np.hstack(([0], np.cumsum(counts)))
 
 
@@ -231,7 +225,6 @@ def _init_weights(
     rank = comm.Get_rank()
     size = comm.Get_size()
 
-    # Use Gatherv for efficient buffer-based transfer (no pickle overhead)
     local_count = len(cols)
     counts = np.array(comm.gather(local_count, root=0))
 
@@ -317,7 +310,7 @@ def _add_data(
         start: Starting row index for this rank's contiguous block.
     """
     dset = f"electrodes/{population_name}/scaling_factors"
-    block = coeffs.values.T  # shape: (N_local_segments, N_electrodes)
+    block = coeffs.to_numpy().T  # shape: (N_local_segments, N_electrodes)
     end = start + block.shape[0]
 
     h5[dset][start:end, :-1] = block
@@ -488,7 +481,7 @@ def get_weights(
             chunk_coeffs = get_coeffs_line_source(
                 geom, columns, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
             )
-            all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
+            all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.to_numpy()
 
     # --- Compute POINT_SOURCE ---
     mid_positions = None
@@ -502,7 +495,7 @@ def get_weights(
             chunk_coeffs = get_coeffs_point_source(
                 mid_positions, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
             )
-            all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
+            all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.to_numpy()
 
     reciprocity_idx = 0
     objective_csd_count = 0
@@ -547,7 +540,7 @@ def get_weights(
             coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
             reciprocity_idx += 1
 
-        all_coeffs[idx] = coeffs.values.ravel()
+        all_coeffs[idx] = coeffs.to_numpy().ravel()
 
     result = pd.DataFrame(data=all_coeffs, columns=columns)
     return result
@@ -673,16 +666,16 @@ def save_weights(
     # 2. Compute each rank's contiguous row offset using MPI_Scan
     local_segments = len(cols)
 
+    # Exclusive scan: each rank's start = sum of all previous ranks' segments
+    start = comm.scan(local_segments, op=MPI.SUM) - local_segments
+
+    # 3. Open file for parallel write — ALL ranks must participate
     if comm.Get_size() > 1 and not h5py.get_config().mpi:
         warnings.warn(
             "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
             stacklevel=2,
         )
 
-    # Exclusive scan: each rank's start = sum of all previous ranks' segments
-    start = comm.scan(local_segments, op=MPI.SUM) - local_segments
-
-    # 3. Open file for parallel write — ALL ranks must participate
     if comm.Get_size() > 1:
         h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
     else:
@@ -694,7 +687,7 @@ def save_weights(
     # deadlocks (even ranks with no data perform a zero-length read).
     dset = h5[f"electrodes/{population_name}/scaling_factors"]
     if weights is not None and local_segments > 0:
-        block = weights.values.T  # (N_local_segments, N_electrodes)
+        block = weights.to_numpy().T  # (N_local_segments, N_electrodes)
         # Append a column of ones (the identity/normalization column)
         full_block = np.empty((block.shape[0], block.shape[1] + 1), dtype=np.float64)
         full_block[:, :-1] = block
@@ -710,7 +703,6 @@ def save_weights(
     h5.close()
     t4 = MPI.Wtime()
 
-    # Summary
     total_segments = comm.allreduce(local_segments, op=MPI.SUM)
     n_electrodes = len(electrodes)
     file_size_gb = total_segments * (n_electrodes + 1) * 8 / 1e9
