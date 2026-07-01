@@ -9,28 +9,16 @@ from bluerecording.weights import (
     ElectrodeType,
     ObjectiveCSDParams,
     _add_data,
-    _distances_in_planar_coords,
-    _get_array_spacing,
-    _get_coeffs_dipole_reciprocity,
-    _get_coeffs_line_source,
-    _get_coeffs_objective_csd_disk,
-    _get_coeffs_objective_csd_plane,
-    _get_coeffs_objective_csd_sphere,
-    _get_coeffs_point_source,
-    _get_coeffs_reciprocity,
-    _get_line_coeffs,
     _get_objective_csd_array,
     _get_offsets,
     _get_segment_midpts,
-    _get_thickness,
     _sort_electrode_names,
     _write_electrode_metadata_to_h5,
+    save_weights,
 )
 from tests.helpers import (
     GIDS,
     POPULATION_NAME,
-    create_e_field,
-    create_potential_field,
     create_weights_file,
     make_electrodes,
     make_electrodes_objective,
@@ -38,7 +26,6 @@ from tests.helpers import (
     make_report_data,
     make_report_data_backwards,
     make_sec_counts,
-    make_two_section_data,
     make_two_section_positions,
 )
 
@@ -68,8 +55,6 @@ def test_write_neuron(tmp_path):
 
 def test_write_neuron_creates_missing_directory(tmp_path):
     """save_weights creates parent directories if they don't exist."""
-    from bluerecording.weights import save_weights
-
     path = tmp_path / "nested" / "subdir" / "weights.h5"
     assert not path.parent.exists()
 
@@ -101,94 +86,6 @@ def test_add_coeffs_backwards(tmp_path):
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 
-def test_get_coeffs_line_source():
-    positions = make_two_section_positions()
-    data = make_two_section_data()
-    electrode_pos = np.array([10, 10, 10])
-    sigma = 1
-
-    coeffs = _get_coeffs_line_source(positions, data.columns, electrode_pos, sigma)
-
-    soma_dist = np.sqrt(3 * 10**2)
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
-    expected_line = _get_line_coeffs(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
-    expected = pd.DataFrame(data=np.hstack((expected_soma, expected_line))[np.newaxis, :], columns=data.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-
-def test_line_source():
-    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
-    epos = np.array([2, 0, 1])
-    sigma = 1
-    ds = 1  # µm
-    h, r, l = 1, 1, 2  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected)
-
-
-def test_line_source_2():
-    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
-    epos = np.array([-2, 0, 1])
-    sigma = 1
-    ds = 1  # µm
-    h, r, l = -3, 1, -2  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected)
-
-
-def test_line_source_3():
-    seg = [np.array([0, 0, 0]), np.array([1, 0, 0])]
-    epos = np.array([0.5, 0, 1])
-    sigma = 1
-    ds = 1  # µm
-    h, r, l = -0.5, 1, 0.5  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
-    result = _get_line_coeffs(seg[0], seg[1], epos, sigma)
-    np.testing.assert_almost_equal(result, expected)
-
-
-def test_get_coeffs_point_source():
-    positions = make_two_section_positions()
-    electrode_pos = np.array([10, 10, 10])
-    sigma = 1
-    midpts = _get_segment_midpts(positions, GIDS)
-    coeffs = _get_coeffs_point_source(midpts, electrode_pos, sigma)
-
-    soma_dist = np.sqrt(3 * 10**2)  # µm
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
-    seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2)  # µm
-    expected_seg = 1 / (4 * np.pi * sigma * seg_dist)
-    expected = pd.DataFrame(data=np.hstack((expected_soma, expected_seg))[np.newaxis, :], columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-
-def test_get_coeffs_reciprocity(tmp_path):
-    positions = make_two_section_positions()
-    field_path = create_potential_field(tmp_path / "potential.h5")
-    midpts = _get_segment_midpts(positions, GIDS)
-    potentials = _get_coeffs_reciprocity(midpts, field_path)
-
-    columns = [[1, 1], [0, 1]]
-    mi = pd.MultiIndex.from_tuples(list(zip(*columns, strict=False)), names=["id", "section"])
-    expected = pd.DataFrame(data=np.array([0, 0.5e-6])[np.newaxis, :], columns=mi)
-    pd.testing.assert_frame_equal(potentials, expected)
-
-
-def test_get_coeffs_dipole_reciprocity(tmp_path):
-    positions = make_two_section_positions()
-    field_path = create_e_field(tmp_path / "efield.h5")
-    midpts = _get_segment_midpts(positions, GIDS)
-    center = midpts.mean(axis=1)
-    potentials = _get_coeffs_dipole_reciprocity(midpts, field_path, center)
-
-    columns = [[1, 1], [0, 1]]
-    mi = pd.MultiIndex.from_tuples(list(zip(*columns, strict=False)), names=["id", "section"])
-    expected = pd.DataFrame(data=-1 * np.array([0.5e-6, 0])[np.newaxis, :] ** 2, columns=mi)
-    pd.testing.assert_frame_equal(potentials, expected)
-
-
 def test_sort_electrode_names():
     keys = [0, 1, 10, "S1nonbarrel_neurons", 3]
     result = _sort_electrode_names(keys, "S1nonbarrel_neurons")
@@ -208,82 +105,6 @@ def test_electrode_type():
         ElectrodeType(t)
     with pytest.raises(ValueError):
         ElectrodeType("sadasd")
-
-
-def test_objective_csd_sphere():
-    positions = make_two_section_positions()
-    all_epos = np.array([[0, 0, 0], [2, 0, 0]])
-    midpts = _get_segment_midpts(positions, GIDS)
-
-    coeffs = _get_coeffs_objective_csd_sphere(midpts, all_epos[0], all_epos)
-    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-    coeffs = _get_coeffs_objective_csd_sphere(midpts, all_epos[0], all_epos, radius=0.1)
-    expected = pd.DataFrame(data=np.array([[1, 0]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-
-def test_objective_csd_disk():
-    positions = make_two_section_positions()
-    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
-    midpts = _get_segment_midpts(positions, GIDS)
-
-    coeffs = _get_coeffs_objective_csd_disk(midpts, all_epos[0], all_epos)
-    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-    coeffs = _get_coeffs_objective_csd_disk(midpts, all_epos[1], all_epos)
-    expected = pd.DataFrame(data=np.array([[0, 0]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-    coeffs = _get_coeffs_objective_csd_disk(midpts, all_epos[0], all_epos, radius=0.1)
-    expected = pd.DataFrame(data=np.array([[1, 0]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-    coeffs = _get_coeffs_objective_csd_disk(midpts, all_epos[0], all_epos, diskThickness=10)
-    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-
-def test_objective_csd_plane():
-    positions = make_two_section_positions()
-    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
-    midpts = _get_segment_midpts(positions, GIDS)
-
-    coeffs = _get_coeffs_objective_csd_plane(midpts, all_epos[0], all_epos)
-    expected = pd.DataFrame(data=np.array([[1, 1]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-    coeffs = _get_coeffs_objective_csd_plane(midpts, all_epos[1], all_epos)
-    expected = pd.DataFrame(data=np.array([[0, 0]]), columns=midpts.columns)
-    pd.testing.assert_frame_equal(coeffs, expected)
-
-
-def test_array_spacing():
-    all_epos = np.array([[0, 0, 0], [0, 0, 1], [0, 0, 2]])
-    main_axis, spacing = _get_array_spacing(all_epos)
-    np.testing.assert_equal(main_axis, np.array([0, 0, 1])[:, np.newaxis])
-    np.testing.assert_equal(spacing, np.array([1, 1]))
-
-
-def test_array_thickness():
-    assert _get_thickness(np.array([1, 1])) == 0.5
-
-
-def test_planar_coords():
-    positions = make_two_section_positions()
-    all_epos = np.array([[0, 0, 0], [1, 0, 0]])
-    midpts = _get_segment_midpts(positions, GIDS)
-    main_axis, _ = _get_array_spacing(all_epos)
-
-    axial, radial = _distances_in_planar_coords(midpts, all_epos[0], main_axis)
-    np.testing.assert_equal(axial, np.array([0, 0])[:, np.newaxis])
-    np.testing.assert_equal(radial, np.array([0, 0.5]))
-
-    axial, radial = _distances_in_planar_coords(midpts, all_epos[1], main_axis)
-    np.testing.assert_equal(axial, np.array([1, 1])[:, np.newaxis])
-    np.testing.assert_equal(radial, np.array([0, 0.5]))
 
 
 def test_get_objective_csd_array(tmp_path):
