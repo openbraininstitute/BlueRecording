@@ -432,6 +432,25 @@ def get_coeffs_dipole_reciprocity(
 
     Interpolates the E-field at the neural centroid and computes the
     transfer coefficient for each compartment via the dipole approximation.
+
+    Args:
+        compartment_positions: DataFrame of segment midpoint positions in **µm**,
+            shape ``(3, N_segments)``.
+        path_to_fields: Path to the Sim4Life H5 export file containing:
+
+            - ``Meshes/.../axis_x, axis_y, axis_z``: mesh node coordinates in **meters**.
+            - ``FieldGroups/.../EM E(x,y,z,f0)/.../comp0,comp1,comp2``:
+              E-field components in **V/m** on a staggered (cell-center) grid.
+            - ``CurrentApplied``: applied current in **nA** (Sim4Life convention;
+              note: this is *not* SI — Sim4Life uses Dirichlet BCs of ±1 V and
+              reports the resulting current in nA).
+
+    Returns:
+        DataFrame of transfer coefficients in **mV/nA**, shape ``(1, N_segments)``.
+
+    Unit derivation::
+
+        E [V/m] · Δr [m] = V  →  V / nA = V/nA  →  × 1e3 = mV/nA
     """
     position_columns = compartment_positions.columns
     center = compartment_positions.mean(axis=1)
@@ -452,20 +471,23 @@ def get_coeffs_dipole_reciprocity(
         y = _get_h5_dataset(path_to_fields, mesh_group, "axis_y")
         z = _get_h5_dataset(path_to_fields, mesh_group, "axis_z")
 
+        # E-field lives on staggered grid (cell centers)
         x_center = (x[:-1] + x[1:]) / 2
         y_center = (y[:-1] + y[1:]) / 2
         z_center = (z[:-1] + z[1:]) / 2
 
-        current_applied = f["CurrentApplied"][()]
+        current_applied = f["CurrentApplied"][()]  # nA
 
-    compartment_positions = compartment_positions * 1e-6
-    center = center * 1e-6
-    relative_positions = compartment_positions - center.values[:, np.newaxis]
+    # Convert compartment positions from µm to meters for interpolation
+    compartment_positions = compartment_positions * 1e-6  # µm → m
+    center = center * 1e-6  # µm → m
+    relative_positions = compartment_positions - center.values[:, np.newaxis]  # m
 
     interp_x = RegularGridInterpolator((x_center, y, z), ex[:, :, :, 0], method="linear")
     interp_y = RegularGridInterpolator((x, y_center, z), ey[:, :, :, 0], method="linear")
     interp_z = RegularGridInterpolator((x, y, z_center), ez[:, :, :, 0], method="linear")
 
+    # E-field at centroid [V/m]
     e_at_center = np.array(
         [
             interp_x(center)[0],
@@ -474,13 +496,17 @@ def get_coeffs_dipole_reciprocity(
         ]
     )
 
+    # Dipole approximation: potential = E · Δr  [V/m × m = V]
     potential = (
         relative_positions[0] * e_at_center[0]
         + relative_positions[1] * e_at_center[1]
         + relative_positions[2] * e_at_center[2]
     )
 
-    return pd.DataFrame(data=(-potential / current_applied)[np.newaxis, :], columns=position_columns)
+    # V / nA → mV/nA requires × 1e3
+    coeffs = -potential / current_applied * 1e3
+
+    return pd.DataFrame(data=coeffs[np.newaxis, :], columns=position_columns)
 
 
 def get_coeffs_reciprocity(
@@ -491,9 +517,28 @@ def get_coeffs_reciprocity(
 
     Interpolates the potential at each compartment position and scales
     by the applied current.
+
+    Args:
+        compartment_positions: DataFrame of segment midpoint positions in **µm**,
+            shape ``(3, N_segments)``.
+        path_to_fields: Path to the Sim4Life H5 export file containing:
+
+            - ``Meshes/.../axis_x, axis_y, axis_z``: mesh node coordinates in **meters**.
+            - ``FieldGroups/.../EM Potential(x,y,z,f0)/.../comp0``:
+              electric potential in **Volts** (from Dirichlet BCs of ±1 V).
+            - ``CurrentApplied``: applied current in **nA** (Sim4Life convention;
+              note: this is *not* SI — Sim4Life uses Dirichlet BCs of ±1 V and
+              reports the resulting current in nA).
+
+    Returns:
+        DataFrame of transfer coefficients in **mV/nA**, shape ``(1, N_segments)``.
+
+    Unit derivation::
+
+        potential [V] / current [nA] = V/nA  →  × 1e3 = mV/nA
     """
     position_columns = compartment_positions.columns
-    positions_m = compartment_positions.values * 1e-6
+    positions_m = compartment_positions.values * 1e-6  # µm → m for interpolation
 
     with h5py.File(path_to_fields, "r") as f:
         for i in f["FieldGroups"]:
@@ -502,14 +547,17 @@ def get_coeffs_reciprocity(
         for i in f["Meshes"]:
             mesh_group = f"Meshes/{i}"
             break
-        x = _get_h5_dataset(path_to_fields, mesh_group, "axis_x")
-        y = _get_h5_dataset(path_to_fields, mesh_group, "axis_y")
-        z = _get_h5_dataset(path_to_fields, mesh_group, "axis_z")
+        x = _get_h5_dataset(path_to_fields, mesh_group, "axis_x")  # meters
+        y = _get_h5_dataset(path_to_fields, mesh_group, "axis_y")  # meters
+        z = _get_h5_dataset(path_to_fields, mesh_group, "axis_z")  # meters
 
-        current_applied = f["CurrentApplied"][()]
+        current_applied = f["CurrentApplied"][()]  # nA
 
     selections = positions_m.T
     interp = RegularGridInterpolator((x, y, z), pot[:, :, :, 0], method="linear")
-    potential = interp(selections)[np.newaxis]
+    potential = interp(selections)[np.newaxis]  # Volts
 
-    return pd.DataFrame(data=(potential / current_applied), columns=position_columns)
+    # V / nA → mV/nA requires × 1e3
+    coeffs = potential / current_applied * 1e3
+
+    return pd.DataFrame(data=coeffs, columns=position_columns)

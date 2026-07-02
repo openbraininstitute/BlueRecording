@@ -281,12 +281,18 @@ def make_morphology_two_axon_branches(path):
 
 
 def create_potential_field(path):
-    """Create a potential field H5 file for reciprocity tests."""
+    """Create a potential field H5 file for reciprocity tests.
+
+    Mimics the Sim4Life export format:
+    - Mesh axes in **meters**.
+    - Potential field in **Volts** (set to the z-coordinate value).
+    - ``CurrentApplied`` in **nA** (set to 1 nA for easy verification).
+    """
     with h5py.File(path, "w") as f:
-        f.create_dataset("CurrentApplied", data=1)
-        xaxis = np.linspace(-10, 10) * 1e-6
-        yaxis = np.linspace(-10, 10) * 1e-6
-        zaxis = np.linspace(-10, 10) * 1e-6
+        f.create_dataset("CurrentApplied", data=1)  # nA
+        xaxis = np.linspace(-10, 10) * 1e-6  # meters
+        yaxis = np.linspace(-10, 10) * 1e-6  # meters
+        zaxis = np.linspace(-10, 10) * 1e-6  # meters
         real_imag = np.array([0, 1])
 
         mesh = f.create_group("Meshes/FirstDataField")
@@ -301,12 +307,19 @@ def create_potential_field(path):
 
 
 def create_e_field(path):
-    """Create an E-field H5 file for dipole reciprocity tests."""
+    """Create an E-field H5 file for dipole reciprocity tests.
+
+    Mimics the Sim4Life export format:
+    - Mesh axes in **meters**.
+    - E-field components in **V/m** (set to the respective coordinate value
+      at cell centers, i.e. Ex = x_center, Ey = y_center, Ez = z_center).
+    - ``CurrentApplied`` in **nA** (set to 1 nA for easy verification).
+    """
     with h5py.File(path, "w") as f:
-        f.create_dataset("CurrentApplied", data=1)
-        xaxis = np.linspace(-10, 10) * 1e-6
-        yaxis = np.linspace(-10, 10) * 1e-6
-        zaxis = np.linspace(-10, 10) * 1e-6
+        f.create_dataset("CurrentApplied", data=1)  # nA
+        xaxis = np.linspace(-10, 10) * 1e-6  # meters
+        yaxis = np.linspace(-10, 10) * 1e-6  # meters
+        zaxis = np.linspace(-10, 10) * 1e-6  # meters
         xc = (xaxis[:-1] + xaxis[1:]) / 2
         yc = (yaxis[:-1] + yaxis[1:]) / 2
         zc = (zaxis[:-1] + zaxis[1:]) / 2

@@ -191,7 +191,8 @@ def test_get_coeffs_reciprocity(tmp_path):
 
     columns = [[1, 1], [0, 1]]
     mi = pd.MultiIndex.from_tuples(list(zip(*columns, strict=False)), names=["id", "section"])
-    expected = pd.DataFrame(data=np.array([0, 0.5e-6])[np.newaxis, :], columns=mi)
+    # Output in mV/nA
+    expected = pd.DataFrame(data=np.array([0, 0.5e-3])[np.newaxis, :], columns=mi)
     pd.testing.assert_frame_equal(potentials, expected)
 
 
@@ -203,7 +204,8 @@ def test_get_coeffs_dipole_reciprocity(tmp_path):
 
     columns = [[1, 1], [0, 1]]
     mi = pd.MultiIndex.from_tuples(list(zip(*columns, strict=False)), names=["id", "section"])
-    expected = pd.DataFrame(data=-1 * np.array([0.5e-6, 0])[np.newaxis, :] ** 2, columns=mi)
+    # Output in mV/nA
+    expected = pd.DataFrame(data=np.array([-2.5e-13, 0])[np.newaxis, :], columns=mi)
     pd.testing.assert_frame_equal(potentials, expected)
 
 
