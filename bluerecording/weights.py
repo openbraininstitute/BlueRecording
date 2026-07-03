@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import warnings
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -143,7 +144,7 @@ def _write_electrode_metadata_to_h5(
         electrodes: List of ``Electrode`` objects.
         population_name: SONATA population name.
     """
-    h5.create_dataset(f"{population_name}/node_ids", data=sorted(node_ids))
+    h5.create_dataset(f"{population_name}/node_ids", data=node_ids)
 
     for index, electrode in enumerate(electrodes):
         prefix = f"electrodes/{electrode.name}"
@@ -166,12 +167,11 @@ def _write_electrode_metadata_to_h5(
 def _get_offsets(section_ids_frame: pd.DataFrame) -> np.ndarray:
     """Compute per-node offsets into the flat segment array.
 
-    Counts segments per node and returns their prefix sum (partial sum),
-    with a leading zero.  The result has length ``n_nodes + 1``: entry *i*
-    is the index of the first segment for the *i*-th node, and the last
-    entry is the total number of segments.
+    Returns an array of length ``n_nodes + 1``: entry *i* is the index
+    of the first segment for the *i*-th node, and the last entry is the
+    total number of segments.
     """
-    _, counts = np.unique(section_ids_frame["id"].values, return_counts=True)
+    counts = section_ids_frame.groupby("id", sort=False).size().to_numpy()
     return np.hstack(([0], np.cumsum(counts)))
 
 
@@ -189,9 +189,11 @@ def _init_scaling_factors_and_offsets(
     """
     n_segments = len(section_ids_frame)
     n_electrodes = len(electrodes)
+    n_cols = n_electrodes + 1
     h5file.create_dataset(
         f"electrodes/{population_name}/scaling_factors",
-        data=np.ones((n_segments, n_electrodes + 1)),
+        shape=(n_segments, n_cols),
+        dtype=np.float64,
     )
     h5file.create_dataset(
         f"{population_name}/offsets",
@@ -208,9 +210,9 @@ def _init_weights(
 ) -> None:
     """Initialize the HDF5 electrode weights file on rank 0.
 
-    Gathers rank-local cols via MPI, builds the global structure, and
-    writes electrode metadata and offsets. The file is closed before
-    returning.
+    Gathers rank-local cols via MPI, builds a rank-ordered file layout
+    (rank 0's segments first, then rank 1's, etc.), and writes electrode
+    metadata and offsets. The file is closed before returning.
 
     Args:
         cols: Rank-local (N, 2) int64 array of (gid, section) pairs.
@@ -221,14 +223,45 @@ def _init_weights(
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    size = comm.Get_size()
 
-    # Gather all rank-local cols to rank 0
-    all_cols_list = comm.gather(cols, root=0)
+    local_count = len(cols)
+    counts = np.array(comm.gather(local_count, root=0))
+
+    all_cols = None
+    if rank == 0:
+        total = int(counts.sum())
+        all_cols = np.empty((total, 2), dtype=np.uint64)
+        recvcounts = counts * 2  # each row has 2 uint32 elements
+        displacements = np.zeros(size, dtype=np.intp)
+        np.cumsum(recvcounts[:-1], out=displacements[1:])
+    else:
+        recvcounts = None
+        displacements = None
+
+    comm.Gatherv(
+        [cols, MPI.UINT64_T],
+        [all_cols, recvcounts, displacements, MPI.UINT64_T] if rank == 0 else None,
+        root=0,
+    )
 
     if rank == 0:
-        all_cols = np.concatenate(all_cols_list, axis=0)
-        node_ids = np.unique(all_cols[:, 0])
+        # Split all_cols back into per-rank arrays for node_ids construction
+        offsets_per_rank = np.zeros(size + 1, dtype=np.intp)
+        np.cumsum(counts, out=offsets_per_rank[1:])
 
+        # Build node_ids in rank order: for each rank's cols, extract unique GIDs
+        # (locally sorted within that rank), concatenate in rank order.
+        # GIDs are disjoint across ranks (round-robin distribution).
+        node_ids_parts = []
+        for r in range(size):
+            start_r = int(offsets_per_rank[r])
+            end_r = int(offsets_per_rank[r + 1])
+            if end_r > start_r:
+                node_ids_parts.append(np.unique(all_cols[start_r:end_r, 0]))
+        node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.uint64)
+
+        # Build section_ids_frame preserving rank-concatenation order
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
 
         Path(outputfile).parent.mkdir(parents=True, exist_ok=True)
@@ -261,37 +294,27 @@ def _init_weights(
 
 def _add_data(
     h5: h5py.File,
-    ids: np.ndarray,
     coeffs: pd.DataFrame,
     population_name: str,
+    start: int,
 ) -> None:
     """Write computed coefficients into the scaling_factors dataset.
 
-    Looks up each node's offset range and writes the corresponding
-    coefficient rows into the HDF5 dataset.
+    Writes the full coefficient block in a single contiguous slice
+    starting at row ``start``.
+
+    Args:
+        h5: HDF5 file handle opened for writing.
+        coeffs: DataFrame of shape (N_electrodes, N_local_segments).
+        population_name: SONATA population name.
+        start: Starting row index for this rank's contiguous block.
     """
     dset = f"electrodes/{population_name}/scaling_factors"
-    node_ids = h5[f"{population_name}/node_ids"][:]
-    offsets = h5[f"{population_name}/offsets"][:]
+    block = coeffs.to_numpy().T  # shape: (N_local_segments, N_electrodes)
+    end = start + block.shape[0]
 
-    is_in_input = np.isin(node_ids, ids)
-    nodes_in_input = node_ids[is_in_input]
-    id_index = np.where(is_in_input)[0]
-
-    offset0 = offsets[id_index]
-    offset1 = np.zeros_like(offset0)
-
-    last_offset_idx = len(offsets) - 1
-
-    if np.any(id_index == last_offset_idx):
-        last_node_idx = np.where(id_index == last_offset_idx)[0]
-        offset1[last_node_idx] = len(h5[dset])
-
-    not_last = np.where(id_index != last_offset_idx)[0]
-    offset1[not_last] = offsets[id_index[not_last] + 1]
-
-    for i, node_id in enumerate(nodes_in_input):
-        h5[dset][offset0[i] : offset1[i], :-1] = coeffs.loc[:, node_id].values.T
+    h5[dset][start:end, :-1] = block
+    h5[dset][start:end, -1] = 1.0
 
 
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
@@ -458,7 +481,7 @@ def get_weights(
             chunk_coeffs = get_coeffs_line_source(
                 geom, columns, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
             )
-            all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
+            all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.to_numpy()
 
     # --- Compute POINT_SOURCE ---
     mid_positions = None
@@ -472,7 +495,7 @@ def get_weights(
             chunk_coeffs = get_coeffs_point_source(
                 mid_positions, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
             )
-            all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.values
+            all_coeffs[point_source_indices[chunk_start:chunk_end]] = chunk_coeffs.to_numpy()
 
     reciprocity_idx = 0
     objective_csd_count = 0
@@ -517,7 +540,7 @@ def get_weights(
             coeffs = get_coeffs_reciprocity(mid_positions, path_to_fields[reciprocity_idx])
             reciprocity_idx += 1
 
-        all_coeffs[idx] = coeffs.values.ravel()
+        all_coeffs[idx] = coeffs.to_numpy().ravel()
 
     result = pd.DataFrame(data=all_coeffs, columns=columns)
     return result
@@ -525,27 +548,22 @@ def get_weights(
 
 def _write_neurite_types(
     h5: h5py.File,
-    cols: np.ndarray,
-    node_ids: np.ndarray,
     neurite_types: np.ndarray,
     population_name: str,
+    start: int,
 ) -> None:
-    """Write neurite type codes into the H5 file for each node."""
-    offsets = h5[f"{population_name}/offsets"][:]
-    all_node_ids = h5[f"{population_name}/node_ids"][:]
+    """Write neurite type codes into the H5 file.
 
-    for gid in node_ids:
-        gid_mask = cols[:, 0] == gid
-        ntypes = neurite_types[gid_mask]
+    Writes the full local neurite_types array in a single contiguous slice.
 
-        id_index = np.where(all_node_ids == gid)[0][0]
-        offset0 = offsets[id_index]
-        if id_index == len(offsets) - 1:
-            offset1 = h5[f"electrodes/{population_name}/scaling_factors"].shape[0]
-        else:
-            offset1 = offsets[id_index + 1]
-
-        h5[f"{population_name}/neurite_types"][offset0:offset1] = ntypes
+    Args:
+        h5: HDF5 file handle opened for writing.
+        neurite_types: (N,) int32 array of neurite type codes.
+        population_name: SONATA population name.
+        start: Starting row index for this rank's contiguous block.
+    """
+    end = start + len(neurite_types)
+    h5[f"{population_name}/neurite_types"][start:end] = neurite_types
 
 
 def compute_weights(
@@ -612,7 +630,10 @@ def save_weights(
 ) -> None:
     """Initialize the HDF5 weights file and write pre-computed coefficients.
 
-    Handles MPI gather (for file structure) and parallel write.
+    Handles MPI gather (for file structure) and parallel write using
+    collective I/O. Each rank writes its contiguous block in a single
+    operation. The file layout is rank-ordered (rank 0's segments first,
+    then rank 1's, etc.).
 
     Args:
         weights: DataFrame of transfer coefficients returned by
@@ -627,9 +648,11 @@ def save_weights(
     if isinstance(electrodes, str):
         electrodes = Electrode.from_csv(electrodes)
 
-    node_ids = np.unique(cols[:, 0])
+    comm = MPI.COMM_WORLD
+    t0 = MPI.Wtime()
 
     # 1. Initialize the file (gather + rank 0 creates structure + barrier)
+    log_rank0("save_weights: initializing HDF5 file structure...")
     _init_weights(
         cols,
         population_name,
@@ -637,22 +660,54 @@ def save_weights(
         electrodes,
         with_neurite_type=neurite_types is not None,
     )
+    t1 = MPI.Wtime()
+    log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s, includes MPI sync)")
 
-    # 2. Write coefficients in parallel
-    comm = MPI.COMM_WORLD
+    # 2. Compute each rank's contiguous row offset using MPI_Scan
+    local_segments = len(cols)
+
+    # Exclusive scan: each rank's start = sum of all previous ranks' segments
+    start = comm.scan(local_segments, op=MPI.SUM) - local_segments
+
+    # 3. Open file for parallel write — ALL ranks must participate
     if comm.Get_size() > 1:
+        if not h5py.get_config().mpi:
+            warnings.warn(
+                "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
+                stacklevel=2,
+            )
         h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
     else:
         h5 = h5py.File(outputfile, "a")
+    t2 = MPI.Wtime()
 
-    if len(node_ids) == 0:
-        h5.close()
-        return
+    # 4. Write coefficients — each rank writes its own contiguous slice.
+    # All ranks must participate in the dataset access to avoid MPI-IO
+    # deadlocks (even ranks with no data perform a zero-length read).
+    dset = h5[f"electrodes/{population_name}/scaling_factors"]
+    if weights is not None and local_segments > 0:
+        block = weights.to_numpy().T  # (N_local_segments, N_electrodes)
+        # Append a column of ones (the identity/normalization column)
+        full_block = np.empty((block.shape[0], block.shape[1] + 1), dtype=np.float64)
+        full_block[:, :-1] = block
+        full_block[:, -1] = 1.0
+        dset[start : start + full_block.shape[0], :] = full_block
+    t3 = MPI.Wtime()
 
-    assert weights is not None
-    _add_data(h5, node_ids, weights, population_name)
+    # 5. Write neurite types if requested
+    if neurite_types is not None and local_segments > 0:
+        _write_neurite_types(h5, neurite_types, population_name, start=start)
 
-    if neurite_types is not None:
-        _write_neurite_types(h5, cols, node_ids, neurite_types, population_name)
-
+    comm.Barrier()
     h5.close()
+    t4 = MPI.Wtime()
+
+    total_segments = comm.allreduce(local_segments, op=MPI.SUM)
+    n_electrodes = len(electrodes)
+    file_size_gb = total_segments * (n_electrodes + 1) * 8 / 1e9
+    log_rank0(
+        f"save_weights: done. "
+        f"{total_segments:,} segments × {n_electrodes} electrodes = {file_size_gb:.1f} GB | "
+        f"init {t1 - t0:.1f}s, open {t2 - t1:.1f}s, write {t3 - t2:.1f}s, close {t4 - t3:.1f}s, "
+        f"total {t4 - t0:.1f}s"
+    )

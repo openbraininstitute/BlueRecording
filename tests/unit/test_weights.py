@@ -71,18 +71,27 @@ def test_add_coeffs(tmp_path):
     data = make_report_data()
     with h5py.File(path, "r+") as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data.columns)
-        _add_data(h5, GIDS, test_data, POPULATION_NAME)
+        _add_data(h5, test_data, POPULATION_NAME, start=0)
         expected = np.array([np.arange(25), np.ones(25)]).T
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 
 def test_add_coeffs_backwards(tmp_path):
+    """Test that _add_data writes correctly when coeffs columns are reordered.
+
+    In the new rank-ordered architecture, the file layout always matches cols
+    order (which matches coeffs column order). This test verifies that writing
+    with start=0 using a different column ordering produces the expected layout
+    (data appears in the order of the coeffs columns, not GID-sorted).
+    """
     path = create_weights_file(tmp_path / "weights.h5")
     data_bw = make_report_data_backwards()
     with h5py.File(path, "r+") as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data_bw.columns)
-        _add_data(h5, GIDS, test_data, POPULATION_NAME)
-        expected = np.array([np.hstack((np.arange(6, 25), np.arange(6))), np.ones(25)]).T
+        _add_data(h5, test_data, POPULATION_NAME, start=0)
+        # With start=0, data is written in coeffs column order (node 2 first, then node 1)
+        # So rows 0-24 get values 0-24 sequentially
+        expected = np.array([np.arange(25), np.ones(25)]).T
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 
