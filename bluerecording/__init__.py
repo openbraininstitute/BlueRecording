@@ -46,5 +46,7 @@ _check_dependencies()
 
 from .positions import compute_positions as compute_positions  # noqa: E402
 from .positions import save_positions as save_positions  # noqa: E402
+from .weights import ComputeWeightsTask as ComputeWeightsTask  # noqa: E402
+from .weights import compute_and_save_weights as compute_and_save_weights  # noqa: E402
 from .weights import compute_weights as compute_weights  # noqa: E402
 from .weights import save_weights as save_weights  # noqa: E402

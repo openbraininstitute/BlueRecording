@@ -11,8 +11,7 @@ from mpi4py import MPI
 from scipy.interpolate import interp1d
 
 from .circuit import init_circuit
-
-rank = MPI.COMM_WORLD.Get_rank()
+from .utils import log_rank0, rank
 
 
 class _PositionedMorphology:
@@ -563,7 +562,16 @@ def get_positions(
     cell_arrays = []
     neurite_type_arrays = []
 
-    for i in ids:
+    n_cells = len(ids)
+    log_step = max(1, n_cells // 10)
+    t0 = MPI.Wtime()
+
+    for idx, i in enumerate(ids):
+        if idx % log_step == 0:
+            elapsed = MPI.Wtime() - t0
+            pct = int(idx / n_cells * 100) if n_cells else 0
+            log_rank0(f"get_positions: {idx}/{n_cells} cells ({pct}%) — {elapsed:.1f}s")
+
         cell = node_manager.get_cell(i)
         # Load morphology, transform to global coordinates, extract soma pos.
         # center is the raw placement position (translation column of the
@@ -581,6 +589,9 @@ def get_positions(
 
         cols_for_gid = cols[cols[:, 0] == i]
         neurite_type_arrays.append(_resolve_neurite_types(cols_for_gid, cell))
+
+    elapsed = MPI.Wtime() - t0
+    log_rank0(f"get_positions: {n_cells}/{n_cells} cells (100%) — {elapsed:.1f}s")
 
     if not cell_arrays:
         empty_idx = pd.MultiIndex.from_arrays(
