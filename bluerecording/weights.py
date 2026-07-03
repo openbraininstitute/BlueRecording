@@ -766,13 +766,12 @@ def save_weights(
     start = comm.scan(local_segments, op=MPI.SUM) - local_segments
 
     # 3. Open file for parallel write — ALL ranks must participate
-    if comm.Get_size() > 1 and not h5py.get_config().mpi:
-        warnings.warn(
-            "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
-            stacklevel=2,
-        )
-
     if comm.Get_size() > 1:
+        if not h5py.get_config().mpi:
+            warnings.warn(
+                "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
+                stacklevel=2,
+            )
         h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
     else:
         h5 = h5py.File(outputfile, "a")
