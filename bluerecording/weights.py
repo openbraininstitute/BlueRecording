@@ -183,16 +183,15 @@ def _init_scaling_factors_and_offsets(
 ) -> None:
     """Create the scaling_factors and offsets datasets in the H5 file.
 
-    ``scaling_factors`` is initialized to ones with shape
-    ``(n_segments, n_electrodes + 1)``.  ``offsets`` maps each node to
+    ``scaling_factors`` is initialized with shape
+    ``(n_segments, n_electrodes)``.  ``offsets`` maps each node to
     its segment range inside ``scaling_factors``.
     """
     n_segments = len(section_ids_frame)
     n_electrodes = len(electrodes)
-    n_cols = n_electrodes + 1
     h5file.create_dataset(
         f"electrodes/{population_name}/scaling_factors",
-        shape=(n_segments, n_cols),
+        shape=(n_segments, n_electrodes),
         dtype=np.float64,
     )
     h5file.create_dataset(
@@ -313,8 +312,7 @@ def _add_data(
     block = coeffs.to_numpy().T  # shape: (N_local_segments, N_electrodes)
     end = start + block.shape[0]
 
-    h5[dset][start:end, :-1] = block
-    h5[dset][start:end, -1] = 1.0
+    h5[dset][start:end, :] = block
 
 
 def _get_neuron_segment_midpts(position: pd.DataFrame) -> pd.DataFrame:
@@ -783,11 +781,7 @@ def save_weights(
     dset = h5[f"electrodes/{population_name}/scaling_factors"]
     if weights is not None and local_segments > 0:
         block = weights.to_numpy().T  # (N_local_segments, N_electrodes)
-        # Append a column of ones (the identity/normalization column)
-        full_block = np.empty((block.shape[0], block.shape[1] + 1), dtype=np.float64)
-        full_block[:, :-1] = block
-        full_block[:, -1] = 1.0
-        dset[start : start + full_block.shape[0], :] = full_block
+        dset[start : start + block.shape[0], :] = block
     t3 = MPI.Wtime()
 
     # 5. Write neurite types if requested
@@ -800,7 +794,7 @@ def save_weights(
 
     total_segments = comm.allreduce(local_segments, op=MPI.SUM)
     n_electrodes = len(electrodes)
-    file_size_gb = total_segments * (n_electrodes + 1) * 8 / 1e9
+    file_size_gb = total_segments * n_electrodes * 8 / 1e9
     log_rank0(
         f"save_weights: done. "
         f"{total_segments:,} segments × {n_electrodes} electrodes = {file_size_gb:.1f} GB | "
