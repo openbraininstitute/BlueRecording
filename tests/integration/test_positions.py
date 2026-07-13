@@ -12,7 +12,7 @@ def test_single_cell_get_positions(tmp_path):
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
     ref_path = "examples/single_cell_l5_tpc/reference/positions0_ref.pkl"
 
-    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
+    nm, ids, cols, pop, _, morphologies_dir, _ = init_circuit(simconfig)
     pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
@@ -29,7 +29,7 @@ def test_sscx_100_cells_get_positions(tmp_path):
     simconfig = "examples/sscx_100_cells/simulation_config.json"
     ref_path = "examples/sscx_100_cells/reference/positions0_ref.pkl"
 
-    nm, ids, cols, pop, _, morphologies_dir = init_circuit(simconfig)
+    nm, ids, cols, pop, _, morphologies_dir, _ = init_circuit(simconfig)
     pos_df, _, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     positions.save_positions(pos_df, tmp_path)
 
@@ -51,7 +51,7 @@ def test_rat_s1_get_positions(tmp_path):
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
     ref_path = str(EXAMPLE_RAT_S1 / "reference" / "positions0_ref.pkl")
 
-    nm, ids, cols, pop, _, morphologies_dir = init_circuit(circuit_config)
+    nm, ids, cols, pop, _, morphologies_dir, _ = init_circuit(circuit_config)
     pos_df, _, _ = positions.get_positions(
         nm,
         ids,
