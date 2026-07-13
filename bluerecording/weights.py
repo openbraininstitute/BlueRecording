@@ -206,6 +206,7 @@ def _init_weights(
     outputfile: str,
     electrodes: list[Electrode],
     with_neurite_type: bool = False,
+    gid_offset: int = 0,
 ) -> None:
     """Initialize the HDF5 electrode weights file on rank 0.
 
@@ -219,6 +220,8 @@ def _init_weights(
         outputfile: Path to the output HDF5 file.
         electrodes: Mapping of electrode name to ``Electrode`` objects.
         with_neurite_type: If True, pre-allocate a neurite_types dataset.
+        gid_offset: Neurodamus GID offset to subtract when writing
+            SONATA 0-based node IDs.
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -259,6 +262,10 @@ def _init_weights(
             if end_r > start_r:
                 node_ids_parts.append(np.unique(all_cols[start_r:end_r, 0]))
         node_ids = np.concatenate(node_ids_parts) if node_ids_parts else np.array([], dtype=np.uint64)
+
+        # Convert from neurodamus offset GIDs to 0-based SONATA node IDs
+        if gid_offset and len(node_ids):
+            node_ids = node_ids - gid_offset
 
         # Build section_ids_frame preserving rank-concatenation order
         section_ids_frame = pd.DataFrame(all_cols, columns=["id", "section"])
@@ -571,7 +578,7 @@ def compute_weights(
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
-) -> tuple[pd.DataFrame | None, pd.DataFrame, np.ndarray, np.ndarray, str]:
+) -> tuple[pd.DataFrame | None, pd.DataFrame, np.ndarray, np.ndarray, str, int]:
     """High-level API: compute weights and positions from a config file.
 
     Handles circuit initialization, position computation, and weight
@@ -595,7 +602,9 @@ def compute_weights(
         neurite_types: (N,) int32 array of neurite type codes per compartment.
         population_name: SONATA population name (needed by ``save_weights``).
     """
-    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
+    node_manager, ids, cols, population, population_name, morphologies_dir, gid_offset = init_circuit(
+        str(path_to_config)
+    )
 
     positions_df, cols, neurite_types = _positions.get_positions(
         node_manager,
@@ -615,7 +624,7 @@ def compute_weights(
         objective_csd_array_indices=objective_csd_array_indices,
     )
 
-    return weights, positions_df, cols, neurite_types, population_name
+    return weights, positions_df, cols, neurite_types, population_name, gid_offset
 
 
 @dataclass
@@ -674,7 +683,9 @@ def compute_and_save_weights(
     n_tasks = len(tasks)
     log_rank0(f"compute_and_save_weights: {n_tasks} task(s)")
 
-    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
+    node_manager, ids, cols, population, population_name, morphologies_dir, gid_offset = init_circuit(
+        str(path_to_config)
+    )
 
     positions_df, cols, neurite_types = _positions.get_positions(
         node_manager,
@@ -709,6 +720,7 @@ def compute_and_save_weights(
             task.output,
             electrodes,
             neurite_types=neurite_types if task.with_neurite_type else None,
+            gid_offset=gid_offset,
         )
 
     log_rank0(f"compute_and_save_weights: all {n_tasks} task(s) complete")
@@ -721,6 +733,7 @@ def save_weights(
     outputfile: str,
     electrodes: list[Electrode] | str,
     neurite_types: np.ndarray | None = None,
+    gid_offset: int = 0,
 ) -> None:
     """Initialize the HDF5 weights file and write pre-computed coefficients.
 
@@ -738,6 +751,8 @@ def save_weights(
         electrodes: Electrode metadata (dict or path to CSV).
         neurite_types: (N,) int32 array; if provided, populates the
             neurite_types dataset.
+        gid_offset: Neurodamus GID offset to subtract from cols GIDs
+            when writing SONATA 0-based node IDs to the file.
     """
     if isinstance(electrodes, str):
         electrodes = Electrode.from_csv(electrodes)
@@ -753,6 +768,7 @@ def save_weights(
         outputfile,
         electrodes,
         with_neurite_type=neurite_types is not None,
+        gid_offset=gid_offset,
     )
     t1 = MPI.Wtime()
     log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s, includes MPI sync)")

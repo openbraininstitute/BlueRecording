@@ -21,7 +21,7 @@ def test_rat_s1_get_positions_mpi(tmp_path):
     output_dir = comm.bcast(tmp_path, root=0)
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
 
-    node_manager, ids, cols, population, _, morphologies_dir = init_circuit(circuit_config)
+    node_manager, ids, cols, population, _, morphologies_dir, _ = init_circuit(circuit_config)
     positions_df, _, _ = positions.get_positions(
         node_manager,
         ids,

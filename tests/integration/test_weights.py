@@ -18,11 +18,11 @@ def test_sscx_100_cells_write_weights(tmp_path):
     ref = "examples/sscx_100_cells/reference/weights_ref.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes, gid_offset=gid_offset)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -40,11 +40,11 @@ def test_rat_s1_write_weights(tmp_path):
     ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes, gid_offset=gid_offset)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -62,11 +62,11 @@ def test_rat_s1_write_weights_line_source(tmp_path):
     ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_line_source_ref.h5")
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes, gid_offset=gid_offset)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -84,11 +84,11 @@ def test_single_cell_write_weights_near(tmp_path):
     field = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes, gid_offset=gid_offset)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -106,11 +106,11 @@ def test_single_cell_write_weights_distant(tmp_path):
     field = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes, gid_offset=gid_offset)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
@@ -129,11 +129,13 @@ def test_rat_s1_neurite_types(tmp_path):
     csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(circuit_config)
     pos_df, cols, neurite_types = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
-    save_weights(weights, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types)
+    save_weights(
+        weights, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types, gid_offset=gid_offset
+    )
 
     # --- Independent verification ---
     type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
@@ -175,7 +177,7 @@ def test_rat_s1_interleaved_electrode_types(tmp_path):
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
     csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.csv")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    nm, ids, cols, pop, pop_name, morphologies_dir, gid_offset = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
 
