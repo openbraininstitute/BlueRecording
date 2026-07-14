@@ -51,7 +51,7 @@ def test_get_coeffs_line_source():
     coeffs = get_coeffs_line_source(geom, data.columns, electrode_pos, sigma)
 
     soma_dist = np.sqrt(3 * 10**2)  # µm
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
+    expected_soma = 1e-3 / (4 * np.pi * sigma * soma_dist)
     expected_line = _scalar_line_coeff(np.array([0, 0, 0]), np.array([0, 0, 1]), electrode_pos, sigma)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_line))[np.newaxis, :], columns=data.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
@@ -63,7 +63,7 @@ def test_line_source():
     sigma = 1
     ds = 1  # µm
     h, r, l = 1, 1, 2  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    expected = 1e-3 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
     np.testing.assert_almost_equal(result, expected)
 
@@ -74,7 +74,7 @@ def test_line_source_2():
     sigma = 1
     ds = 1  # µm
     h, r, l = -3, 1, -2  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    expected = 1e-3 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
     np.testing.assert_almost_equal(result, expected)
 
@@ -85,18 +85,18 @@ def test_line_source_3():
     sigma = 1
     ds = 1  # µm
     h, r, l = -0.5, 1, 0.5  # µm
-    expected = 1 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
+    expected = 1e-3 / (4 * np.pi * sigma * ds) * np.log(np.abs((np.sqrt(h**2 + r**2) - h) / (np.sqrt(l**2 + r**2) - l)))
     result = _scalar_line_coeff(seg[0], seg[1], epos, sigma)
     np.testing.assert_almost_equal(result, expected)
 
 
-def test_coefficients_are_in_mV_per_nA():
-    """Verify output units are mV/nA as required by the SONATA electrodes spec.
+def test_coefficients_are_in_V_per_nA():
+    """Verify output units are V/nA as required by the SONATA electrodes spec.
 
     For a point source at distance r (µm) with sigma (S/m):
-        coeff = 1 / (4π σ r)  [mV/nA]
+        coeff = 1e-3 / (4π σ r)  [V/nA]
 
-    With σ=1 S/m and r=1 µm: coeff = 1/(4π) ≈ 0.0796 mV/nA.
+    With σ=1 S/m and r=1 µm: coeff = 1e-3/(4π) ≈ 7.96e-5 V/nA.
     """
     positions = pd.DataFrame(
         data=np.array([[0.0, 0.0, 0.0]]).T,
@@ -106,9 +106,9 @@ def test_coefficients_are_in_mV_per_nA():
     sigma = 1.0  # S/m
 
     result = get_coeffs_point_source(positions, electrode_pos, sigma)
-    expected_mV_per_nA = 1 / (4 * np.pi * 1.0 * 1.0)  # ≈ 0.0796
+    expected_V_per_nA = 1e-3 / (4 * np.pi * 1.0 * 1.0)  # ≈ 7.96e-5
 
-    np.testing.assert_allclose(result.values.item(), expected_mV_per_nA, rtol=1e-10)
+    np.testing.assert_allclose(result.values.item(), expected_V_per_nA, rtol=1e-10)
 
 
 # ---------------------------------------------------------------------------
@@ -124,9 +124,9 @@ def test_get_coeffs_point_source():
     coeffs = get_coeffs_point_source(midpts, electrode_pos, sigma)
 
     soma_dist = np.sqrt(3 * 10**2)  # µm
-    expected_soma = 1 / (4 * np.pi * sigma * soma_dist)
+    expected_soma = 1e-3 / (4 * np.pi * sigma * soma_dist)
     seg_dist = np.sqrt(10**2 + 10**2 + (10 - 0.5) ** 2)  # µm
-    expected_seg = 1 / (4 * np.pi * sigma * seg_dist)
+    expected_seg = 1e-3 / (4 * np.pi * sigma * seg_dist)
     expected = pd.DataFrame(data=np.hstack((expected_soma, expected_seg))[np.newaxis, :], columns=midpts.columns)
     pd.testing.assert_frame_equal(coeffs, expected)
 
@@ -159,7 +159,7 @@ def test_point_source_multi_electrode_varying_sigma():
     for i in range(4):
         for j in range(3):
             dist = np.linalg.norm(positions_um[j] - electrode_positions[i])  # µm
-            expected = 1 / (4 * np.pi * sigmas[i] * dist)
+            expected = 1e-3 / (4 * np.pi * sigmas[i] * dist)
             np.testing.assert_allclose(
                 result.iloc[i, j],
                 expected,
@@ -498,7 +498,7 @@ def test_vectorized_matches_scalar():
                 # Soma: point source
                 soma_pos = positions.iloc[:, i].values
                 dist = np.linalg.norm(soma_pos - epos)  # µm
-                scalar_coeffs.append(1 / (4 * np.pi * sigma * dist))
+                scalar_coeffs.append(1e-3 / (4 * np.pi * sigma * dist))
                 i += 1
             elif i + 1 < n_cols and col_section_ids[i] == col_section_ids[i + 1]:
                 # Line-source segment: start at i, end at i+1
