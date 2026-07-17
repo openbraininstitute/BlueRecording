@@ -44,6 +44,7 @@ def init_circuit(path_to_config: str):
             sim_config_obj,
             disable_reports=True,
             enable_coord_mapping=True,
+            restrict_connectivity=2,
             simulator="NEURON",
         )
         node_managers = nd.circuits.node_managers
