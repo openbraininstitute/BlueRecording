@@ -11,6 +11,17 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 
+def log_rank0(msg: str, verbose: bool = True) -> None:
+    """Print a message only on MPI rank 0.
+
+    Args:
+        msg: Message to print.
+        verbose: If False, suppress the message.
+    """
+    if verbose and rank == 0:
+        print(msg)
+
+
 def get_circuit_path(path_to_simconfig: str | Path) -> str:
     """Return the absolute path to the circuit config for a given simulation config.
 

@@ -11,8 +11,7 @@ from mpi4py import MPI
 from scipy.interpolate import interp1d
 
 from .circuit import init_circuit
-
-rank = MPI.COMM_WORLD.Get_rank()
+from .utils import log_rank0, rank
 
 
 class _PositionedMorphology:
@@ -532,8 +531,7 @@ def _find_morph_file(morph_name: str, morph_dir: str) -> str:
 
 
 def get_positions(
-    node_manager,
-    ids: np.ndarray,
+    cells: list,
     cols: np.ndarray,
     population: libsonata.NodePopulation,
     morphologies_dir: str,
@@ -545,9 +543,11 @@ def get_positions(
     the cols array, and per-compartment neurite types for downstream use.
 
     Args:
-        node_manager: Neurodamus node manager.
-        ids: GIDs assigned to this MPI rank.
-        cols: (N, 2) int64 array of (gid, section) pairs.
+        cells: List of neurodamus cell objects on this rank. Each cell
+            exposes ``.raw_gid``, ``.local_to_global_coord_mapping``,
+            ``.local_to_global_matrix``, and ``.get_sec()``.
+        cols: (N, 2) uint64 array of (node_id, section) pairs.
+            Node IDs are 0-based SONATA IDs (no neurodamus offset).
         population: libsonata NodePopulation for morphology resolution.
         morphologies_dir: Fully resolved path to the morphologies directory.
         replace_axons: If True, replace morphological axons with a standardized
@@ -563,13 +563,22 @@ def get_positions(
     cell_arrays = []
     neurite_type_arrays = []
 
-    for i in ids:
-        cell = node_manager.get_cell(i)
+    n_cells = len(cells)
+    log_step = max(1, n_cells // 10)
+    t0 = MPI.Wtime()
+
+    for idx, cell in enumerate(cells):
+        if idx % log_step == 0:
+            elapsed = MPI.Wtime() - t0
+            pct = int(idx / n_cells * 100) if n_cells else 0
+            log_rank0(f"get_positions: {idx}/{n_cells} cells ({pct}%) — {elapsed:.1f}s")
+
+        node_id = cell.raw_gid
         # Load morphology, transform to global coordinates, extract soma pos.
         # center is the raw placement position (translation column of the
         # transform matrix), not the neurodamus soma centroid which can
         # differ by up to ~1.8 µm.
-        morph_name = population.get_attribute("morphology", cell.raw_gid)
+        morph_name = population.get_attribute("morphology", node_id)
         morph_path = _find_morph_file(morph_name, morphologies_dir)
         m = _PositionedMorphology(
             Morphology(morph_path),
@@ -577,14 +586,17 @@ def get_positions(
         )
         center = cell.local_to_global_matrix[:, 3]
 
-        cell_arrays.append(_get_cell_positions(m, center, cols, i, replace_axons))
+        cell_arrays.append(_get_cell_positions(m, center, cols, node_id, replace_axons))
 
-        cols_for_gid = cols[cols[:, 0] == i]
+        cols_for_gid = cols[cols[:, 0] == node_id]
         neurite_type_arrays.append(_resolve_neurite_types(cols_for_gid, cell))
+
+    elapsed = MPI.Wtime() - t0
+    log_rank0(f"get_positions: {n_cells}/{n_cells} cells (100%) — {elapsed:.1f}s")
 
     if not cell_arrays:
         empty_idx = pd.MultiIndex.from_arrays(
-            [np.array([], dtype=np.int64), np.array([], dtype=np.int64)],
+            [np.array([], dtype=np.uint64), np.array([], dtype=np.uint64)],
             names=["id", "section"],
         )
         positions_df = pd.DataFrame(np.empty((3, 0)), columns=empty_idx)
@@ -627,13 +639,12 @@ def compute_positions(
     Returns:
         positions_df: DataFrame with MultiIndex columns (id, section),
             shape (3, M) where M includes segment boundary duplicates.
-        cols: (N, 2) int64 array of (gid, section) pairs.
+        cols: (N, 2) uint64 array of (node_id, section) pairs.
         neurite_types: (N,) int32 array of neurite type codes per compartment.
     """
-    node_manager, ids, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
+    cells, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
     return get_positions(
-        node_manager,
-        ids,
+        cells,
         cols,
         population,
         morphologies_dir=morphologies_dir,

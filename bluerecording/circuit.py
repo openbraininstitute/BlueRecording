@@ -2,7 +2,7 @@
 """Shared circuit initialization via neurodamus.
 
 Provides the entry point for loading a circuit model and extracting
-the discretization info (node IDs, compartment structure, morphology access)
+the discretization info (cell objects, compartment structure, morphology access)
 """
 
 import libsonata
@@ -22,10 +22,13 @@ def init_circuit(path_to_config: str):
         path_to_config: Path to a SONATA simulation or circuit configuration file.
 
     Returns:
-        node_manager: The neurodamus node manager for the single population.
-        ids: GIDs assigned to this MPI rank.
-        cols: (N, 2) int64 array of (gid, section) pairs describing every
-            compartment on this rank.
+        cells: List of neurodamus cell objects on this MPI rank. Each cell
+            exposes ``.raw_gid`` (0-based SONATA node ID),
+            ``.local_to_global_coord_mapping``, ``.local_to_global_matrix``,
+            and ``.get_sec(section_id)``.
+        cols: (N, 2) uint64 array of (node_id, section) pairs describing
+            every compartment on this rank. Node IDs are 0-based SONATA IDs
+            (no neurodamus offset).
         population: libsonata NodePopulation, needed for morphology file
             resolution.
         population_name: Name of the SONATA node population.
@@ -43,24 +46,41 @@ def init_circuit(path_to_config: str):
             enable_coord_mapping=True,
             simulator="NEURON",
         )
-        assert len(nd.circuits.node_managers) == 1, "Multiple or no node managers are not allowed for the moment"
-        node_manager = next(iter(nd.circuits.node_managers.values()))
+        node_managers = nd.circuits.node_managers
+        if len(node_managers) == 1:
+            node_manager = next(iter(node_managers.values()))
+        elif len(node_managers) > 1:
+            # Multiple populations loaded — pick the one with cells on this rank
+            managers_with_cells = {name: mgr for name, mgr in node_managers.items() if len(mgr.get_final_gids()) > 0}
+            if len(managers_with_cells) != 1:
+                raise RuntimeError(
+                    f"Expected exactly one population with cells, got: "
+                    f"{list(managers_with_cells.keys())}. "
+                    f"Use a node_set that targets a single population."
+                )
+            node_manager = next(iter(managers_with_cells.values()))
+        else:
+            raise RuntimeError("No node managers found.")
 
-        ids = node_manager.get_final_gids()
+        offset = node_manager.local_nodes.offset
+
         points = node_manager.target_manager.get_target(None).get_point_list(
             node_manager,
             libsonata.SimulationConfig.Report.Sections.all,
             libsonata.SimulationConfig.Report.Compartments.all,
         )
+        # Build compartment layout with 0-based SONATA node IDs
         cols = np.array(
-            [(p.gid, s) for p in points for s in sorted(p.sclst_ids)],
-            dtype=np.int64,
+            [(p.gid - offset, s) for p in points for s in sorted(p.sclst_ids)],
+            dtype=np.uint64,
         ).reshape(-1, 2)
+
+        cells = list(node_manager.gid2cell.values())
 
         population_name = node_manager.population_name
 
         circuit_conf = libsonata.CircuitConfig.from_file(sim_config_obj.network)
         population = circuit_conf.node_population(population_name)
-        morphologies_dir = circuit_conf.node_population_properties(population_name).morphologies_dir
+        morphologies_dir = nd._sonata_circuits[population_name].MorphologyPath
 
-    return node_manager, ids, cols, population, population_name, morphologies_dir
+    return cells, cols, population, population_name, morphologies_dir

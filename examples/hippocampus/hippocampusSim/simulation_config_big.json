@@ -5,8 +5,7 @@
     "run": {
         "random_seed": 1234,
         "dt": 0.025,
-        "tstop": 20000.0,
-        "electrodes_file":"../electrodeFile/coeffs_big.h5"
+        "tstop": 20000.0
     },
     "conditions": {
         "extracellular_calcium": 1.0,
@@ -119,7 +118,7 @@
         "cells": "Mosaic",
         "sections": "all",
         "type": "lfp",
-        "variable_name": "v",
+      "electrodes_file": "../electrodeFile/coeffs_big.h5",
         "unit": "mV",
         "dt": 0.1,
         "start_time" : 0,

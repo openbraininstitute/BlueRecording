@@ -5,7 +5,9 @@ import pytest
 
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
-from bluerecording.weights import Electrode, get_weights, save_weights
+from bluerecording.physics import SegmentGeometry, get_coeffs_line_source, get_coeffs_point_source
+from bluerecording.weights import Electrode, _get_segment_midpts, get_weights, save_weights
+from tests.conftest import EXAMPLE_RAT_S1
 
 
 @pytest.mark.skip_in_ci
@@ -16,8 +18,8 @@ def test_sscx_100_cells_write_weights(tmp_path):
     ref = "examples/sscx_100_cells/reference/weights_ref.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -38,8 +40,30 @@ def test_rat_s1_write_weights(tmp_path):
     ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
+    electrodes = Electrode.from_csv(csv)
+    weights = get_weights(pos_df, cols, electrodes=electrodes)
+    save_weights(weights, cols, pop_name, out, electrodes=electrodes)
+
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
+
+
+def test_rat_s1_write_weights_line_source(tmp_path):
+    """Write_weights pipeline for rat_s1 with LineSource electrodes."""
+    from tests.conftest import EXAMPLE_RAT_S1
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_line_source.csv")
+    ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_line_source_ref.h5")
+    out = str(tmp_path / "weights.h5")
+
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -60,8 +84,8 @@ def test_single_cell_write_weights_near(tmp_path):
     field = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -82,8 +106,8 @@ def test_single_cell_write_weights_distant(tmp_path):
     field = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
-    pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
@@ -105,8 +129,8 @@ def test_rat_s1_neurite_types(tmp_path):
     csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
     out = str(tmp_path / "weights.h5")
 
-    nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
-    pos_df, cols, neurite_types = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, neurite_types = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types)
@@ -114,8 +138,8 @@ def test_rat_s1_neurite_types(tmp_path):
     # --- Independent verification ---
     type_to_code = {st: idx for idx, (st, _) in enumerate(BaseCell.SECTION_TYPES)}
 
-    for gid in ids:
-        cell = nm.get_cell(gid)
+    for cell in cells:
+        node_id = cell.raw_gid
         counts = cell.get_section_counts()
 
         expected_map = {}
@@ -125,13 +149,13 @@ def test_rat_s1_neurite_types(tmp_path):
                 expected_map[offset + local_idx] = type_to_code[sec_type]
             offset += count
 
-        cols_for_gid = cols[cols[:, 0] == gid]
+        cols_for_gid = cols[cols[:, 0] == node_id]
         expected_codes = np.array(
             [expected_map[int(sec_id)] for sec_id in cols_for_gid[:, 1]],
             dtype=np.int32,
         )
 
-        gid_mask = cols[:, 0] == gid
+        gid_mask = cols[:, 0] == node_id
         actual_codes = neurite_types[gid_mask]
         np.testing.assert_array_equal(actual_codes, expected_codes)
 
@@ -139,3 +163,45 @@ def test_rat_s1_neurite_types(tmp_path):
         assert f"{pop_name}/neurite_types" in h5
         stored = h5[f"{pop_name}/neurite_types"][:]
         np.testing.assert_array_equal(stored, neurite_types)
+
+
+def test_rat_s1_interleaved_electrode_types(tmp_path):
+    """Verify interleaved electrode types with mixed sigmas produce correct results.
+
+    Uses a CSV with interleaved LineSource/PointSource electrodes and
+    per-electrode sigma values (0.3 and 0.4). Compares the batched result
+    against computing each electrode individually.
+    """
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.csv")
+
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
+    electrodes = Electrode.from_csv(csv)
+
+    # Per-electrode sigma: 0.3 for first 3, 0.4 for next 2, 0.3 for last 2
+    sigma = [0.3, 0.3, 0.3, 0.4, 0.4, 0.3, 0.3]
+
+    # Batched computation (groups by type+sigma, reorders)
+    weights = get_weights(pos_df, cols, electrodes=electrodes, sigma=sigma)
+
+    # Individual computation for verification
+    columns = weights.columns
+    node_ids = np.unique(cols[:, 0])
+
+    mid_positions = _get_segment_midpts(pos_df, node_ids)
+    geom = SegmentGeometry.from_positions(pos_df)
+
+    for i, electrode in enumerate(electrodes):
+        s = sigma[i]
+        if electrode.type.value == "LineSource":
+            expected = get_coeffs_line_source(geom, columns, electrode.position, s)
+        else:
+            expected = get_coeffs_point_source(mid_positions, electrode.position, s)
+
+        np.testing.assert_allclose(
+            weights.iloc[i].values,
+            expected.values.ravel(),
+            rtol=1e-12,
+            err_msg=f"Electrode {i} ({electrode.type.value}, sigma={s}) mismatch",
+        )

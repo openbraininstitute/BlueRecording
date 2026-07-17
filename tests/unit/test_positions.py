@@ -34,6 +34,15 @@ def test_positioned_morphology(tmp_path):
     assert m.num_sections == 3
 
 
+def test_save_positions_creates_missing_directory(tmp_path):
+    """save_positions creates parent directories if they don't exist."""
+    output_dir = tmp_path / "nested" / "subdir"
+    assert not output_dir.exists()
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    positions.save_positions(df, output_dir)
+    assert (output_dir / "positions0.pkl").exists()
+
+
 def test_get_axon_points(tmp_path):
     morph = positions._PositionedMorphology(make_morphology(tmp_path / "morph.h5"))
     points, lengths = positions._get_axon_points(morph, SOMA_POS)
