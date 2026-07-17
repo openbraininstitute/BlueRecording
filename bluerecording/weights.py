@@ -59,46 +59,29 @@ class Electrode:
     layer: str = "NA"
 
     @classmethod
-    def from_csv(cls, electrode_csv: str) -> list["Electrode"]:
-        """Read electrode metadata from a CSV file.
+    def from_json(cls, electrode_json: str) -> list["Electrode"]:
+        """Read electrode metadata from a JSON file.
 
-        The CSV must have columns ``x``, ``y``, ``z``.  Optional columns:
-        ``type`` (default ``LineSource``), ``layer``, ``region``,
-        ``radius``, ``thickness``.  The last two are only used for
-        ObjectiveCSD electrode types.
+        The JSON must be a list of objects with keys ``name``, ``x``, ``y``, ``z``.
+        Optional keys: ``type`` (default ``LineSource``), ``layer``, ``region``,
+        ``radius``, ``thickness``.
         """
-        electrode_df = pd.read_csv(electrode_csv, header=0, index_col=0)
+        import json
+
+        with open(electrode_json) as f:
+            data = json.load(f)
 
         electrodes: list[Electrode] = []
-
-        for i in range(len(electrode_df)):
-            name = str(electrode_df.index.values[i])
-            position = np.array(
-                [
-                    electrode_df["x"].iloc[i],
-                    electrode_df["y"].iloc[i],
-                    electrode_df["z"].iloc[i],
-                ]
-            )
-            layer = electrode_df["layer"].iloc[i] if "layer" in electrode_df.columns else "NA"
-            region = electrode_df["region"].iloc[i] if "region" in electrode_df.columns else "NA"
-
-            if "type" in electrode_df.columns:
-                etype = ElectrodeType(electrode_df["type"].iloc[i])
-            else:
-                etype = ElectrodeType.LINE_SOURCE
+        for entry in data:
+            name = str(entry["name"])
+            position = np.array([entry["x"], entry["y"], entry["z"]], dtype=float)
+            layer = entry.get("layer", "NA")
+            region = entry.get("region", "NA")
+            etype = ElectrodeType(entry["type"]) if "type" in entry else ElectrodeType.LINE_SOURCE
 
             if "ObjectiveCSD" in etype:
-                radius = (
-                    float(electrode_df["radius"].iloc[i])
-                    if "radius" in electrode_df.columns and pd.notna(electrode_df["radius"].iloc[i])
-                    else None
-                )
-                thickness = (
-                    float(electrode_df["thickness"].iloc[i])
-                    if "thickness" in electrode_df.columns and pd.notna(electrode_df["thickness"].iloc[i])
-                    else None
-                )
+                radius = entry.get("radius")
+                thickness = entry.get("thickness")
                 electrodes.append(
                     cls(
                         name=name,
@@ -109,17 +92,46 @@ class Electrode:
                     )
                 )
             else:
-                electrodes.append(
-                    cls(
-                        name=name,
-                        position=position,
-                        type=etype,
-                        region=region,
-                        layer=layer,
-                    )
-                )
+                electrodes.append(cls(name=name, position=position, type=etype, region=region, layer=layer))
 
         return electrodes
+
+    @staticmethod
+    def to_json(electrodes: list["Electrode"], output_path: str) -> None:
+        """Write a list of electrodes to a JSON file.
+
+        Produces a JSON file compatible with :meth:`from_json`.
+        """
+        import json
+
+        data = []
+        for e in electrodes:
+            if isinstance(e.type, ObjectiveCSDParams):
+                entry = {
+                    "name": e.name,
+                    "x": float(e.position[0]),
+                    "y": float(e.position[1]),
+                    "z": float(e.position[2]),
+                    "type": e.type.electrode_type.value,
+                    "region": e.region,
+                    "layer": e.layer,
+                    "radius": e.type.radius,
+                    "thickness": e.type.thickness,
+                }
+            else:
+                entry = {
+                    "name": e.name,
+                    "x": float(e.position[0]),
+                    "y": float(e.position[1]),
+                    "z": float(e.position[2]),
+                    "type": e.type.value,
+                    "region": e.region,
+                    "layer": e.layer,
+                }
+            data.append(entry)
+
+        with open(output_path, "w") as f:
+            json.dump(data, f, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +454,7 @@ def get_weights(
         sigma = [DEFAULT_SIGMA]
 
     if isinstance(electrodes, str):
-        electrodes = Electrode.from_csv(electrodes)
+        electrodes = Electrode.from_json(electrodes)
 
     node_ids = np.unique(cols[:, 0])
     columns = pd.MultiIndex.from_arrays([cols[:, 0], cols[:, 1]], names=["id", "section"])
@@ -742,7 +754,7 @@ def save_weights(
             neurite_types dataset.
     """
     if isinstance(electrodes, str):
-        electrodes = Electrode.from_csv(electrodes)
+        electrodes = Electrode.from_json(electrodes)
 
     comm = MPI.COMM_WORLD
     t0 = MPI.Wtime()

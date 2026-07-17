@@ -14,13 +14,13 @@ from tests.conftest import EXAMPLE_RAT_S1
 def test_sscx_100_cells_write_weights(tmp_path):
     """Full write_weights pipeline for sscx_100_cells."""
     simconfig = "examples/sscx_100_cells/simulation_config.json"
-    csv = "examples/sscx_100_cells/electrodes.csv"
+    csv = "examples/sscx_100_cells/electrodes.json"
     ref = "examples/sscx_100_cells/reference/weights_ref.h5"
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
@@ -36,13 +36,13 @@ def test_rat_s1_write_weights(tmp_path):
     from tests.conftest import EXAMPLE_RAT_S1
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
-    csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.json")
     ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
@@ -58,13 +58,13 @@ def test_rat_s1_write_weights_line_source(tmp_path):
     from tests.conftest import EXAMPLE_RAT_S1
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
-    csv = str(EXAMPLE_RAT_S1 / "electrodes_line_source.csv")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_line_source.json")
     ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_line_source_ref.h5")
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
@@ -79,14 +79,14 @@ def test_rat_s1_write_weights_line_source(tmp_path):
 def test_single_cell_write_weights_near(tmp_path):
     """Write_weights for single_cell_l5_tpc (near electrodes)."""
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    csv = "examples/single_cell_l5_tpc/near_electrodes.csv"
+    csv = "examples/single_cell_l5_tpc/near_electrodes.json"
     ref = "examples/single_cell_l5_tpc/reference/weights_near_ref.h5"
     field = "examples/single_cell_l5_tpc/Infinite_Close_HighRes_SmallSphere.h5"
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
@@ -101,14 +101,14 @@ def test_single_cell_write_weights_near(tmp_path):
 def test_single_cell_write_weights_distant(tmp_path):
     """Write_weights for single_cell_l5_tpc (distant electrodes)."""
     simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
+    csv = "examples/single_cell_l5_tpc/distant_electrodes.json"
     ref = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
     field = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(simconfig)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field, field])
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
@@ -126,12 +126,12 @@ def test_rat_s1_neurite_types(tmp_path):
     from tests.conftest import EXAMPLE_RAT_S1
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
-    csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.json")
     out = str(tmp_path / "weights.h5")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, neurite_types = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, pop_name, out, electrodes=electrodes, neurite_types=neurite_types)
 
@@ -173,11 +173,11 @@ def test_rat_s1_interleaved_electrode_types(tmp_path):
     against computing each electrode individually.
     """
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
-    csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.csv")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes_interleaved.json")
 
     nm, ids, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
     pos_df, cols, _ = positions.get_positions(nm, ids, cols, pop, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(csv)
+    electrodes = Electrode.from_json(csv)
 
     # Per-electrode sigma: 0.3 for first 3, 0.4 for next 2, 0.3 for last 2
     sigma = [0.3, 0.3, 0.3, 0.4, 0.4, 0.3, 0.3]

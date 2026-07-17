@@ -1,0 +1,29 @@
+[
+  {
+    "name": "0",
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "LineSource"
+  },
+  {
+    "name": "1",
+    "x": 50,
+    "y": 50,
+    "z": 50,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "LineSource"
+  },
+  {
+    "name": "2",
+    "x": 100,
+    "y": -25,
+    "z": 75,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "LineSource"
+  }
+]

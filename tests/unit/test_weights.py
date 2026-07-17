@@ -137,7 +137,7 @@ def test_get_objective_csd_array(tmp_path):
 
 def test_make_electrode_dict():
     expected = make_electrodes()
-    result = Electrode.from_csv("tests/data/electrode.csv")
+    result = Electrode.from_json("tests/data/electrode.json")
     e = result[0]
     np.testing.assert_equal(e.position, expected[0].position)
     assert e.type == expected[0].type
@@ -146,7 +146,7 @@ def test_make_electrode_dict():
 
 
 def test_make_electrode_dict_objective_csd():
-    result = Electrode.from_csv("tests/data/electrode_objective.csv")
+    result = Electrode.from_json("tests/data/electrode_objective.json")
     by_name = {e.name: e for e in result}
 
     assert by_name["sphere"].type == ObjectiveCSDParams(
@@ -165,10 +165,12 @@ def test_make_electrode_dict_objective_csd():
 
 
 def test_make_electrode_dict_invalid_type(tmp_path):
-    csv_path = tmp_path / "bad.csv"
-    csv_path.write_text(",x,y,z,type\nbad,1,2,3,TotallyInvalid\n")
+    import json
+
+    json_path = tmp_path / "bad.json"
+    json_path.write_text(json.dumps([{"name": "bad", "x": 1, "y": 2, "z": 3, "type": "TotallyInvalid"}]))
     with pytest.raises(ValueError):
-        Electrode.from_csv(str(csv_path))
+        Electrode.from_json(str(json_path))
 
 
 def test_electrode_file_structure(tmp_path):
@@ -205,3 +207,51 @@ def test_offset():
     sec_counts = make_sec_counts()
     offsets = _get_offsets(sec_counts)
     np.testing.assert_equal(offsets, np.array([0, 19, 25]))
+
+
+def test_electrode_json_roundtrip(tmp_path):
+    """Write electrodes to JSON, read them back, verify they match."""
+    electrodes = [
+        Electrode(name="e0", position=np.array([1.0, 2.0, 3.0]), type=ElectrodeType.POINT_SOURCE),
+        Electrode(
+            name="e1",
+            position=np.array([4.0, 5.0, 6.0]),
+            type=ElectrodeType.LINE_SOURCE,
+            region="S1",
+            layer="L5",
+        ),
+    ]
+    json_path = str(tmp_path / "electrodes.json")
+    Electrode.to_json(electrodes, json_path)
+
+    loaded = Electrode.from_json(json_path)
+
+    assert len(loaded) == 2
+    for orig, read in zip(electrodes, loaded, strict=True):
+        assert orig.name == read.name
+        np.testing.assert_array_almost_equal(orig.position, read.position)
+        assert orig.type == read.type
+        assert orig.region == read.region
+        assert orig.layer == read.layer
+
+
+def test_electrode_json_roundtrip_objective_csd(tmp_path):
+    """Write ObjectiveCSD electrodes to JSON and verify roundtrip."""
+    electrodes = [
+        Electrode(
+            name="ocsd0",
+            position=np.array([10.0, 20.0, 30.0]),
+            type=ObjectiveCSDParams(electrode_type=ElectrodeType.OBJECTIVE_CSD_DISK, radius=500.0, thickness=10.0),
+        ),
+    ]
+    json_path = str(tmp_path / "electrodes_ocsd.json")
+    Electrode.to_json(electrodes, json_path)
+
+    loaded = Electrode.from_json(json_path)
+
+    assert len(loaded) == 1
+    assert loaded[0].name == "ocsd0"
+    np.testing.assert_array_almost_equal(loaded[0].position, np.array([10.0, 20.0, 30.0]))
+    assert isinstance(loaded[0].type, ObjectiveCSDParams)
+    assert loaded[0].type.radius == 500.0
+    assert loaded[0].type.thickness == 10.0
