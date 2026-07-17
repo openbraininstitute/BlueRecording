@@ -49,7 +49,7 @@ def test_get_segment_midpts():
 def test_write_neuron(tmp_path):
     path = create_weights_file(tmp_path / "weights.h5")
     with h5py.File(path, "r") as f:
-        np.testing.assert_equal(f[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], np.ones((25, 2)))
+        np.testing.assert_equal(f[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], np.ones((25, 1)))
         np.testing.assert_equal(f[f"{POPULATION_NAME}/offsets"][:], np.array([0, 19, 25]))
 
 
@@ -72,7 +72,7 @@ def test_add_coeffs(tmp_path):
     with h5py.File(path, "r+") as h5:
         test_data = pd.DataFrame(data=np.arange(25)[np.newaxis, :], columns=data.columns)
         _add_data(h5, test_data, POPULATION_NAME, start=0)
-        expected = np.array([np.arange(25), np.ones(25)]).T
+        expected = np.arange(25)[:, np.newaxis].astype(np.float64)
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 
@@ -91,7 +91,7 @@ def test_add_coeffs_backwards(tmp_path):
         _add_data(h5, test_data, POPULATION_NAME, start=0)
         # With start=0, data is written in coeffs column order (node 2 first, then node 1)
         # So rows 0-24 get values 0-24 sequentially
-        expected = np.array([np.arange(25), np.ones(25)]).T
+        expected = np.arange(25)[:, np.newaxis].astype(np.float64)
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 

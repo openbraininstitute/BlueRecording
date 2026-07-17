@@ -153,7 +153,7 @@ def get_coeffs_line_source(
             geom.start_pos, geom.end_pos, geom.seg_lengths, electrode_positions, sigma_arr
         )
 
-    # No unit conversion needed: µm + S/m → mV/nA directly
+    # Units: µm + S/m → V/nA (see unit derivation in _point_source_coeffs)
 
     if n_elec > 1:
         log_rank0(f"  Line-source: computed {n_elec} electrodes", verbose)
@@ -170,7 +170,7 @@ def _line_source_coeffs(
 ) -> np.ndarray:
     """Compute line-source coefficients for segments × electrodes.
 
-    All positions in µm, sigma in S/m. Result in mV/nA.
+    All positions in µm, sigma in S/m. Result in V/nA.
 
     Args:
         start_pos: Segment start positions (µm), shape ``(N_line, 3)``.
@@ -180,7 +180,7 @@ def _line_source_coeffs(
         sigma: Conductivity per electrode (S/m), shape ``(N_elec,)``.
 
     Returns:
-        Coefficients array (mV/nA), shape ``(N_elec, N_line)``.
+        Coefficients array (V/nA), shape ``(N_elec, N_line)``.
     """
     seg_dir = end_pos - start_pos
 
@@ -209,7 +209,10 @@ def _line_source_coeffs(
         case3,
     )
 
-    coeffs = 1 / (4 * np.pi * sigma[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term
+    # Unit derivation for line source: same as point source.
+    # 1/(4π σ L_µm) with σ in S/m and L in µm gives mV/nA.
+    # The 1e-3 factor converts to V/nA (SONATA spec).
+    coeffs = 1e-3 / (4 * np.pi * sigma[np.newaxis, :] * seg_lengths[:, np.newaxis]) * line_source_term
     return coeffs.T
 
 
@@ -220,7 +223,7 @@ def _point_source_coeffs(
 ) -> np.ndarray:
     """Compute point-source coefficients for positions × electrodes.
 
-    All positions in µm, sigma in S/m. Result in mV/nA.
+    All positions in µm, sigma in S/m. Result in V/nA.
 
     Args:
         positions_um: Segment positions (µm), shape ``(N_points, 3)``.
@@ -228,16 +231,22 @@ def _point_source_coeffs(
         sigma: Extracellular conductivity (S/m). Scalar or array of shape ``(N_elec,)``.
 
     Returns:
-        Coefficients array (mV/nA), shape ``(N_elec, N_points)``.
+        Coefficients array (V/nA), shape ``(N_elec, N_points)``.
     """
+    # Unit derivation for point source: V = I / (4π σ r)
+    # With σ in S/m and r in µm (= 1e-6 m):
+    #   1/(4π σ r_µm × 1e-6) has units m/(S·m) = 1/S = Ω
+    # Multiply by I in nA (= 1e-9 A):
+    #   V = 1e-9 / (4π σ × r_µm × 1e-6) = 1e-3 / (4π σ r_µm)  [V/nA]
+    # So 1/(4π σ r_µm) gives mV/nA; the 1e-3 factor converts to V/nA.
     # (N_points, 1, 3) - (1, N_elec, 3) → (N_points, N_elec, 3)
     delta = positions_um[:, np.newaxis, :] - electrode_positions_um[np.newaxis, :, :]
     dist = np.linalg.norm(delta, axis=2)
     if np.ndim(sigma) == 0:
-        coeffs = 1 / (4 * np.pi * sigma * dist)
+        coeffs = 1e-3 / (4 * np.pi * sigma * dist)
     else:
         sigma_row = np.asarray(sigma)[np.newaxis, :]
-        coeffs = 1 / (4 * np.pi * sigma_row * dist)
+        coeffs = 1e-3 / (4 * np.pi * sigma_row * dist)
     return coeffs.T
 
 
