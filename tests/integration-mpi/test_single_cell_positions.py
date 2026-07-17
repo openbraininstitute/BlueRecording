@@ -22,10 +22,9 @@ def test_single_cell_get_positions_mpi(tmp_path):
 
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
 
-    node_manager, ids, cols, population, _, morphologies_dir, _ = init_circuit(path_to_simconfig)
+    cells, cols, population, _, morphologies_dir = init_circuit(path_to_simconfig)
     positions_df, _, _ = positions.get_positions(
-        node_manager,
-        ids,
+        cells,
         cols,
         population,
         morphologies_dir=morphologies_dir,
