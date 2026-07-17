@@ -1,0 +1,56 @@
+[
+  {
+    "name": "0",
+    "x": 4500.0,
+    "y": -1200.0,
+    "z": -3400.0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "Reciprocity"
+  },
+  {
+    "name": "1",
+    "x": 4500.0,
+    "y": -1200.0,
+    "z": -3400.0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "DipoleReciprocity"
+  },
+  {
+    "name": "2",
+    "x": 4500.0,
+    "y": -1200.0,
+    "z": -3400.0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "PointSource"
+  },
+  {
+    "name": "3",
+    "x": -35000.0,
+    "y": -1000.0,
+    "z": 6500.0,
+    "layer": "Outside",
+    "region": " Outside",
+    "type": "PointSource"
+  },
+  {
+    "name": "4",
+    "x": 4500.0,
+    "y": -1200.0,
+    "z": -3400.0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "LineSource"
+  },
+  {
+    "name": "5",
+    "x": -35000.0,
+    "y": -1000.0,
+    "z": 6500.0,
+    "layer": "Outside",
+    "region": "Outside",
+    "type": "LineSource"
+  }
+]
