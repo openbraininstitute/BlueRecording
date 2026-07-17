@@ -95,7 +95,7 @@ def main():
         save_positions(positions_df, args.path_to_positions_folder)
 
     elif args.command == "write_weights":
-        node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
+        cells, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
 
         output_file = Path(args.output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -103,8 +103,7 @@ def main():
         electrodes = Electrode.from_csv(args.electrode_csv)
 
         positions_df, cols, neurite_types = positions.get_positions(
-            node_manager,
-            ids,
+            cells,
             cols,
             population,
             morphologies_dir=morphologies_dir,

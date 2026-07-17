@@ -215,7 +215,8 @@ def _init_weights(
     metadata and offsets. The file is closed before returning.
 
     Args:
-        cols: Rank-local (N, 2) int64 array of (gid, section) pairs.
+        cols: Rank-local (N, 2) uint64 array of (node_id, section) pairs.
+            Node IDs are 0-based SONATA IDs (no neurodamus offset).
         population_name: SONATA population name.
         outputfile: Path to the output HDF5 file.
         electrodes: Mapping of electrode name to ``Electrode`` objects.
@@ -593,15 +594,14 @@ def compute_weights(
         weights: DataFrame of transfer coefficients, or None if this rank
             has no nodes.
         positions_df: DataFrame of segment boundary positions.
-        cols: (N, 2) int64 array of (gid, section) pairs.
+        cols: (N, 2) uint64 array of (node_id, section) pairs.
         neurite_types: (N,) int32 array of neurite type codes per compartment.
         population_name: SONATA population name (needed by ``save_weights``).
     """
-    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
+    cells, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
 
     positions_df, cols, neurite_types = _positions.get_positions(
-        node_manager,
-        ids,
+        cells,
         cols,
         population,
         morphologies_dir=morphologies_dir,
@@ -676,11 +676,10 @@ def compute_and_save_weights(
     n_tasks = len(tasks)
     log_rank0(f"compute_and_save_weights: {n_tasks} task(s)")
 
-    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
+    cells, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
 
     positions_df, cols, neurite_types = _positions.get_positions(
-        node_manager,
-        ids,
+        cells,
         cols,
         population,
         morphologies_dir=morphologies_dir,
@@ -734,7 +733,8 @@ def save_weights(
     Args:
         weights: DataFrame of transfer coefficients returned by
             ``compute_weights``, or None for empty ranks.
-        cols: (N, 2) array of (gid, section) pairs for this rank.
+        cols: (N, 2) uint64 array of (node_id, section) pairs for this rank.
+            Node IDs are 0-based SONATA IDs (no neurodamus offset).
         population_name: SONATA population name.
         outputfile: Path to the output HDF5 weights file.
         electrodes: Electrode metadata (dict or path to CSV).

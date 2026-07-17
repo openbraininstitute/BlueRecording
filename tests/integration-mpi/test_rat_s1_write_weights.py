@@ -24,8 +24,8 @@ def test_rat_s1_write_weights_mpi(tmp_path):
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
     csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
 
-    node_manager, ids, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
-    pos_df, cols, _ = positions.get_positions(node_manager, ids, cols, population, morphologies_dir=morphologies_dir)
+    cells, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, population, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)

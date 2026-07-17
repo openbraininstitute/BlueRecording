@@ -2,7 +2,7 @@
 """Shared circuit initialization via neurodamus.
 
 Provides the entry point for loading a circuit model and extracting
-the discretization info (node IDs, compartment structure, morphology access)
+the discretization info (cell objects, compartment structure, morphology access)
 """
 
 import libsonata
@@ -22,10 +22,13 @@ def init_circuit(path_to_config: str):
         path_to_config: Path to a SONATA simulation or circuit configuration file.
 
     Returns:
-        node_manager: The neurodamus node manager for the single population.
-        ids: GIDs assigned to this MPI rank.
-        cols: (N, 2) int64 array of (gid, section) pairs describing every
-            compartment on this rank.
+        cells: List of neurodamus cell objects on this MPI rank. Each cell
+            exposes ``.raw_gid`` (0-based SONATA node ID),
+            ``.local_to_global_coord_mapping``, ``.local_to_global_matrix``,
+            and ``.get_sec(section_id)``.
+        cols: (N, 2) uint64 array of (node_id, section) pairs describing
+            every compartment on this rank. Node IDs are 0-based SONATA IDs
+            (no neurodamus offset).
         population: libsonata NodePopulation, needed for morphology file
             resolution.
         population_name: Name of the SONATA node population.
@@ -59,17 +62,20 @@ def init_circuit(path_to_config: str):
         else:
             raise RuntimeError("No node managers found.")
 
-        ids = node_manager.get_final_gids()
+        offset = node_manager.local_nodes.offset
+
         points = node_manager.target_manager.get_target(None).get_point_list(
             node_manager,
             libsonata.SimulationConfig.Report.Sections.all,
             libsonata.SimulationConfig.Report.Compartments.all,
         )
-        # uint64 to match libsonata's node ID convention (Selection.flatten() dtype)
+        # Build compartment layout with 0-based SONATA node IDs
         cols = np.array(
-            [(p.gid, s) for p in points for s in sorted(p.sclst_ids)],
+            [(p.gid - offset, s) for p in points for s in sorted(p.sclst_ids)],
             dtype=np.uint64,
         ).reshape(-1, 2)
+
+        cells = list(node_manager.gid2cell.values())
 
         population_name = node_manager.population_name
 
@@ -77,4 +83,4 @@ def init_circuit(path_to_config: str):
         population = circuit_conf.node_population(population_name)
         morphologies_dir = nd._sonata_circuits[population_name].MorphologyPath
 
-    return node_manager, ids, cols, population, population_name, morphologies_dir
+    return cells, cols, population, population_name, morphologies_dir
