@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import json
 import warnings
 from dataclasses import dataclass
 from enum import StrEnum
@@ -59,15 +60,13 @@ class Electrode:
     layer: str = "NA"
 
     @classmethod
-    def from_json(cls, electrode_json: str) -> list["Electrode"]:
+    def from_json(cls, electrode_json: str | Path) -> list["Electrode"]:
         """Read electrode metadata from a JSON file.
 
         The JSON must be a list of objects with keys ``name``, ``x``, ``y``, ``z``.
         Optional keys: ``type`` (default ``LineSource``), ``layer``, ``region``,
         ``radius``, ``thickness``.
         """
-        import json
-
         with open(electrode_json) as f:
             data = json.load(f)
 
@@ -102,8 +101,6 @@ class Electrode:
 
         Produces a JSON file compatible with :meth:`from_json`.
         """
-        import json
-
         data = []
         for e in electrodes:
             if isinstance(e.type, ObjectiveCSDParams):
