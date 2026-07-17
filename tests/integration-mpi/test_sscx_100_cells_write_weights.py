@@ -25,11 +25,11 @@ def test_sscx_100_cells_write_weights_mpi(tmp_path):
     output_dir = comm.bcast(tmp_path, root=0)
     output_path = str(output_dir / "weights.h5")
 
-    node_manager, ids, cols, population, population_name, morphologies_dir, gid_offset = init_circuit(path_to_simconfig)
-    pos_df, cols, _ = positions.get_positions(node_manager, ids, cols, population, morphologies_dir=morphologies_dir)
+    cells, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
+    pos_df, cols, _ = positions.get_positions(cells, cols, population, morphologies_dir=morphologies_dir)
     electrodes = Electrode.from_csv(electrode_csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
-    save_weights(weights, cols, population_name, output_path, electrodes=electrodes, gid_offset=gid_offset)
+    save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
 
     comm.Barrier()
 
