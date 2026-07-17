@@ -19,7 +19,7 @@ def test_sscx_100_cells_write_weights_mpi(tmp_path):
     assert size == 2
 
     path_to_simconfig = "examples/sscx_100_cells/simulation_config.json"
-    electrode_csv = "examples/sscx_100_cells/electrodes.csv"
+    electrode_file = "examples/sscx_100_cells/electrodes.json"
     ref_path = "examples/sscx_100_cells/reference/weights_ref.h5"
 
     output_dir = comm.bcast(tmp_path, root=0)
@@ -27,7 +27,7 @@ def test_sscx_100_cells_write_weights_mpi(tmp_path):
 
     cells, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
     pos_df, cols, _ = positions.get_positions(cells, cols, population, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(electrode_csv)
+    electrodes = Electrode.from_json(electrode_file)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
 

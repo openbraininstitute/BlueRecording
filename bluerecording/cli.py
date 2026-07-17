@@ -32,7 +32,7 @@ def main():
     # write_weights command
     ww_parser = subparsers.add_parser("write_weights", help="Compute electrode weights for all cells in the circuit")
     ww_parser.add_argument("path_to_simconfig", type=str, help="Path to the simulation or circuit configuration file")
-    ww_parser.add_argument("electrode_csv", type=str, help="Path to the electrode CSV file")
+    ww_parser.add_argument("electrode_file", type=str, help="Path to the electrode JSON file")
     ww_parser.add_argument(
         "output_path",
         type=str,
@@ -100,7 +100,7 @@ def main():
         output_file = Path(args.output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        electrodes = Electrode.from_csv(args.electrode_csv)
+        electrodes = Electrode.from_json(args.electrode_file)
 
         positions_df, cols, neurite_types = positions.get_positions(
             cells,

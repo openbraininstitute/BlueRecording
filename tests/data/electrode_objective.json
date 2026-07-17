@@ -1,0 +1,6 @@
+[
+  {"name": "sphere", "x": 1, "y": 2, "z": 3, "layer": "Outside", "region": "Outside", "type": "ObjectiveCSD_Sphere", "radius": 15.0},
+  {"name": "disk", "x": 4, "y": 5, "z": 6, "layer": "L5", "region": "S1FL", "type": "ObjectiveCSD_Disk", "radius": 500.0, "thickness": 25.0},
+  {"name": "plane", "x": 7, "y": 8, "z": 9, "layer": "L3", "region": "S1FL", "type": "ObjectiveCSD_Plane", "thickness": 30.0},
+  {"name": "disk_defaults", "x": 10, "y": 11, "z": 12, "layer": "Outside", "region": "Outside", "type": "ObjectiveCSD_Disk"}
+]

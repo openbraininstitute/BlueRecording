@@ -27,7 +27,7 @@ def test_compute_and_save_weights_multi_task(tmp_path):
     output_2 = str(output_dir / "weights_2.h5")
 
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
-    csv = str(EXAMPLE_RAT_S1 / "electrodes.csv")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.json")
 
     tasks = [
         ComputeWeightsTask(electrodes=csv, output=output_1),

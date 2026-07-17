@@ -19,7 +19,7 @@ def test_single_cell_write_weights_distant_mpi(tmp_path):
     assert size == 2
 
     path_to_simconfig = "examples/single_cell_l5_tpc/simulation_config_near.json"
-    electrode_csv = "examples/single_cell_l5_tpc/distant_electrodes.csv"
+    electrode_file = "examples/single_cell_l5_tpc/distant_electrodes.json"
     ref_path = "examples/single_cell_l5_tpc/reference/weights_distant_ref.h5"
     field_path = "examples/single_cell_l5_tpc/Infinite_VeryFar_HighRes.h5"
 
@@ -28,7 +28,7 @@ def test_single_cell_write_weights_distant_mpi(tmp_path):
 
     cells, cols, population, population_name, morphologies_dir = init_circuit(path_to_simconfig)
     pos_df, cols, _ = positions.get_positions(cells, cols, population, morphologies_dir=morphologies_dir)
-    electrodes = Electrode.from_csv(electrode_csv)
+    electrodes = Electrode.from_json(electrode_file)
     weights = get_weights(pos_df, cols, electrodes=electrodes, path_to_fields=[field_path, field_path])
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
 
