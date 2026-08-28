@@ -6,7 +6,7 @@ from pathlib import Path
 import libsonata
 import numpy as np
 import pandas as pd
-from morphio import Morphology, SectionType
+from morphio import Collection, Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
 
@@ -502,32 +502,18 @@ def _resolve_neurite_types(cols_for_gid: np.ndarray, cell) -> np.ndarray:
     return result
 
 
-def _find_morph_file(morph_name: str, morph_dir: str) -> str:
+def _load_morph_file(morph_name: str, morph_base: str) -> Morphology:
     """Locate a morphology file by trying common subdirectory/extension combos.
 
     Args:
         morph_name: Morphology name (without extension) from the population.
-        morph_dir: Absolute path to the morphologies directory (from libsonata).
+        morph_base: Absolute path to the morphologies directory or merged morph file
 
     Returns:
-        Absolute path to the first existing morphology file found.
-
-    Raises:
-        FileNotFoundError: If no matching file is found.
+        morphio.Morphology
     """
-    base = Path(morph_dir)
-    candidates = [
-        base / "ascii" / f"{morph_name}.asc",
-        base / f"{morph_name}.asc",
-        base / "morphologies_asc" / f"{morph_name}.asc",
-        base / "swc" / f"{morph_name}.swc",
-        base / f"{morph_name}.swc",
-        base / "morphologies_swc" / f"{morph_name}.swc",
-    ]
-    for path in candidates:
-        if path.exists():
-            return str(path)
-    raise FileNotFoundError(f"Morphology '{morph_name}' not found in {morph_dir}")
+    collection = Collection(morph_base, [".h5", ".asc", ".swc"])
+    return collection.load(morph_name)
 
 
 def get_positions(
@@ -579,9 +565,8 @@ def get_positions(
         # transform matrix), not the neurodamus soma centroid which can
         # differ by up to ~1.8 µm.
         morph_name = population.get_attribute("morphology", node_id)
-        morph_path = _find_morph_file(morph_name, morphologies_dir)
         m = _PositionedMorphology(
-            Morphology(morph_path),
+            _load_morph_file(morph_name, morphologies_dir),
             transform=cell.local_to_global_coord_mapping,
         )
         center = cell.local_to_global_matrix[:, 3]
