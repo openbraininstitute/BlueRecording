@@ -211,7 +211,7 @@ The [analyze_weights](examples/analyze_weights.ipynb) notebook is a diagnostic t
 
 # Citation
 If you use this software, we kindly ask you to cite the following publication:
-[Tharayil et al. BlueRecording: A Pipeline for efficient calculation of extracellular recordings in large-scale neural circuit models. *bioRxiv, (2024)*](https://www.biorxiv.org/content/10.1101/2024.05.14.591849v1)
+[Tharayil et al. BlueRecording: A Pipeline for efficient calculation of extracellular recordings in large-scale neural circuit models. *PLOS Computational Biology, (2025)*](https://doi.org/10.1371/journal.pcbi.1013023)
 
 ---
 
