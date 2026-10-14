@@ -11,7 +11,7 @@ from .weights import (
     DEFAULT_SEGMENT_CHUNK_SIZE,
     DEFAULT_SIGMA,
     Electrode,
-    write_weights,
+    get_and_save_weights,
 )
 
 
@@ -122,7 +122,7 @@ def main():
             morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
         )
-        write_weights(
+        get_and_save_weights(
             positions_df,
             cols,
             population_name,

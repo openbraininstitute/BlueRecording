@@ -638,7 +638,7 @@ def compute_and_save_weights(
             label = f"{len(electrodes)} electrodes"
         log_rank0(f"compute_and_save_weights: task {i + 1}/{n_tasks} — {label}")
 
-        write_weights(
+        get_and_save_weights(
             positions_df,
             cols,
             population_name,
@@ -768,7 +768,7 @@ def save_weights(
             dset[start : start + block.shape[0], :] = block
 
 
-def write_weights(
+def get_and_save_weights(
     positions: pd.DataFrame,
     cols: np.ndarray,
     population_name: str,
@@ -812,13 +812,13 @@ def write_weights(
     log_step = max(1, len(blocks) // 10)
 
     with _open_weights_file(
-        "write_weights", cols, population_name, outputfile, electrodes, neurite_types, gid_offset
+        "get_and_save_weights", cols, population_name, outputfile, electrodes, neurite_types, gid_offset
     ) as (dset, start):
         t0 = MPI.Wtime()
         for i, (rows, points) in enumerate(blocks):
             if i % log_step == 0:
                 log_rank0(
-                    f"write_weights: {i}/{len(blocks)} blocks ({i * 100 // len(blocks)}%) — {MPI.Wtime() - t0:.1f}s"
+                    f"get_and_save_weights: {i}/{len(blocks)} blocks ({i * 100 // len(blocks)}%) — {MPI.Wtime() - t0:.1f}s"
                 )
             weights = get_weights(
                 positions.iloc[:, points],
@@ -831,4 +831,4 @@ def write_weights(
                 verbose=False,
             )
             dset[start + rows.start : start + rows.stop, :] = weights.to_numpy().T
-        log_rank0(f"write_weights: {len(blocks)}/{len(blocks)} blocks (100%) — {MPI.Wtime() - t0:.1f}s")
+        log_rank0(f"get_and_save_weights: {len(blocks)}/{len(blocks)} blocks (100%) — {MPI.Wtime() - t0:.1f}s")

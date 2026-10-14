@@ -15,9 +15,9 @@ from bluerecording.weights import (
     _iter_cell_blocks,
     _sort_electrode_names,
     _write_electrode_metadata_to_h5,
+    get_and_save_weights,
     get_weights,
     save_weights,
-    write_weights,
 )
 from tests.helpers import (
     GIDS,
@@ -115,8 +115,8 @@ def test_iter_cell_blocks():
         assert set(cols[rows, 0]) == set(positions.columns[points].get_level_values(0))
 
 
-def test_write_weights_in_blocks(tmp_path):
-    """write_weights writes the same file as get_weights + save_weights, whatever the block size."""
+def test_get_and_save_weights_in_blocks(tmp_path):
+    """get_and_save_weights writes the same file as get_weights + save_weights, whatever the block size."""
     cols, positions = make_cells()
     electrodes = make_electrodes_mixed()
     expected = str(tmp_path / "expected.h5")
@@ -129,7 +129,7 @@ def test_write_weights_in_blocks(tmp_path):
 
     for segment_chunk_size in (1, 12, 1000):
         out = str(tmp_path / f"weights_{segment_chunk_size}.h5")
-        write_weights(positions, cols, POPULATION_NAME, out, electrodes, segment_chunk_size=segment_chunk_size)
+        get_and_save_weights(positions, cols, POPULATION_NAME, out, electrodes, segment_chunk_size=segment_chunk_size)
         with h5py.File(expected, "r") as e, h5py.File(out, "r") as o:
             for path in datasets:
                 np.testing.assert_array_equal(o[path][:], e[path][:])
