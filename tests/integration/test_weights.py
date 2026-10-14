@@ -53,7 +53,7 @@ def test_rat_s1_write_weights(tmp_path):
         np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
 
-def test_rat_s1_get_and_save_weights_in_blocks(tmp_path):
+def test_rat_s1_get_and_save_weights_in_chunks(tmp_path):
     """get_and_save_weights a few cells at a time for rat_s1_forelimb_l56_10cells, with both electrode types."""
     circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
     out = str(tmp_path / "weights.h5")

@@ -90,7 +90,7 @@ def main():
         type=int,
         default=DEFAULT_SEGMENT_CHUNK_SIZE,
         dest="segment_chunk_size",
-        help=f"Max segments per block of weights computed and written at once (default: {DEFAULT_SEGMENT_CHUNK_SIZE})",
+        help=f"Max segments per chunk of weights computed and written at once (default: {DEFAULT_SEGMENT_CHUNK_SIZE})",
     )
 
     # compare_weights command

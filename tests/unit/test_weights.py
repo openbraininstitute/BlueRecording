@@ -12,7 +12,7 @@ from bluerecording.weights import (
     _get_objective_csd_array,
     _get_offsets,
     _get_segment_midpts,
-    _iter_cell_blocks,
+    _iter_cell_chunks,
     _sort_electrode_names,
     _write_electrode_metadata_to_h5,
     get_and_save_weights,
@@ -100,23 +100,23 @@ def test_add_coeffs_backwards(tmp_path):
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
 
 
-def test_iter_cell_blocks():
-    """Blocks hold whole cells up to the segment limit; a bigger cell gets a block of its own."""
+def test_iter_cell_chunks():
+    """Chunks hold whole cells up to the segment limit; a bigger cell gets a chunk of its own."""
     cols, positions = make_cells()  # 5, 9, 3 and 7 segments
 
-    blocks = list(_iter_cell_blocks(positions, cols, segment_chunk_size=12))
-    assert [(rows.start, rows.stop) for rows, _ in blocks] == [(0, 5), (5, 17), (17, 24)]
-    assert [(points.start, points.stop) for _, points in blocks] == [(0, 7), (7, 24), (24, 34)]
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size=12))
+    assert [(rows.start, rows.stop) for rows, _ in chunks] == [(0, 5), (5, 17), (17, 24)]
+    assert [(points.start, points.stop) for _, points in chunks] == [(0, 7), (7, 24), (24, 34)]
 
-    blocks = list(_iter_cell_blocks(positions, cols, segment_chunk_size=8))
-    assert [(rows.start, rows.stop) for rows, _ in blocks] == [(0, 5), (5, 14), (14, 17), (17, 24)]
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size=8))
+    assert [(rows.start, rows.stop) for rows, _ in chunks] == [(0, 5), (5, 14), (14, 17), (17, 24)]
 
-    for rows, points in blocks:
+    for rows, points in chunks:
         assert set(cols[rows, 0]) == set(positions.columns[points].get_level_values(0))
 
 
-def test_get_and_save_weights_in_blocks(tmp_path):
-    """get_and_save_weights writes the same file as get_weights + save_weights, whatever the block size."""
+def test_get_and_save_weights_in_chunks(tmp_path):
+    """get_and_save_weights writes the same file as get_weights + save_weights, whatever the chunk size."""
     cols, positions = make_cells()
     electrodes = make_electrodes_mixed()
     expected = str(tmp_path / "expected.h5")

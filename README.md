@@ -186,7 +186,7 @@ mpirun -n 2 pytest -v -m "skip_in_ci" tests/integration-mpi --with-mpi
     save_positions(positions_df, path_to_positions_folder)
     ```
 
-    `compute_weights` holds every weight of a rank in memory at once. `get_and_save_weights(positions_df, cols, population_name, "weights.h5", electrodes="electrodes.json")` instead computes the weights a block of cells at a time and writes each block straight to the file, as the CLI does (block size: `--segment-chunk-size`).
+    `compute_weights` holds every weight of a rank in memory at once. `get_and_save_weights(positions_df, cols, population_name, "weights.h5", electrodes="electrodes.json")` instead computes the weights a chunk of cells at a time and writes each chunk straight to the file, as the CLI does (chunk size: `--segment-chunk-size`).
 
     Here `sigma` is the extracellular conductivity in S/m (default 0.277), used by the *PointSource* and *LineSource* methods. `path_to_fields` is a list of paths to finite element H5 files, required when using *Reciprocity* or *DipoleReciprocity* electrodes. Details about the `objective_csd_array_indices` argument are available [here](https://github.com/openbraininstitute/BlueRecording/blob/main/ObjectiveCSD.md).
 

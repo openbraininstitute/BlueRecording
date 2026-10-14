@@ -39,8 +39,8 @@ def test_rat_s1_write_weights_mpi(tmp_path):
 
 
 @pytest.mark.mpi(ranks=2)
-def test_rat_s1_get_and_save_weights_in_blocks_mpi(tmp_path):
-    """get_and_save_weights a few cells at a time on 2 MPI ranks, which then write different numbers of blocks."""
+def test_rat_s1_get_and_save_weights_in_chunks_mpi(tmp_path):
+    """get_and_save_weights a few cells at a time on 2 MPI ranks, which then write different numbers of chunks."""
     assert size == 2
 
     output_dir = comm.bcast(tmp_path, root=0)

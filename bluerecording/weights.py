@@ -26,7 +26,7 @@ from .utils import log_rank0
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 DEFAULT_ELECTRODE_CHUNK_SIZE = 50  # Max electrodes per physics call to limit peak memory
-DEFAULT_SEGMENT_CHUNK_SIZE = 2_000  # Max segments per block of weights computed and written at once
+DEFAULT_SEGMENT_CHUNK_SIZE = 2_000  # Max segments per chunk of weights computed and written at once
 
 
 # ---------------------------------------------------------------------------
@@ -466,13 +466,13 @@ def _cell_bounds(ids: np.ndarray) -> np.ndarray:
     return np.concatenate(([0], np.flatnonzero(ids[1:] != ids[:-1]) + 1, [len(ids)]))
 
 
-def _iter_cell_blocks(positions: pd.DataFrame, cols: np.ndarray, segment_chunk_size: int):
-    """Split this rank's cells into blocks of whole cells with at most segment_chunk_size segments.
+def _iter_cell_chunks(positions: pd.DataFrame, cols: np.ndarray, segment_chunk_size: int):
+    """Split this rank's cells into chunks of whole cells with at most segment_chunk_size segments.
 
-    A cell with more segments than that gets a block of its own.
+    A cell with more segments than that gets a chunk of its own.
 
     Yields:
-        (rows, points): slices of the block's segments in cols and its columns in positions.
+        (rows, points): slices of the chunk's segments in cols and its columns in positions.
     """
     seg_bounds = _cell_bounds(cols[:, 0])
     point_bounds = _cell_bounds(positions.columns.get_level_values(0).to_numpy())
@@ -782,7 +782,7 @@ def get_and_save_weights(
     neurite_types: np.ndarray | None = None,
     gid_offset: int = 0,
 ) -> None:
-    """Compute the weights a block of cells at a time and write each block to the HDF5 file.
+    """Compute the weights a chunk of cells at a time and write each chunk to the HDF5 file.
 
     Writes the same file as :func:`get_weights` followed by :func:`save_weights`,
     but holds the weights of at most ``segment_chunk_size`` segments in memory
@@ -798,8 +798,8 @@ def get_and_save_weights(
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
         electrode_chunk_size: Max electrodes per physics call (limits peak memory).
-        segment_chunk_size: Max segments per block (limits peak memory). Blocks
-            hold whole cells, so a cell with more segments gets a block of its own.
+        segment_chunk_size: Max segments per chunk (limits peak memory). Chunks
+            hold whole cells, so a cell with more segments gets a chunk of its own.
         neurite_types: (N,) int32 array; if provided, populates the
             neurite_types dataset.
         gid_offset: Neurodamus GID offset to subtract from cols GIDs
@@ -808,17 +808,17 @@ def get_and_save_weights(
     if isinstance(electrodes, str):
         electrodes = Electrode.from_json(electrodes)
 
-    blocks = list(_iter_cell_blocks(positions, cols, segment_chunk_size))
-    log_step = max(1, len(blocks) // 10)
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size))
+    log_step = max(1, len(chunks) // 10)
 
     with _open_weights_file(
         "get_and_save_weights", cols, population_name, outputfile, electrodes, neurite_types, gid_offset
     ) as (dset, start):
         t0 = MPI.Wtime()
-        for i, (rows, points) in enumerate(blocks):
+        for i, (rows, points) in enumerate(chunks):
             if i % log_step == 0:
                 log_rank0(
-                    f"get_and_save_weights: {i}/{len(blocks)} blocks ({i * 100 // len(blocks)}%) — {MPI.Wtime() - t0:.1f}s"
+                    f"get_and_save_weights: {i}/{len(chunks)} chunks ({i * 100 // len(chunks)}%) — {MPI.Wtime() - t0:.1f}s"
                 )
             weights = get_weights(
                 positions.iloc[:, points],
@@ -831,4 +831,4 @@ def get_and_save_weights(
                 verbose=False,
             )
             dset[start + rows.start : start + rows.stop, :] = weights.to_numpy().T
-        log_rank0(f"get_and_save_weights: {len(blocks)}/{len(blocks)} blocks (100%) — {MPI.Wtime() - t0:.1f}s")
+        log_rank0(f"get_and_save_weights: {len(chunks)}/{len(chunks)} chunks (100%) — {MPI.Wtime() - t0:.1f}s")
