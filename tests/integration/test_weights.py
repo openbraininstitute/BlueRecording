@@ -6,7 +6,7 @@ import pytest
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
 from bluerecording.physics import SegmentGeometry, get_coeffs_line_source, get_coeffs_point_source
-from bluerecording.weights import Electrode, _get_segment_midpts, get_weights, save_weights
+from bluerecording.weights import Electrode, _get_segment_midpts, get_weights, save_weights, write_weights
 from tests.conftest import EXAMPLE_RAT_S1
 
 
@@ -51,6 +51,25 @@ def test_rat_s1_write_weights(tmp_path):
         np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
         dset = f"electrodes/{pop_name}/scaling_factors"
         np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
+
+
+def test_rat_s1_write_weights_in_blocks(tmp_path):
+    """write_weights a few cells at a time for rat_s1_forelimb_l56_10cells, with both electrode types."""
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    out = str(tmp_path / "weights.h5")
+
+    cells, cols, pop, pop_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, pop, morphologies_dir=morphologies_dir)
+
+    for name in ("", "_line_source"):
+        electrodes = Electrode.from_json(str(EXAMPLE_RAT_S1 / f"electrodes{name}.json"))
+        write_weights(pos_df, cols, pop_name, out, electrodes=electrodes, segment_chunk_size=500)
+
+        with h5py.File(EXAMPLE_RAT_S1 / "reference" / f"weights{name}_ref.h5", "r") as r, h5py.File(out, "r") as n:
+            np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+            np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+            dset = f"electrodes/{pop_name}/scaling_factors"
+            np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
 
 
 def test_rat_s1_write_weights_line_source(tmp_path):

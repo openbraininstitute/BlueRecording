@@ -5,7 +5,7 @@ from mpi4py import MPI
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
 from bluerecording.compare import compare_weights
-from bluerecording.weights import Electrode, get_weights, save_weights
+from bluerecording.weights import Electrode, get_weights, save_weights, write_weights
 from tests.conftest import EXAMPLE_RAT_S1
 
 comm = MPI.COMM_WORLD
@@ -29,6 +29,29 @@ def test_rat_s1_write_weights_mpi(tmp_path):
     electrodes = Electrode.from_json(csv)
     weights = get_weights(pos_df, cols, electrodes=electrodes)
     save_weights(weights, cols, population_name, output_path, electrodes=electrodes)
+
+    comm.Barrier()
+
+    if rank == 0:
+        ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
+        match, report = compare_weights(ref, output_path)
+        assert match, report
+
+
+@pytest.mark.mpi(ranks=2)
+def test_rat_s1_write_weights_in_blocks_mpi(tmp_path):
+    """write_weights a few cells at a time on 2 MPI ranks, which then write different numbers of blocks."""
+    assert size == 2
+
+    output_dir = comm.bcast(tmp_path, root=0)
+    output_path = str(output_dir / "weights.h5")
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.json")
+
+    cells, cols, population, population_name, morphologies_dir = init_circuit(circuit_config)
+    pos_df, cols, _ = positions.get_positions(cells, cols, population, morphologies_dir=morphologies_dir)
+    write_weights(pos_df, cols, population_name, output_path, electrodes=csv, segment_chunk_size=500)
 
     comm.Barrier()
 

@@ -51,3 +51,4 @@ from .weights import ComputeWeightsTask as ComputeWeightsTask  # noqa: E402
 from .weights import compute_and_save_weights as compute_and_save_weights  # noqa: E402
 from .weights import compute_weights as compute_weights  # noqa: E402
 from .weights import save_weights as save_weights  # noqa: E402
+from .weights import write_weights as write_weights  # noqa: E402

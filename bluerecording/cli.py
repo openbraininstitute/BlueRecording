@@ -6,7 +6,13 @@ from . import __version__, positions
 from .circuit import init_circuit
 from .compare import compare_weights
 from .positions import compute_positions, save_positions
-from .weights import DEFAULT_ELECTRODE_CHUNK_SIZE, DEFAULT_SIGMA, Electrode, get_weights, save_weights
+from .weights import (
+    DEFAULT_ELECTRODE_CHUNK_SIZE,
+    DEFAULT_SEGMENT_CHUNK_SIZE,
+    DEFAULT_SIGMA,
+    Electrode,
+    write_weights,
+)
 
 
 def main():
@@ -79,6 +85,13 @@ def main():
         dest="electrode_chunk_size",
         help=f"Max electrodes per computation chunk (default: {DEFAULT_ELECTRODE_CHUNK_SIZE})",
     )
+    ww_parser.add_argument(
+        "--segment-chunk-size",
+        type=int,
+        default=DEFAULT_SEGMENT_CHUNK_SIZE,
+        dest="segment_chunk_size",
+        help=f"Max segments per block of weights computed and written at once (default: {DEFAULT_SEGMENT_CHUNK_SIZE})",
+    )
 
     # compare_weights command
     cw_parser = subparsers.add_parser("compare_weights", help="Compare two weights H5 files (order-agnostic)")
@@ -109,20 +122,16 @@ def main():
             morphologies_dir=morphologies_dir,
             replace_axons=args.replace_axons,
         )
-        weights = get_weights(
+        write_weights(
             positions_df,
-            cols,
-            electrodes=electrodes,
-            sigma=args.sigma,
-            path_to_fields=args.path_to_fields,
-            electrode_chunk_size=args.electrode_chunk_size,
-        )
-        save_weights(
-            weights,
             cols,
             population_name,
             str(output_file),
             electrodes=electrodes,
+            sigma=args.sigma,
+            path_to_fields=args.path_to_fields,
+            electrode_chunk_size=args.electrode_chunk_size,
+            segment_chunk_size=args.segment_chunk_size,
             neurite_types=neurite_types if args.with_neurite_type else None,
         )
         if args.write_positions:
