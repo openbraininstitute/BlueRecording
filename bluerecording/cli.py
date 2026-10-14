@@ -2,10 +2,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, positions
-from .circuit import init_circuit
+from . import __version__
 from .compare import compare_weights
-from .positions import compute_positions, save_positions
+from .positions import _compute_positions, compute_positions, save_positions
 from .weights import (
     DEFAULT_ELECTRODE_CHUNK_SIZE,
     DEFAULT_SEGMENT_CHUNK_SIZE,
@@ -33,6 +32,13 @@ def main():
         action="store_false",
         dest="replace_axons",
         help="Do not replace existing axons (default: replace)",
+    )
+    gp_parser.add_argument(
+        "--cells-per-batch",
+        type=int,
+        default=None,
+        dest="cells_per_batch",
+        help="Build at most this many cells at a time, across all ranks (default: all at once)",
     )
 
     # write_weights command
@@ -92,6 +98,13 @@ def main():
         dest="segment_chunk_size",
         help=f"Max segments per chunk of weights computed and written at once (default: {DEFAULT_SEGMENT_CHUNK_SIZE})",
     )
+    ww_parser.add_argument(
+        "--cells-per-batch",
+        type=int,
+        default=None,
+        dest="cells_per_batch",
+        help="Build at most this many cells at a time, across all ranks (default: all at once)",
+    )
 
     # compare_weights command
     cw_parser = subparsers.add_parser("compare_weights", help="Compare two weights H5 files (order-agnostic)")
@@ -104,24 +117,20 @@ def main():
     args = parser.parse_args()
 
     if args.command == "write_positions":
-        positions_df, _, _ = compute_positions(args.path_to_simconfig, replace_axons=args.replace_axons)
+        positions_df, _, _ = compute_positions(
+            args.path_to_simconfig, replace_axons=args.replace_axons, cells_per_batch=args.cells_per_batch
+        )
         save_positions(positions_df, args.path_to_positions_folder)
 
     elif args.command == "write_weights":
-        cells, cols, population, population_name, morphologies_dir = init_circuit(args.path_to_simconfig)
+        positions_df, cols, neurite_types, population_name = _compute_positions(
+            args.path_to_simconfig, replace_axons=args.replace_axons, cells_per_batch=args.cells_per_batch
+        )
 
         output_file = Path(args.output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
         electrodes = Electrode.from_json(args.electrode_file)
-
-        positions_df, cols, neurite_types = positions.get_positions(
-            cells,
-            cols,
-            population,
-            morphologies_dir=morphologies_dir,
-            replace_axons=args.replace_axons,
-        )
         get_and_save_weights(
             positions_df,
             cols,

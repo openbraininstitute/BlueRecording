@@ -10,7 +10,6 @@ import pandas as pd
 from mpi4py import MPI
 
 from . import positions as _positions
-from .circuit import init_circuit
 from .electrodes import Electrode, ElectrodeType, ObjectiveCSDParams
 from .physics import (
     SegmentGeometry,
@@ -518,6 +517,7 @@ def compute_weights(
     sigma: list[float] | None = None,
     path_to_fields: list[str] | None = None,
     objective_csd_array_indices: list[str] | None = None,
+    cells_per_batch: int | None = None,
 ) -> tuple[pd.DataFrame | None, pd.DataFrame, np.ndarray, np.ndarray, str, int]:
     """High-level API: compute weights and positions from a config file.
 
@@ -533,6 +533,8 @@ def compute_weights(
         sigma: Extracellular conductivity value(s) in S/m.
         path_to_fields: Path(s) to potential/E-field files for reciprocity.
         objective_csd_array_indices: Subsampling indices for objective CSD.
+        cells_per_batch: Max cells built at once across all ranks (limits peak
+            memory). None builds them all at once.
 
     Returns:
         weights: DataFrame of transfer coefficients, or None if this rank
@@ -542,14 +544,8 @@ def compute_weights(
         neurite_types: (N,) int32 array of neurite type codes per compartment.
         population_name: SONATA population name (needed by ``save_weights``).
     """
-    cells, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
-
-    positions_df, cols, neurite_types = _positions.get_positions(
-        cells,
-        cols,
-        population,
-        morphologies_dir=morphologies_dir,
-        replace_axons=replace_axons,
+    positions_df, cols, neurite_types, population_name = _positions._compute_positions(
+        path_to_config, replace_axons=replace_axons, cells_per_batch=cells_per_batch
     )
 
     weights = get_weights(
@@ -597,6 +593,7 @@ def compute_and_save_weights(
     path_to_config: str | Path,
     tasks: list[ComputeWeightsTask],
     replace_axons: bool = True,
+    cells_per_batch: int | None = None,
 ) -> None:
     """Compute and save weights for multiple electrode configurations.
 
@@ -616,18 +613,14 @@ def compute_and_save_weights(
             electrode configuration and output path.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).
+        cells_per_batch: Max cells built at once across all ranks (limits peak
+            memory). None builds them all at once.
     """
     n_tasks = len(tasks)
     log_rank0(f"compute_and_save_weights: {n_tasks} task(s)")
 
-    cells, cols, population, population_name, morphologies_dir = init_circuit(str(path_to_config))
-
-    positions_df, cols, neurite_types = _positions.get_positions(
-        cells,
-        cols,
-        population,
-        morphologies_dir=morphologies_dir,
-        replace_axons=replace_axons,
+    positions_df, cols, neurite_types, population_name = _positions._compute_positions(
+        path_to_config, replace_axons=replace_axons, cells_per_batch=cells_per_batch
     )
 
     for i, task in enumerate(tasks):

@@ -162,6 +162,8 @@ mpirun -n 2 pytest -v -m "skip_in_ci" tests/integration-mpi --with-mpi
 
     This single command initializes the circuit, computes segment positions, creates the H5 electrode file, and populates it with the correct coefficients. It must be run with MPI (e.g. `mpirun -n 4 bluerecording write_weights ...`).
 
+    To lower peak memory on big circuits, `--cells-per-batch N` builds at most N cells at a time across all ranks: the segment positions of each batch are computed, then its cells are freed before the next batch is built.
+
     If you only need the segment positions (e.g. for inspection or reuse), you can compute and save them separately:
 
     ```bash
