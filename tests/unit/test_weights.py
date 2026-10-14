@@ -12,15 +12,20 @@ from bluerecording.weights import (
     _get_objective_csd_array,
     _get_offsets,
     _get_segment_midpts,
+    _iter_cell_chunks,
     _sort_electrode_names,
     _write_electrode_metadata_to_h5,
+    get_and_save_weights,
+    get_weights,
     save_weights,
 )
 from tests.helpers import (
     GIDS,
     POPULATION_NAME,
     create_weights_file,
+    make_cells,
     make_electrodes,
+    make_electrodes_mixed,
     make_electrodes_objective,
     make_electrodes_objective_array,
     make_report_data,
@@ -93,6 +98,41 @@ def test_add_coeffs_backwards(tmp_path):
         # So rows 0-24 get values 0-24 sequentially
         expected = np.arange(25)[:, np.newaxis].astype(np.float64)
         np.testing.assert_equal(h5[f"electrodes/{POPULATION_NAME}/scaling_factors"][:], expected)
+
+
+def test_iter_cell_chunks():
+    """Chunks hold whole cells up to the segment limit; a bigger cell gets a chunk of its own."""
+    cols, positions = make_cells()  # 5, 9, 3 and 7 segments
+
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size=12))
+    assert [(rows.start, rows.stop) for rows, _ in chunks] == [(0, 5), (5, 17), (17, 24)]
+    assert [(points.start, points.stop) for _, points in chunks] == [(0, 7), (7, 24), (24, 34)]
+
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size=8))
+    assert [(rows.start, rows.stop) for rows, _ in chunks] == [(0, 5), (5, 14), (14, 17), (17, 24)]
+
+    for rows, points in chunks:
+        assert set(cols[rows, 0]) == set(positions.columns[points].get_level_values(0))
+
+
+def test_get_and_save_weights_in_chunks(tmp_path):
+    """get_and_save_weights writes the same file as get_weights + save_weights, whatever the chunk size."""
+    cols, positions = make_cells()
+    electrodes = make_electrodes_mixed()
+    expected = str(tmp_path / "expected.h5")
+    save_weights(get_weights(positions, cols, electrodes), cols, POPULATION_NAME, expected, electrodes)
+    datasets = [
+        f"electrodes/{POPULATION_NAME}/scaling_factors",
+        f"{POPULATION_NAME}/node_ids",
+        f"{POPULATION_NAME}/offsets",
+    ]
+
+    for segment_chunk_size in (1, 12, 1000):
+        out = str(tmp_path / f"weights_{segment_chunk_size}.h5")
+        get_and_save_weights(positions, cols, POPULATION_NAME, out, electrodes, segment_chunk_size=segment_chunk_size)
+        with h5py.File(expected, "r") as e, h5py.File(out, "r") as o:
+            for path in datasets:
+                np.testing.assert_array_equal(o[path][:], e[path][:])
 
 
 def test_sort_electrode_names():

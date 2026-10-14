@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from .utils import log_rank0
 
 DEFAULT_SIGMA = 0.277  # Extracellular conductivity in S/m
 DEFAULT_ELECTRODE_CHUNK_SIZE = 50  # Max electrodes per physics call to limit peak memory
+DEFAULT_SEGMENT_CHUNK_SIZE = 2_000  # Max segments per chunk of weights computed and written at once
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +392,7 @@ def get_weights(
         for chunk_start in range(0, len(line_source_indices), electrode_chunk_size):
             chunk_end = min(chunk_start + electrode_chunk_size, len(line_source_indices))
             chunk_coeffs = get_coeffs_line_source(
-                geom, columns, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end]
+                geom, columns, epos_array[chunk_start:chunk_end], group_sigma[chunk_start:chunk_end], verbose=verbose
             )
             all_coeffs[line_source_indices[chunk_start:chunk_end]] = chunk_coeffs.to_numpy()
 
@@ -455,6 +457,38 @@ def get_weights(
 
     result = pd.DataFrame(data=all_coeffs, columns=columns)
     return result
+
+
+def _cell_bounds(ids: np.ndarray) -> np.ndarray:
+    """Return where each cell's run of entries starts in ids, followed by len(ids)."""
+    if len(ids) == 0:
+        return np.zeros(1, dtype=np.intp)
+    return np.concatenate(([0], np.flatnonzero(ids[1:] != ids[:-1]) + 1, [len(ids)]))
+
+
+def _iter_cell_chunks(positions: pd.DataFrame, cols: np.ndarray, segment_chunk_size: int):
+    """Split this rank's cells into chunks of whole cells with at most segment_chunk_size segments.
+
+    A cell with more segments than that gets a chunk of its own.
+
+    Yields:
+        (rows, points): slices of the chunk's segments in cols and its columns in positions.
+    """
+    seg_bounds = _cell_bounds(cols[:, 0])
+    point_bounds = _cell_bounds(positions.columns.get_level_values(0).to_numpy())
+    if len(seg_bounds) != len(point_bounds):
+        raise ValueError("positions and cols must hold the same cells, in the same order")
+
+    first = 0
+    n_cells = len(seg_bounds) - 1
+    while first < n_cells:
+        end = np.searchsorted(seg_bounds, seg_bounds[first] + segment_chunk_size, side="right") - 1
+        last = max(first + 1, int(end))
+        yield (
+            slice(int(seg_bounds[first]), int(seg_bounds[last])),
+            slice(int(point_bounds[first]), int(point_bounds[last])),
+        )
+        first = last
 
 
 def _write_neurite_types(
@@ -604,25 +638,94 @@ def compute_and_save_weights(
             label = f"{len(electrodes)} electrodes"
         log_rank0(f"compute_and_save_weights: task {i + 1}/{n_tasks} — {label}")
 
-        weights = get_weights(
+        get_and_save_weights(
             positions_df,
-            cols,
-            electrodes,
-            sigma=task.sigma,
-            path_to_fields=task.path_to_fields,
-            objective_csd_array_indices=task.objective_csd_array_indices,
-        )
-
-        save_weights(
-            weights,
             cols,
             population_name,
             task.output,
             electrodes,
+            sigma=task.sigma,
+            path_to_fields=task.path_to_fields,
+            objective_csd_array_indices=task.objective_csd_array_indices,
             neurite_types=neurite_types if task.with_neurite_type else None,
         )
 
     log_rank0(f"compute_and_save_weights: all {n_tasks} task(s) complete")
+
+
+@contextmanager
+def _open_weights_file(
+    label: str,
+    cols: np.ndarray,
+    population_name: str,
+    outputfile: str,
+    electrodes: list[Electrode],
+    neurite_types: np.ndarray | None,
+    gid_offset: int,
+):
+    """Initialize the HDF5 weights file and open it for every rank to write its rows.
+
+    Yields the scaling_factors dataset and the first row of this rank's
+    contiguous block. Writes the neurite types, if given, and closes the
+    file once the caller is done.
+    """
+    comm = MPI.COMM_WORLD
+    t0 = MPI.Wtime()
+
+    # 1. Initialize the file (gather + rank 0 creates structure + barrier)
+    log_rank0(f"{label}: initializing HDF5 file structure...")
+    _init_weights(
+        cols,
+        population_name,
+        outputfile,
+        electrodes,
+        with_neurite_type=neurite_types is not None,
+        gid_offset=gid_offset,
+    )
+    t1 = MPI.Wtime()
+    log_rank0(f"{label}: file initialized. ({t1 - t0:.1f}s, includes MPI sync)")
+
+    # 2. Compute each rank's contiguous row offset using MPI_Scan
+    local_segments = len(cols)
+
+    # Exclusive scan: each rank's start = sum of all previous ranks' segments
+    start = comm.scan(local_segments, op=MPI.SUM) - local_segments
+
+    # 3. Open file for parallel write — ALL ranks must participate
+    if comm.Get_size() > 1:
+        if not h5py.get_config().mpi:
+            warnings.warn(
+                "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
+                stacklevel=2,
+            )
+        h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
+    else:
+        h5 = h5py.File(outputfile, "a")
+    t2 = MPI.Wtime()
+
+    # 4. The caller writes coefficients — each rank its own contiguous slice.
+    # All ranks must participate in the dataset access to avoid MPI-IO
+    # deadlocks (even ranks with no data perform a zero-length read).
+    yield h5[f"electrodes/{population_name}/scaling_factors"], start
+    t3 = MPI.Wtime()
+
+    # 5. Write neurite types if requested
+    if neurite_types is not None and local_segments > 0:
+        _write_neurite_types(h5, neurite_types, population_name, start=start)
+
+    comm.Barrier()
+    h5.close()
+    t4 = MPI.Wtime()
+
+    total_segments = comm.allreduce(local_segments, op=MPI.SUM)
+    n_electrodes = len(electrodes)
+    file_size_gb = total_segments * n_electrodes * 8 / 1e9
+    log_rank0(
+        f"{label}: done. "
+        f"{total_segments:,} segments × {n_electrodes} electrodes = {file_size_gb:.1f} GB | "
+        f"init {t1 - t0:.1f}s, open {t2 - t1:.1f}s, write {t3 - t2:.1f}s, close {t4 - t3:.1f}s, "
+        f"total {t4 - t0:.1f}s"
+    )
 
 
 def save_weights(
@@ -657,63 +760,75 @@ def save_weights(
     if isinstance(electrodes, str):
         electrodes = Electrode.from_json(electrodes)
 
-    comm = MPI.COMM_WORLD
-    t0 = MPI.Wtime()
+    with _open_weights_file(
+        "save_weights", cols, population_name, outputfile, electrodes, neurite_types, gid_offset
+    ) as (dset, start):
+        if weights is not None and len(cols) > 0:
+            block = weights.to_numpy().T  # (N_local_segments, N_electrodes)
+            dset[start : start + block.shape[0], :] = block
 
-    # 1. Initialize the file (gather + rank 0 creates structure + barrier)
-    log_rank0("save_weights: initializing HDF5 file structure...")
-    _init_weights(
-        cols,
-        population_name,
-        outputfile,
-        electrodes,
-        with_neurite_type=neurite_types is not None,
-        gid_offset=gid_offset,
-    )
-    t1 = MPI.Wtime()
-    log_rank0(f"save_weights: file initialized. ({t1 - t0:.1f}s, includes MPI sync)")
 
-    # 2. Compute each rank's contiguous row offset using MPI_Scan
-    local_segments = len(cols)
+def get_and_save_weights(
+    positions: pd.DataFrame,
+    cols: np.ndarray,
+    population_name: str,
+    outputfile: str,
+    electrodes: list[Electrode] | str,
+    sigma: list[float] | None = None,
+    path_to_fields: list[str] | None = None,
+    objective_csd_array_indices: list[str] | None = None,
+    electrode_chunk_size: int = DEFAULT_ELECTRODE_CHUNK_SIZE,
+    segment_chunk_size: int = DEFAULT_SEGMENT_CHUNK_SIZE,
+    neurite_types: np.ndarray | None = None,
+    gid_offset: int = 0,
+) -> None:
+    """Compute the weights a chunk of cells at a time and write each chunk to the HDF5 file.
 
-    # Exclusive scan: each rank's start = sum of all previous ranks' segments
-    start = comm.scan(local_segments, op=MPI.SUM) - local_segments
+    Writes the same file as :func:`get_weights` followed by :func:`save_weights`,
+    but holds the weights of at most ``segment_chunk_size`` segments in memory
+    instead of those of every segment on this rank.
 
-    # 3. Open file for parallel write — ALL ranks must participate
-    if comm.Get_size() > 1:
-        if not h5py.get_config().mpi:
-            warnings.warn(
-                "h5py was not built with MPI support. Parallel writes are unavailable; falling back to serial I/O.",
-                stacklevel=2,
+    Args:
+        positions: DataFrame of segment boundary positions (from ``get_positions``).
+        cols: (N, 2) uint64 array of (node_id, section) pairs for this rank.
+        population_name: SONATA population name.
+        outputfile: Path to the output HDF5 weights file.
+        electrodes: Electrode metadata (list or path to JSON).
+        sigma: Extracellular conductivity value(s) in S/m.
+        path_to_fields: Path(s) to potential/E-field files for reciprocity.
+        objective_csd_array_indices: Subsampling indices for objective CSD.
+        electrode_chunk_size: Max electrodes per physics call (limits peak memory).
+        segment_chunk_size: Max segments per chunk (limits peak memory). Chunks
+            hold whole cells, so a cell with more segments gets a chunk of its own.
+        neurite_types: (N,) int32 array; if provided, populates the
+            neurite_types dataset.
+        gid_offset: Neurodamus GID offset to subtract from cols GIDs
+            when writing SONATA 0-based node IDs to the file.
+    """
+    if isinstance(electrodes, str):
+        electrodes = Electrode.from_json(electrodes)
+
+    chunks = list(_iter_cell_chunks(positions, cols, segment_chunk_size))
+    log_step = max(1, len(chunks) // 10)
+
+    with _open_weights_file(
+        "get_and_save_weights", cols, population_name, outputfile, electrodes, neurite_types, gid_offset
+    ) as (dset, start):
+        t0 = MPI.Wtime()
+        for i, (rows, points) in enumerate(chunks):
+            if i % log_step == 0:
+                log_rank0(
+                    f"get_and_save_weights: {i}/{len(chunks)} chunks ({i * 100 // len(chunks)}%) — {MPI.Wtime() - t0:.1f}s"
+                )
+            weights = get_weights(
+                positions.iloc[:, points],
+                cols[rows],
+                electrodes,
+                sigma=sigma,
+                path_to_fields=path_to_fields,
+                objective_csd_array_indices=objective_csd_array_indices,
+                electrode_chunk_size=electrode_chunk_size,
+                verbose=False,
             )
-        h5 = h5py.File(outputfile, "a", driver="mpio", comm=comm)
-    else:
-        h5 = h5py.File(outputfile, "a")
-    t2 = MPI.Wtime()
-
-    # 4. Write coefficients — each rank writes its own contiguous slice.
-    # All ranks must participate in the dataset access to avoid MPI-IO
-    # deadlocks (even ranks with no data perform a zero-length read).
-    dset = h5[f"electrodes/{population_name}/scaling_factors"]
-    if weights is not None and local_segments > 0:
-        block = weights.to_numpy().T  # (N_local_segments, N_electrodes)
-        dset[start : start + block.shape[0], :] = block
-    t3 = MPI.Wtime()
-
-    # 5. Write neurite types if requested
-    if neurite_types is not None and local_segments > 0:
-        _write_neurite_types(h5, neurite_types, population_name, start=start)
-
-    comm.Barrier()
-    h5.close()
-    t4 = MPI.Wtime()
-
-    total_segments = comm.allreduce(local_segments, op=MPI.SUM)
-    n_electrodes = len(electrodes)
-    file_size_gb = total_segments * n_electrodes * 8 / 1e9
-    log_rank0(
-        f"save_weights: done. "
-        f"{total_segments:,} segments × {n_electrodes} electrodes = {file_size_gb:.1f} GB | "
-        f"init {t1 - t0:.1f}s, open {t2 - t1:.1f}s, write {t3 - t2:.1f}s, close {t4 - t3:.1f}s, "
-        f"total {t4 - t0:.1f}s"
-    )
+            dset[start + rows.start : start + rows.stop, :] = weights.to_numpy().T
+        log_rank0(f"get_and_save_weights: {len(chunks)}/{len(chunks)} chunks (100%) — {MPI.Wtime() - t0:.1f}s")

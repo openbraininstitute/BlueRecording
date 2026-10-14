@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from morphio import Morphology
 
+from bluerecording.positions import _get_new_index
 from bluerecording.weights import (
     Electrode,
     ElectrodeType,
@@ -115,6 +116,38 @@ def make_electrodes_objective_array():
             region="Outside",
             layer="Outside",
         ),
+    ]
+
+
+def make_cells(n_sections=(2, 4, 1, 3), seed=0):
+    """cols and random segment boundary positions for cells 0, 1, ...
+
+    Cell i has a soma and n_sections[i] sections of two segments each, so the
+    default cells have 5, 9, 3 and 7 segments.
+    """
+    rows = []
+    for gid, n in enumerate(n_sections):
+        rows.append((gid, 0))
+        for sec in range(1, n + 1):
+            rows += [(gid, sec)] * 2
+    cols = np.array(rows, dtype=np.uint64)
+    index = _get_new_index(cols)
+    rng = np.random.default_rng(seed)
+    positions = pd.DataFrame(rng.uniform(-100, 100, size=(3, len(index))), columns=index)
+    return cols, positions
+
+
+def make_electrodes_mixed():
+    """Line-source, point-source and objective CSD electrodes away from make_cells' cells."""
+    return [
+        Electrode(name="0", position=np.array([300.0, 0.0, 0.0]), type=ElectrodeType.LINE_SOURCE),
+        Electrode(name="1", position=np.array([0.0, 300.0, 0.0]), type=ElectrodeType.POINT_SOURCE),
+        Electrode(
+            name="2",
+            position=np.array([0.0, 0.0, 50.0]),
+            type=ObjectiveCSDParams(electrode_type=ElectrodeType.OBJECTIVE_CSD_SPHERE, radius=100.0),
+        ),
+        Electrode(name="3", position=np.array([0.0, 0.0, -300.0]), type=ElectrodeType.LINE_SOURCE),
     ]
 
 
