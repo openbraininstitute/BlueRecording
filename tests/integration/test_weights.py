@@ -6,7 +6,14 @@ import pytest
 from bluerecording import positions
 from bluerecording.circuit import init_circuit
 from bluerecording.physics import SegmentGeometry, get_coeffs_line_source, get_coeffs_point_source
-from bluerecording.weights import Electrode, _get_segment_midpts, get_weights, save_weights
+from bluerecording.weights import (
+    ComputeWeightsTask,
+    Electrode,
+    _get_segment_midpts,
+    compute_and_save_weights,
+    get_weights,
+    save_weights,
+)
 from tests.conftest import EXAMPLE_RAT_S1
 
 
@@ -47,6 +54,23 @@ def test_rat_s1_write_weights(tmp_path):
     save_weights(weights, cols, pop_name, out, electrodes=electrodes)
 
     with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
+        np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
+        dset = f"electrodes/{pop_name}/scaling_factors"
+        np.testing.assert_allclose(r[dset][:], n[dset][:], rtol=1e-6, atol=1e-9)
+
+
+def test_rat_s1_write_weights_in_batches(tmp_path):
+    """compute_and_save_weights building rat_s1_forelimb_l56_10cells a few cells at a time."""
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    csv = str(EXAMPLE_RAT_S1 / "electrodes.json")
+    ref = str(EXAMPLE_RAT_S1 / "reference" / "weights_ref.h5")
+    out = str(tmp_path / "weights.h5")
+
+    compute_and_save_weights(circuit_config, [ComputeWeightsTask(electrodes=csv, output=out)], cells_per_batch=3)
+
+    with h5py.File(ref, "r") as r, h5py.File(out, "r") as n:
+        pop_name = next(k for k in n if k != "electrodes")
         np.testing.assert_array_equal(r[f"{pop_name}/node_ids"][:], n[f"{pop_name}/node_ids"][:])
         np.testing.assert_array_equal(r[f"{pop_name}/offsets"][:], n[f"{pop_name}/offsets"][:])
         dset = f"electrodes/{pop_name}/scaling_factors"

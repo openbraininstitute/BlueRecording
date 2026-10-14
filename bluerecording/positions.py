@@ -10,7 +10,7 @@ from morphio import Collection, Morphology, SectionType
 from mpi4py import MPI
 from scipy.interpolate import interp1d
 
-from .circuit import init_circuit
+from .circuit import iter_circuit_batches
 from .utils import log_rank0, rank
 
 
@@ -607,9 +607,45 @@ def save_positions(positions_df: pd.DataFrame, path_to_positions_folder: str | P
     positions_df.to_pickle(path_to_positions_folder / f"positions{rank}.pkl")
 
 
+def _merge_batches(
+    batches: list[tuple[pd.DataFrame, np.ndarray, np.ndarray]],
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Join the get_positions results of several batches, with the cells back in node ID order."""
+    batches = [batch for batch in batches if len(batch[1])] or batches[:1]
+    if len(batches) == 1:
+        return batches[0]
+
+    positions_df = pd.concat([positions_df for positions_df, _, _ in batches], axis=1)
+    cols = np.concatenate([cols for _, cols, _ in batches])
+    neurite_types = np.concatenate([neurite_types for _, _, neurite_types in batches])
+
+    # Stable sorts keep each cell's segments in order
+    points = np.argsort(positions_df.columns.get_level_values(0), kind="stable")
+    rows = np.argsort(cols[:, 0], kind="stable")
+    return positions_df.iloc[:, points], cols[rows], neurite_types[rows]
+
+
+def _compute_positions(
+    path_to_config: str | Path,
+    replace_axons: bool = True,
+    cells_per_batch: int | None = None,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, str]:
+    """Build the circuit a batch of cells at a time and compute this rank's segment positions.
+
+    Returns compute_positions' tuple and the population name. The cells are
+    freed before returning.
+    """
+    batches = []
+    for batch in iter_circuit_batches(str(path_to_config), cells_per_batch):
+        cells, cols, population, population_name, morphologies_dir = batch
+        batches.append(get_positions(cells, cols, population, morphologies_dir, replace_axons=replace_axons))
+    return *_merge_batches(batches), population_name
+
+
 def compute_positions(
     path_to_config: str | Path,
     replace_axons: bool = True,
+    cells_per_batch: int | None = None,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """High-level API: compute segment positions from a config file.
 
@@ -620,6 +656,8 @@ def compute_positions(
         path_to_config: Path to a SONATA simulation or circuit configuration file.
         replace_axons: If True, replace morphological axons with a standardized
             stub (two 30 µm AIS sections + 1000 µm myelinated section).
+        cells_per_batch: Max cells built at once across all ranks (limits peak
+            memory). None builds them all at once.
 
     Returns:
         positions_df: DataFrame with MultiIndex columns (id, section),
@@ -627,11 +665,5 @@ def compute_positions(
         cols: (N, 2) uint64 array of (node_id, section) pairs.
         neurite_types: (N,) int32 array of neurite type codes per compartment.
     """
-    cells, cols, population, _, morphologies_dir = init_circuit(str(path_to_config))
-    return get_positions(
-        cells,
-        cols,
-        population,
-        morphologies_dir=morphologies_dir,
-        replace_axons=replace_axons,
-    )
+    positions_df, cols, neurite_types, _ = _compute_positions(path_to_config, replace_axons, cells_per_batch)
+    return positions_df, cols, neurite_types

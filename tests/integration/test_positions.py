@@ -66,3 +66,20 @@ def test_rat_s1_get_positions(tmp_path):
 
     assert df_ref.index.equals(df_new.index)
     pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, check_column_type=False)
+
+
+def test_rat_s1_positions_in_batches(tmp_path):
+    """Positions built a few cells at a time match the reference."""
+    from tests.conftest import EXAMPLE_RAT_S1
+
+    circuit_config = str(EXAMPLE_RAT_S1 / "circuit_config.json")
+    ref_path = str(EXAMPLE_RAT_S1 / "reference" / "positions0_ref.pkl")
+
+    pos_df, _, _ = positions.compute_positions(circuit_config, cells_per_batch=3)
+    positions.save_positions(pos_df, tmp_path)
+
+    df_ref = pd.read_pickle(ref_path)
+    df_new = pd.read_pickle(str(tmp_path / "positions0.pkl"))
+
+    assert df_ref.index.equals(df_new.index)
+    pd.testing.assert_frame_equal(df_ref, df_new, check_exact=False, check_column_type=False)
