@@ -5,7 +5,13 @@ from pathlib import Path
 from . import __version__
 from .compare import compare_weights
 from .positions import _compute_positions, compute_positions, save_positions
-from .weights import DEFAULT_ELECTRODE_CHUNK_SIZE, DEFAULT_SIGMA, Electrode, get_weights, save_weights
+from .weights import (
+    DEFAULT_ELECTRODE_CHUNK_SIZE,
+    DEFAULT_SEGMENT_CHUNK_SIZE,
+    DEFAULT_SIGMA,
+    Electrode,
+    get_and_save_weights,
+)
 
 
 def main():
@@ -86,6 +92,13 @@ def main():
         help=f"Max electrodes per computation chunk (default: {DEFAULT_ELECTRODE_CHUNK_SIZE})",
     )
     ww_parser.add_argument(
+        "--segment-chunk-size",
+        type=int,
+        default=DEFAULT_SEGMENT_CHUNK_SIZE,
+        dest="segment_chunk_size",
+        help=f"Max segments per chunk of weights computed and written at once (default: {DEFAULT_SEGMENT_CHUNK_SIZE})",
+    )
+    ww_parser.add_argument(
         "--cells-per-batch",
         type=int,
         default=None,
@@ -118,20 +131,16 @@ def main():
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
         electrodes = Electrode.from_json(args.electrode_file)
-        weights = get_weights(
+        get_and_save_weights(
             positions_df,
-            cols,
-            electrodes=electrodes,
-            sigma=args.sigma,
-            path_to_fields=args.path_to_fields,
-            electrode_chunk_size=args.electrode_chunk_size,
-        )
-        save_weights(
-            weights,
             cols,
             population_name,
             str(output_file),
             electrodes=electrodes,
+            sigma=args.sigma,
+            path_to_fields=args.path_to_fields,
+            electrode_chunk_size=args.electrode_chunk_size,
+            segment_chunk_size=args.segment_chunk_size,
             neurite_types=neurite_types if args.with_neurite_type else None,
         )
         if args.write_positions:
